@@ -1,16 +1,3 @@
 {
-  "character": "ラ",
-  "strokeEndings": [
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "harai",
-      "direction": [
-        -0.77,
-        -0.64
-      ]
-    }
-  ]
+  "character": "ラ"
 }

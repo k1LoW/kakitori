@@ -1,13 +1,3 @@
 {
-  "character": "ヒ",
-  "strokeEndings": [
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "tome",
-      "direction": null
-    }
-  ]
+  "character": "ヒ"
 }

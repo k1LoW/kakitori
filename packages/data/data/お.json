@@ -11,22 +11,5 @@
     [
       3
     ]
-  ],
-  "strokeEndings": [
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "harai",
-      "direction": [
-        -0.87,
-        -0.48
-      ]
-    },
-    {
-      "type": "tome",
-      "direction": null
-    }
   ]
 }

@@ -1,17 +1,3 @@
 {
-  "character": "ウ",
-  "strokeEndings": [
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "tome",
-      "direction": null
-    }
-  ]
+  "character": "ウ"
 }

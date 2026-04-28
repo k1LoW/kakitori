@@ -1,20 +1,3 @@
 {
-  "character": "タ",
-  "strokeEndings": [
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "tome",
-      "direction": null
-    },
-    {
-      "type": "harai",
-      "direction": [
-        0.55,
-        -0.84
-      ]
-    }
-  ]
+  "character": "タ"
 }
