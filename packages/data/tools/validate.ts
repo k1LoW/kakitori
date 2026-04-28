@@ -88,8 +88,14 @@ function validate(): void {
       ? data.strokeGroups.length
       : dataStrokeCount;
 
+    if (data.strokeEndings == null) {
+      // strokeEndings is optional
+      valid++;
+      continue;
+    }
+
     if (!Array.isArray(data.strokeEndings)) {
-      console.error(`${prefix} Missing or invalid "strokeEndings" array`);
+      console.error(`${prefix} Invalid "strokeEndings" (not an array)`);
       errors++;
       continue;
     }
@@ -103,18 +109,22 @@ function validate(): void {
     }
 
     let strokeErrors = false;
+    const validTypes = ["tome", "hane", "harai"];
     for (let i = 0; i < data.strokeEndings.length; i++) {
       const ending = data.strokeEndings[i];
-      if (!["tome", "hane", "harai"].includes(ending.type)) {
-        console.error(
-          `${prefix} Stroke ${i + 1}: invalid type "${ending.type}"`,
-        );
-        strokeErrors = true;
+      const types = ending.types ?? [];
+
+      for (const t of types) {
+        if (!validTypes.includes(t)) {
+          console.error(
+            `${prefix} Stroke ${i + 1}: invalid type "${t}"`,
+          );
+          strokeErrors = true;
+        }
       }
-      if (
-        (ending.type === "hane" || ending.type === "harai") &&
-        ending.direction != null
-      ) {
+
+      const hasDirectional = types.includes("hane") || types.includes("harai");
+      if (hasDirectional && ending.direction != null) {
         const [dx, dy] = ending.direction;
         const mag = Math.sqrt(dx * dx + dy * dy);
         if (Math.abs(mag - 1) > 0.1) {

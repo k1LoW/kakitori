@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import type { StrokeEnding, KakitoriCharacterConfig } from "../src/types.js";
+import type { StrokeEnding, StrokeEndingType, KakitoriCharacterConfig } from "../src/types.js";
 import { suggestStrokeEnding } from "./suggest.js";
 import { getCharSet } from "./charSets.js";
 
@@ -30,11 +30,17 @@ function saveData(data: KakitoriCharacterConfig): void {
   console.log(`\n  Saved: ${filePath}`);
 }
 
+function typeToLabel(types: StrokeEndingType[]): string {
+  return types.map((t) => (t === "tome" ? "t" : t === "hane" ? "h" : "r")).join("+");
+}
+
 function formatStrokeEnding(ending: StrokeEnding): string {
+  const types = ending.types ?? [];
+  if (types.length === 0) return "(skip)";
   const dir = ending.direction
     ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
     : "";
-  return `${ending.type}${dir}`;
+  return `${types.join("+")}${dir}`;
 }
 
 function formatGroups(groups: number[][]): string {
@@ -118,41 +124,53 @@ async function annotateChar(
     const lastDataIdx = group[group.length - 1];
     const suggestion = suggestStrokeEnding(charData.medians[lastDataIdx]);
     const existingEnding = existing?.strokeEndings?.[i];
-    const defaultType = existingEnding?.type ?? suggestion.type;
-    const defaultLabel =
-      defaultType === "tome" ? "t" : defaultType === "hane" ? "h" : "r";
+    const existingTypes = existingEnding?.types ?? [];
+    const defaultTypes = existingTypes.length > 0 ? existingTypes : [suggestion.type];
+    const defaultLabel = typeToLabel(defaultTypes);
 
     const groupLabel = group.length > 1 ? ` [data: ${group.join("+")}]` : "";
     const currentLabel = existingEnding
       ? ` (current: ${formatStrokeEnding(existingEnding)})`
       : "";
     const answer = await rl.question(
-      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai [${defaultLabel}]${currentLabel}: `,
+      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai (use + for multiple, e.g. t+r) [${defaultLabel}]${currentLabel}: `,
     );
 
-    let type: StrokeEnding["type"];
     const input = answer.trim().toLowerCase();
-    if (input === "" || input === defaultLabel) {
-      type = defaultType;
-    } else if (input === "t") {
-      type = "tome";
-    } else if (input === "h") {
-      type = "hane";
-    } else if (input === "r") {
-      type = "harai";
+    let types: StrokeEndingType[];
+    if (input === "") {
+      types = defaultTypes;
+    } else if (input === "-") {
+      // Explicit skip
+      types = [];
     } else {
-      console.log(`  Invalid input "${input}", using default: ${defaultType}`);
-      type = defaultType;
+      const parts = input.split("+").map((s) => s.trim());
+      const parsed = parts.map((p) => {
+        if (p === "t") return "tome" as const;
+        if (p === "h") return "hane" as const;
+        if (p === "r") return "harai" as const;
+        return null;
+      });
+      const valid = parsed.filter((p) => p !== null);
+      if (valid.length === 0) {
+        console.log(`  Invalid input "${input}", using default`);
+        types = defaultTypes;
+      } else {
+        types = valid;
+      }
     }
 
-    let direction: [number, number] | null = null;
-    if (type === "hane" || type === "harai") {
-      const suggestedDir =
-        existingEnding?.direction ?? suggestion.direction;
-      direction = suggestedDir ?? suggestStrokeEnding(charData.medians[lastDataIdx]).direction;
+    const ending: StrokeEnding = {};
+    if (types.length > 0) {
+      ending.types = types;
+      if (types.includes("hane") || types.includes("harai")) {
+        const suggestedDir =
+          existingEnding?.direction ?? suggestion.direction;
+        ending.direction = suggestedDir ?? suggestStrokeEnding(charData.medians[lastDataIdx]).direction;
+      }
     }
 
-    strokeEndings.push({ type, direction });
+    strokeEndings.push(ending);
   }
 
   const result: KakitoriCharacterConfig = { character: char, strokeEndings };

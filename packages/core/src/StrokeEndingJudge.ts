@@ -129,7 +129,7 @@ export function judge(
     detectedType = "tome";
   }
 
-  let correct = detectedType === expected.type;
+  let correct = (expected.types ?? []).includes(detectedType);
   let confidence = 0.5;
 
   if (correct) {
@@ -138,7 +138,7 @@ export function judge(
     if (
       expected.direction != null &&
       actualEndDirection != null &&
-      (expected.type === "hane" || expected.type === "harai")
+      (detectedType === "hane" || detectedType === "harai")
     ) {
       const dirSimilarity = dotProduct(actualEndDirection, expected.direction);
       const threshold = 1 - strictness;
@@ -155,7 +155,7 @@ export function judge(
 
   return {
     correct,
-    expected: expected.type,
+    expected: expected.types,
     confidence,
     velocityProfile,
     actualEndDirection,

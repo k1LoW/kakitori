@@ -242,13 +242,12 @@ export class Kakitori {
         // (the one the user actually drew; subsequent strokes are auto-skipped)
         if (this.isFirstInGroup(dataStrokeNum) && this.strokeEndings != null) {
           const expected = this.strokeEndings[logicalStrokeNum];
-          if (expected) {
+          // Skip judgment if types is empty or omitted ({})
+          if (expected?.types && expected.types.length > 0) {
             // Auto-compute direction from median data if not specified
             let resolvedExpected = expected;
-            if (
-              expected.direction == null &&
-              (expected.type === "hane" || expected.type === "harai")
-            ) {
+            const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
+            if (expected.direction == null && needsDirection) {
               const group = this.strokeGroups
                 ? this.strokeGroups[logicalStrokeNum]
                 : [dataStrokeNum];
@@ -272,7 +271,7 @@ export class Kakitori {
             );
             kakitoriData.strokeEnding = judgment;
 
-            this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.type : "other"} expected=${expected.type} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
+            this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.types : "other"} expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
 
             if (!judgment.correct) {
               this.strokeEndingMistakes++;
