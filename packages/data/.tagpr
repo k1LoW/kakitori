@@ -1,0 +1,5 @@
+[tagpr]
+	vPrefix = true
+	releaseBranch = main
+	versionFile = packages/data/package.json
+	tagPrefix = packages/data
