@@ -129,8 +129,7 @@ export function judge(
     detectedType = "tome";
   }
 
-  const expectedTypes = Array.isArray(expected.type) ? expected.type : [expected.type];
-  let correct = expectedTypes.includes(detectedType);
+  let correct = (expected.types ?? []).includes(detectedType);
   let confidence = 0.5;
 
   if (correct) {

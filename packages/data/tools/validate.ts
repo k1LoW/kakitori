@@ -88,8 +88,14 @@ function validate(): void {
       ? data.strokeGroups.length
       : dataStrokeCount;
 
+    if (data.strokeEndings == null) {
+      // strokeEndings is optional
+      valid++;
+      continue;
+    }
+
     if (!Array.isArray(data.strokeEndings)) {
-      console.error(`${prefix} Missing or invalid "strokeEndings" array`);
+      console.error(`${prefix} Invalid "strokeEndings" (not an array)`);
       errors++;
       continue;
     }
@@ -106,7 +112,7 @@ function validate(): void {
     const validTypes = ["tome", "hane", "harai"];
     for (let i = 0; i < data.strokeEndings.length; i++) {
       const ending = data.strokeEndings[i];
-      const types = Array.isArray(ending.type) ? ending.type : [ending.type];
+      const types = ending.types ?? [];
 
       for (const t of types) {
         if (!validTypes.includes(t)) {

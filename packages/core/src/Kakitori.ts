@@ -242,11 +242,11 @@ export class Kakitori {
         // (the one the user actually drew; subsequent strokes are auto-skipped)
         if (this.isFirstInGroup(dataStrokeNum) && this.strokeEndings != null) {
           const expected = this.strokeEndings[logicalStrokeNum];
-          if (expected) {
+          // Skip judgment if types is empty or omitted ({})
+          if (expected?.types && expected.types.length > 0) {
             // Auto-compute direction from median data if not specified
             let resolvedExpected = expected;
-            const expectedTypes = Array.isArray(expected.type) ? expected.type : [expected.type];
-            const needsDirection = expectedTypes.includes("hane") || expectedTypes.includes("harai");
+            const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
             if (expected.direction == null && needsDirection) {
               const group = this.strokeGroups
                 ? this.strokeGroups[logicalStrokeNum]

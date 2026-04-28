@@ -26,18 +26,18 @@ const charConfigs: Record<string, {
   あ: {
     strokeGroups: [[0], [1], [2, 3]],
     strokeEndings: [
-      { type: "tome", direction: null },
-      { type: "tome", direction: null },
-      { type: "harai", direction: null },
+      { types: ["tome"] },
+      { types: ["tome"] },
+      { types: ["tome", "harai"] },
     ],
   },
   永: {
     strokeEndings: [
-      { type: "tome", direction: null },
-      { type: "hane", direction: null },
-      { type: "harai", direction: null },
-      { type: "harai", direction: null },
-      { type: "harai", direction: null },
+      { types: ["tome"] },
+      { types: ["hane"] },
+      { types: ["harai"] },
+      { types: ["harai"] },
+      { types: ["harai"] },
     ],
   },
 };
