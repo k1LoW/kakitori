@@ -9,6 +9,7 @@ const resultEl = document.getElementById("result")!;
 const logEl = document.getElementById("log")!;
 
 let kakitori: Kakitori | null = null;
+let highlightIdx = -1;
 
 function log(msg: string) {
   const now = performance.now();
@@ -17,13 +18,12 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-// Per-character config: strokeGroups + strokeEndings
+// Per-character config
 const charConfigs: Record<string, {
   strokeGroups?: number[][];
   strokeEndings?: StrokeEnding[];
 }> = {
   あ: {
-    // Data has 4 strokes, but あ is actually 3 strokes. Strokes 2+3 are one stroke.
     strokeGroups: [[0], [1], [2, 3]],
     strokeEndings: [
       { type: "harai", direction: [0.76, -0.65] },
@@ -46,6 +46,7 @@ function createKakitori(char: string) {
   writerEl.innerHTML = "";
   resultEl.textContent = "";
   logEl.textContent = "";
+  highlightIdx = -1;
 
   const config = charConfigs[char];
 
@@ -70,6 +71,34 @@ function createKakitori(char: string) {
     kakitori.setStrokeEndings(config.strokeEndings);
   }
 }
+
+// Click on stroke to highlight
+writerEl.addEventListener("click", (e) => {
+  if (!kakitori) return;
+  const idx = kakitori.getStrokeIndexAtPoint(e.clientX, e.clientY);
+  if (idx !== null) {
+    kakitori.resetStrokeColors();
+    kakitori.highlightStroke(idx, "#c00");
+    resultEl.textContent = `Stroke ${idx + 1} selected`;
+    highlightIdx = idx;
+    log(`click: stroke ${idx + 1} highlighted`);
+  }
+});
+
+// Sequential highlight button
+const highlightBtn = document.createElement("button");
+highlightBtn.textContent = "次の画";
+document.querySelector(".controls")!.appendChild(highlightBtn);
+highlightBtn.addEventListener("click", () => {
+  if (!kakitori) return;
+  const count = kakitori.getLogicalStrokeCount();
+  if (count === 0) return;
+  kakitori.resetStrokeColors();
+  highlightIdx = (highlightIdx + 1) % count;
+  kakitori.highlightStroke(highlightIdx, "#c00");
+  resultEl.textContent = `Stroke ${highlightIdx + 1} / ${count}`;
+  log(`highlight: stroke ${highlightIdx + 1}/${count}`);
+});
 
 quizBtn.addEventListener("click", () => {
   const char = charInput.value.trim();

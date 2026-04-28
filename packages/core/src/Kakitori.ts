@@ -430,6 +430,106 @@ export class Kakitori {
     this.hw.hideOutline();
   }
 
+  /**
+   * Get the main stroke path elements from HanziWriter's SVG.
+   * HanziWriter has 3 groups with clip-path paths: outline, main, highlight.
+   * We want the "main" group (second one) for coloring.
+   * Returns paths in data stroke order.
+   */
+  private getStrokePaths(): SVGPathElement[] {
+    const svg = this.targetEl.querySelector("svg");
+    if (!svg) return [];
+    const allGroups = svg.querySelectorAll(":scope > g > g");
+    const groupsWithPaths: Element[] = [];
+    for (const g of allGroups) {
+      if (g.querySelectorAll("path[clip-path]").length > 0) {
+        groupsWithPaths.push(g);
+      }
+    }
+    // Main character group is the second group (index 1): outline=0, main=1, highlight=2
+    const mainGroup = groupsWithPaths[1];
+    if (!mainGroup) return [];
+    return Array.from(mainGroup.querySelectorAll("path[clip-path]")) as SVGPathElement[];
+  }
+
+  /**
+   * Get the logical stroke index at a given point (client coordinates).
+   * Uses document.elementFromPoint for accurate hit detection that respects
+   * clip-paths and actual rendered output.
+   * Returns null if no stroke found at the point.
+   */
+  getStrokeIndexAtPoint(clientX: number, clientY: number): number | null {
+    const svg = this.targetEl.querySelector("svg");
+    if (!svg) return null;
+
+    const el = document.elementFromPoint(clientX, clientY);
+    if (!el || !(el instanceof SVGPathElement)) return null;
+
+    // The clicked element could be from any group (outline, main, highlight).
+    // All groups have the same stroke order. Find which clip-path it uses,
+    // then determine the data stroke index from the clip-path id.
+    const clipAttr = el.getAttribute("clip-path");
+    if (!clipAttr) return null;
+
+    // Extract mask id: url("...#mask-25") -> mask-25
+    const match = clipAttr.match(/#([^")\s]+)/);
+    if (!match) return null;
+    const maskId = match[1];
+
+    // Find all clip-paths in defs and determine the stroke index
+    const clipPaths = svg.querySelectorAll("defs clipPath");
+    const strokeCount = this.getStrokePaths().length;
+    for (let i = 0; i < clipPaths.length; i++) {
+      if (clipPaths[i].id === maskId) {
+        // clip-paths repeat for each group (outline, main, highlight),
+        // so mod by stroke count to get the data stroke index
+        const dataIdx = i % strokeCount;
+        return this.getLogicalStrokeNum(dataIdx);
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Highlight a logical stroke with a specific color.
+   */
+  highlightStroke(logicalStrokeNum: number, color: string = "#FF0000"): void {
+    const strokePaths = this.getStrokePaths();
+    const dataIndices = this.strokeGroups
+      ? this.strokeGroups[logicalStrokeNum] ?? []
+      : [logicalStrokeNum];
+
+    for (const dataIdx of dataIndices) {
+      const path = strokePaths[dataIdx];
+      if (path) {
+        path.dataset.kakitoriOriginalStroke = path.style.stroke || "";
+        path.style.stroke = color;
+      }
+    }
+  }
+
+  /**
+   * Reset all stroke colors to default.
+   */
+  resetStrokeColors(): void {
+    const strokePaths = this.getStrokePaths();
+    for (const path of strokePaths) {
+      if (path.dataset.kakitoriOriginalStroke !== undefined) {
+        path.style.stroke = path.dataset.kakitoriOriginalStroke;
+        delete path.dataset.kakitoriOriginalStroke;
+      }
+    }
+  }
+
+  /**
+   * Get the total number of logical strokes.
+   */
+  getLogicalStrokeCount(): number {
+    if (this.strokeGroups) return this.strokeGroups.length;
+    return this.getStrokePaths().length;
+  }
+
   async setCharacter(char: string): Promise<void> {
     this.character = char;
     this.strokeEndings = null;
