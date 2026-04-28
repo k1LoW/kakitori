@@ -1,0 +1,24 @@
+{
+  "character": "ネ",
+  "strokeEndings": [
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "hane",
+      "direction": [
+        0.0,
+        -1.0
+      ]
+    },
+    {
+      "type": "tome",
+      "direction": null
+    }
+  ]
+}

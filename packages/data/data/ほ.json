@@ -1,0 +1,36 @@
+{
+  "character": "ほ",
+  "strokeGroups": [
+    [
+      0
+    ],
+    [
+      1
+    ],
+    [
+      2
+    ],
+    [
+      3,
+      4
+    ]
+  ],
+  "strokeEndings": [
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "character": "ソ",
+  "strokeEndings": [
+    {
+      "type": "harai",
+      "direction": [
+        0.71,
+        -0.71
+      ]
+    },
+    {
+      "type": "harai",
+      "direction": [
+        -0.8,
+        -0.6
+      ]
+    }
+  ]
+}

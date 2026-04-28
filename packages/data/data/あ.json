@@ -1,0 +1,32 @@
+{
+  "character": "あ",
+  "strokeGroups": [
+    [
+      0
+    ],
+    [
+      1
+    ],
+    [
+      2,
+      3
+    ]
+  ],
+  "strokeEndings": [
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "harai",
+      "direction": [
+        -0.96,
+        -0.26
+      ]
+    }
+  ]
+}

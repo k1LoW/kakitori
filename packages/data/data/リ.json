@@ -1,0 +1,16 @@
+{
+  "character": "リ",
+  "strokeEndings": [
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "hane",
+      "direction": [
+        -0.64,
+        -0.77
+      ]
+    }
+  ]
+}

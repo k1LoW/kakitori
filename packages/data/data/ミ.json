@@ -1,0 +1,26 @@
+{
+  "character": "ミ",
+  "strokeEndings": [
+    {
+      "type": "harai",
+      "direction": [
+        0.47,
+        -0.89
+      ]
+    },
+    {
+      "type": "harai",
+      "direction": [
+        0.39,
+        -0.92
+      ]
+    },
+    {
+      "type": "harai",
+      "direction": [
+        0.3,
+        -0.95
+      ]
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "character": "イ",
+  "strokeEndings": [
+    {
+      "type": "harai",
+      "direction": [
+        -0.87,
+        -0.5
+      ]
+    },
+    {
+      "type": "tome",
+      "direction": null
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "character": "み",
+  "strokeGroups": [
+    [
+      0,
+      1
+    ],
+    [
+      2
+    ]
+  ],
+  "strokeEndings": [
+    {
+      "type": "tome",
+      "direction": null
+    },
+    {
+      "type": "tome",
+      "direction": null
+    }
+  ]
+}
