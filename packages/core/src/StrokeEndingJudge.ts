@@ -155,7 +155,7 @@ export function judge(
 
   return {
     correct,
-    expected: expected.type,
+    expected: expected.types,
     confidence,
     velocityProfile,
     actualEndDirection,

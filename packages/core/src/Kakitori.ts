@@ -271,7 +271,7 @@ export class Kakitori {
             );
             kakitoriData.strokeEnding = judgment;
 
-            this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.type : "other"} expected=${expected.type} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
+            this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.types : "other"} expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
 
             if (!judgment.correct) {
               this.strokeEndingMistakes++;
