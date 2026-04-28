@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import type { KakitoriStrokeEndingsJson } from "../src/types.js";
+import type { KakitoriCharacterConfig } from "../src/types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const dataDir = resolve(__dirname, "..", "data");
@@ -24,7 +24,7 @@ function validate(): void {
     const filePath = resolve(dataDir, file);
     const prefix = `  ${file}:`;
 
-    let data: KakitoriStrokeEndingsJson;
+    let data: KakitoriCharacterConfig;
     try {
       data = JSON.parse(readFileSync(filePath, "utf-8"));
     } catch (e) {
@@ -39,13 +39,7 @@ function validate(): void {
       continue;
     }
 
-    if (!Array.isArray(data.strokeEndings)) {
-      console.error(`${prefix} Missing or invalid "strokeEndings" array`);
-      errors++;
-      continue;
-    }
-
-    // Validate against hanzi-writer-data-jp stroke count
+    // Load hanzi-writer-data-jp for this character
     let charData: { strokes: string[] };
     try {
       charData = require(`@k1low/hanzi-writer-data-jp/${data.character}.json`);
@@ -57,9 +51,52 @@ function validate(): void {
       continue;
     }
 
-    if (data.strokeEndings.length !== charData.strokes.length) {
+    const dataStrokeCount = charData.strokes.length;
+
+    // Validate strokeGroups
+    if (data.strokeGroups) {
+      const allIndices = data.strokeGroups.flat();
+      const uniqueIndices = new Set(allIndices);
+
+      if (allIndices.length !== uniqueIndices.size) {
+        console.error(`${prefix} strokeGroups has duplicate indices`);
+        errors++;
+        continue;
+      }
+
+      if (uniqueIndices.size !== dataStrokeCount) {
+        console.error(
+          `${prefix} strokeGroups covers ${uniqueIndices.size} indices but data has ${dataStrokeCount} strokes`,
+        );
+        errors++;
+        continue;
+      }
+
+      for (const idx of allIndices) {
+        if (idx < 0 || idx >= dataStrokeCount) {
+          console.error(
+            `${prefix} strokeGroups index ${idx} out of range (0-${dataStrokeCount - 1})`,
+          );
+          errors++;
+          continue;
+        }
+      }
+    }
+
+    // Determine expected strokeEndings length
+    const logicalStrokeCount = data.strokeGroups
+      ? data.strokeGroups.length
+      : dataStrokeCount;
+
+    if (!Array.isArray(data.strokeEndings)) {
+      console.error(`${prefix} Missing or invalid "strokeEndings" array`);
+      errors++;
+      continue;
+    }
+
+    if (data.strokeEndings.length !== logicalStrokeCount) {
       console.error(
-        `${prefix} strokeEndings length (${data.strokeEndings.length}) !== strokes length (${charData.strokes.length})`,
+        `${prefix} strokeEndings length (${data.strokeEndings.length}) !== logical stroke count (${logicalStrokeCount})`,
       );
       errors++;
       continue;
