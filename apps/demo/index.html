@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kakitori demo</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 2rem;
+      }
+      #writer {
+        border: 1px solid #ccc;
+        margin: 1rem 0;
+      }
+      .controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>kakitori demo</h1>
+    <div class="controls">
+      <label for="char-input">文字:</label>
+      <input id="char-input" type="text" value="永" maxlength="1" size="3" />
+      <button id="quiz-btn">練習開始</button>
+      <button id="animate-btn">お手本</button>
+    </div>
+    <div id="writer"></div>
+    <div id="result"></div>
+    <pre id="log" style="max-height: 200px; overflow-y: auto; width: 400px; font-size: 11px; border: 1px solid #ccc; padding: 8px; text-align: left; margin-top: 8px;"></pre>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

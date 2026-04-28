@@ -1,0 +1,36 @@
+{
+  "name": "@k1low/kakitori-data",
+  "version": "0.0.0",
+  "description": "Stroke ending data (tome/hane/harai) for kakitori",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./data/*.json": "./data/*.json"
+  },
+  "files": [
+    "dist",
+    "data"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "set-stroke-endings": "tsx tools/set-stroke-endings.ts",
+    "validate": "tsx tools/validate.ts",
+    "stats": "tsx tools/stats.ts"
+  },
+  "devDependencies": {
+        "@k1low/hanzi-writer-data-jp": "0.1.0",
+    "tsdown": "0.12.5",
+    "tsx": "4.19.4",
+    "typescript": "5.8.3",
+    "vitest": "3.1.3",
+    "zod": "3.24.4"
+  }
+}

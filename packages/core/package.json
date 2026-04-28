@@ -1,0 +1,37 @@
+{
+  "name": "@k1low/kakitori",
+  "version": "0.0.0",
+  "description": "Kanji writing practice library with stroke ending judgment (tome/hane/harai)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "hanzi-writer": "^3.0.0"
+  },
+  "dependencies": {
+    "@k1low/kakitori-data": "workspace:^"
+  },
+  "devDependencies": {
+    "hanzi-writer": "3.7.3",
+    "tsdown": "0.12.5",
+    "typescript": "5.8.3",
+    "vitest": "3.1.3"
+  }
+}
