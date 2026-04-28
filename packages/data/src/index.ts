@@ -1,5 +1,5 @@
 export type {
   StrokeEndingType,
   StrokeEnding,
-  KakitoriStrokeEndingsJson,
+  KakitoriCharacterConfig,
 } from "./types.js";

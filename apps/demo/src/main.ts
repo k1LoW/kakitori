@@ -17,15 +17,29 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-// 永 (永字八法): tome, hane, harai が全て含まれる
-const sampleStrokeEndings: Record<string, StrokeEnding[]> = {
-  永: [
-    { type: "tome", direction: null },                 // stroke 0: 点 (dot)
-    { type: "hane", direction: [-0.87, 0.49] },        // stroke 1: 竪鉤 (vertical hook)
-    { type: "harai", direction: [-0.75, -0.66] },      // stroke 2: 掠 (left sweep)
-    { type: "harai", direction: [-0.80, -0.60] },      // stroke 3: 啄 (short left)
-    { type: "harai", direction: [0.99, -0.17] },       // stroke 4: 磔 (right sweep)
-  ],
+// Per-character config: strokeGroups + strokeEndings
+const charConfigs: Record<string, {
+  strokeGroups?: number[][];
+  strokeEndings?: StrokeEnding[];
+}> = {
+  あ: {
+    // Data has 4 strokes, but あ is actually 3 strokes. Strokes 2+3 are one stroke.
+    strokeGroups: [[0], [1], [2, 3]],
+    strokeEndings: [
+      { type: "harai", direction: [0.76, -0.65] },
+      { type: "tome", direction: null },
+      { type: "tome", direction: null },
+    ],
+  },
+  永: {
+    strokeEndings: [
+      { type: "tome", direction: null },
+      { type: "hane", direction: [-0.87, 0.49] },
+      { type: "harai", direction: [-0.75, -0.66] },
+      { type: "harai", direction: [-0.80, -0.60] },
+      { type: "harai", direction: [0.99, -0.17] },
+    ],
+  },
 };
 
 function createKakitori(char: string) {
@@ -33,11 +47,14 @@ function createKakitori(char: string) {
   resultEl.textContent = "";
   logEl.textContent = "";
 
+  const config = charConfigs[char];
+
   kakitori = Kakitori.create(writerEl, char, {
     width: 300,
     height: 300,
     charDataLoader: defaultCharDataLoader,
     logger: log,
+    strokeGroups: config?.strokeGroups,
     onCorrectStroke: (data: KakitoriStrokeData) => {
       if (data.strokeEnding) {
         const icon = data.strokeEnding.correct ? "OK" : "NG";
@@ -49,9 +66,8 @@ function createKakitori(char: string) {
     },
   });
 
-  const endings = sampleStrokeEndings[char];
-  if (endings) {
-    kakitori.setStrokeEndings(endings);
+  if (config?.strokeEndings) {
+    kakitori.setStrokeEndings(config.strokeEndings);
   }
 }
 

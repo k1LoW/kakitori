@@ -4,6 +4,8 @@ export type KakitoriLogger = (msg: string) => void;
 
 export interface KakitoriOptions {
   logger?: KakitoriLogger;
+  /** Maps logical strokes to data stroke indices. e.g. [[0], [1], [2, 3]] merges data strokes 2 and 3 into one. */
+  strokeGroups?: number[][];
   width?: number;
   height?: number;
   padding?: number;
