@@ -7,12 +7,29 @@ import type {
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader } from "./dataLoader.js";
 
+function computeDirectionFromMedian(
+  points: Array<{ x: number; y: number }>,
+): [number, number] | null {
+  if (points.length < 2) return null;
+  const last = points[points.length - 1];
+  const prev = points[points.length - 2];
+  const dx = last.x - prev.x;
+  const dy = last.y - prev.y;
+  const mag = Math.sqrt(dx * dx + dy * dy);
+  if (mag === 0) return null;
+  return [
+    Math.round((dx / mag) * 100) / 100,
+    Math.round((dy / mag) * 100) / 100,
+  ];
+}
+
 export class Kakitori {
   private hw: HanziWriter;
   private character: string;
   private options: KakitoriOptions;
   private strokeEndings: StrokeEnding[] | null = null;
   private strokeGroups: number[][] | null = null;
+  private characterData: any = null;
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
@@ -185,6 +202,9 @@ export class Kakitori {
     this.strokeEndingMistakes = 0;
     const strictness = this.options.strokeEndingStrictness ?? 0.7;
 
+    // Pre-load character data for direction auto-computation
+    this.hw.getCharacterData().then((c) => { this.characterData = c; });
+
     this.startTimingTracking();
 
     this.hw.quiz({
@@ -208,7 +228,6 @@ export class Kakitori {
           }
         }
 
-        // Only apply stroke ending judgment on the last data stroke of a group
         const kakitoriData: KakitoriStrokeData = {
           character: this.character,
           strokeNum: logicalStrokeNum,
@@ -219,15 +238,35 @@ export class Kakitori {
           strokesRemaining: hwData.strokesRemaining - skipsNeeded,
         };
 
-        if (isLast && this.strokeEndings != null) {
+        // Apply stroke ending judgment on the first data stroke of a group
+        // (the one the user actually drew; subsequent strokes are auto-skipped)
+        if (this.isFirstInGroup(dataStrokeNum) && this.strokeEndings != null) {
           const expected = this.strokeEndings[logicalStrokeNum];
           if (expected) {
+            // Auto-compute direction from median data if not specified
+            let resolvedExpected = expected;
+            if (
+              expected.direction == null &&
+              (expected.type === "hane" || expected.type === "harai")
+            ) {
+              const group = this.strokeGroups
+                ? this.strokeGroups[logicalStrokeNum]
+                : [dataStrokeNum];
+              const lastDataIdx = group[group.length - 1];
+              const medianPoints = this.characterData?.strokes[lastDataIdx]?.points;
+              const autoDir = medianPoints ? computeDirectionFromMedian(medianPoints) : null;
+              if (autoDir) {
+                resolvedExpected = { ...expected, direction: autoDir };
+                this.log?.(`auto direction: stroke=${logicalStrokeNum + 1} dir=[${autoDir}]`);
+              }
+            }
+
             const timing = this.getTimingData();
             this.log?.(`judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${hwData.drawnPath.points.length}`);
 
             const judgment = judge(
               hwData.drawnPath.points,
-              expected,
+              resolvedExpected,
               strictness,
               timing,
             );
@@ -406,7 +445,7 @@ export class Kakitori {
     hwSvg.style.display = "none";
     this.targetEl.appendChild(overlaySvg);
 
-    this.log?.(`animate: ${dataStrokes.length} strokes, totalTime=${totalTime.toFixed(1)}s`);
+    this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
     // Wait for animation, then clean up
     await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));

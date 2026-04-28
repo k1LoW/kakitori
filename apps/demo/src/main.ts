@@ -26,18 +26,18 @@ const charConfigs: Record<string, {
   あ: {
     strokeGroups: [[0], [1], [2, 3]],
     strokeEndings: [
-      { type: "harai", direction: [0.76, -0.65] },
       { type: "tome", direction: null },
       { type: "tome", direction: null },
+      { type: "harai", direction: null },
     ],
   },
   永: {
     strokeEndings: [
       { type: "tome", direction: null },
-      { type: "hane", direction: [-0.87, 0.49] },
-      { type: "harai", direction: [-0.75, -0.66] },
-      { type: "harai", direction: [-0.80, -0.60] },
-      { type: "harai", direction: [0.99, -0.17] },
+      { type: "hane", direction: null },
+      { type: "harai", direction: null },
+      { type: "harai", direction: null },
+      { type: "harai", direction: null },
     ],
   },
 };
@@ -59,11 +59,11 @@ function createKakitori(char: string) {
     onCorrectStroke: (data: KakitoriStrokeData) => {
       if (data.strokeEnding) {
         const icon = data.strokeEnding.correct ? "OK" : "NG";
-        resultEl.textContent = `Stroke ${data.strokeNum + 1}: ${data.strokeEnding.expected} ${icon}`;
+        resultEl.textContent += `${data.strokeNum + 1}: ${data.strokeEnding.expected} ${icon}  `;
       }
     },
     onComplete: (data) => {
-      resultEl.textContent = `Done! Mistakes: ${data.totalMistakes}, Stroke ending mistakes: ${data.strokeEndingMistakes}`;
+      resultEl.textContent += `\nDone! Mistakes: ${data.totalMistakes}, Stroke ending mistakes: ${data.strokeEndingMistakes}`;
     },
   });
 
