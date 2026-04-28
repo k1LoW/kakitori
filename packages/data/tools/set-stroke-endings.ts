@@ -27,22 +27,47 @@ function saveData(data: KakitoriCharacterConfig): void {
   }
   const filePath = resolve(dataDir, `${data.character}.json`);
   writeFileSync(filePath, JSON.stringify(data, null, 2) + "\n", "utf-8");
-  console.log(`Saved: ${filePath}`);
+  console.log(`\n  Saved: ${filePath}`);
 }
 
-/**
- * Parse strokeGroups input.
- * Format: "0,1,2+3" means [[0],[1],[2,3]]
- * Each group separated by comma, sub-strokes within a group joined by +.
- */
+function formatStrokeEnding(ending: StrokeEnding): string {
+  const dir = ending.direction
+    ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
+    : "";
+  return `${ending.type}${dir}`;
+}
+
+function formatGroups(groups: number[][]): string {
+  return groups.map((g) => g.join("+")).join(",");
+}
+
 function parseStrokeGroups(input: string, dataStrokeCount: number): number[][] {
   if (!input.trim()) {
-    // Default: each data stroke is its own group
     return Array.from({ length: dataStrokeCount }, (_, i) => [i]);
   }
   return input.split(",").map((g) =>
     g.split("+").map((s) => parseInt(s.trim(), 10)),
   );
+}
+
+function showExisting(existing: KakitoriCharacterConfig, dataStrokeCount: number): void {
+  console.log("  --- current config ---");
+  const groups = existing.strokeGroups
+    ?? Array.from({ length: dataStrokeCount }, (_, i) => [i]);
+  const needsGroups = groups.length !== dataStrokeCount;
+  if (needsGroups) {
+    console.log(`  strokeGroups: ${formatGroups(groups)} (${dataStrokeCount} data -> ${groups.length} logical)`);
+  }
+  if (existing.strokeEndings) {
+    for (let i = 0; i < existing.strokeEndings.length; i++) {
+      const groupLabel = needsGroups && groups[i].length > 1
+        ? ` [data: ${groups[i].join("+")}]`
+        : "";
+      console.log(`  ${i + 1}: ${formatStrokeEnding(existing.strokeEndings[i])}${groupLabel}`);
+    }
+  }
+  console.log("  ---");
+  console.log("  Press Enter to keep current value, or type to overwrite.");
 }
 
 async function annotateChar(
@@ -63,19 +88,16 @@ async function annotateChar(
   console.log(`\n  ${char}  (${dataStrokeCount} data strokes)`);
 
   if (existing) {
-    console.log("  (existing data found, press Enter to keep current value)");
+    showExisting(existing, dataStrokeCount);
   }
 
   // Step 1: Configure strokeGroups
   const defaultGroups = existing?.strokeGroups
     ?? Array.from({ length: dataStrokeCount }, (_, i) => [i]);
-  const defaultGroupsStr = defaultGroups
-    .map((g) => g.join("+"))
-    .join(",");
+  const defaultGroupsStr = formatGroups(defaultGroups);
 
-  console.log(`  strokeGroups format: 0,1,2+3 means strokes 2 and 3 are merged`);
   const groupsInput = await rl.question(
-    `  strokeGroups (${defaultGroupsStr}): `,
+    `  strokeGroups [${defaultGroupsStr}]: `,
   );
   const strokeGroups = groupsInput.trim()
     ? parseStrokeGroups(groupsInput, dataStrokeCount)
@@ -84,9 +106,9 @@ async function annotateChar(
   const logicalStrokeCount = strokeGroups.length;
   const needsGroups = logicalStrokeCount !== dataStrokeCount;
 
-  console.log(
-    `  ${logicalStrokeCount} logical strokes${needsGroups ? ` (merged from ${dataStrokeCount})` : ""}`,
-  );
+  if (needsGroups) {
+    console.log(`  -> ${logicalStrokeCount} logical strokes (merged from ${dataStrokeCount})`);
+  }
 
   // Step 2: Set stroke endings per logical stroke
   const strokeEndings: StrokeEnding[] = [];
@@ -101,8 +123,11 @@ async function annotateChar(
       defaultType === "tome" ? "t" : defaultType === "hane" ? "h" : "r";
 
     const groupLabel = group.length > 1 ? ` [data: ${group.join("+")}]` : "";
+    const currentLabel = existingEnding
+      ? ` (current: ${formatStrokeEnding(existingEnding)})`
+      : "";
     const answer = await rl.question(
-      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai (${defaultLabel}): `,
+      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai [${defaultLabel}]${currentLabel}: `,
     );
 
     let type: StrokeEnding["type"];
