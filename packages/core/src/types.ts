@@ -1,13 +1,13 @@
 export type StrokeEndingType = "tome" | "hane" | "harai";
 
 export interface StrokeEnding {
-  type: StrokeEndingType;
+  type: StrokeEndingType | StrokeEndingType[];
   direction: [number, number] | null;
 }
 
 export interface StrokeEndingJudgment {
   correct: boolean;
-  expected: StrokeEndingType;
+  expected: StrokeEndingType | StrokeEndingType[];
   confidence: number;
   velocityProfile: "decelerating" | "constant" | "accelerating";
   actualEndDirection: [number, number] | null;

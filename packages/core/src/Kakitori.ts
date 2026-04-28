@@ -245,10 +245,9 @@ export class Kakitori {
           if (expected) {
             // Auto-compute direction from median data if not specified
             let resolvedExpected = expected;
-            if (
-              expected.direction == null &&
-              (expected.type === "hane" || expected.type === "harai")
-            ) {
+            const expectedTypes = Array.isArray(expected.type) ? expected.type : [expected.type];
+            const needsDirection = expectedTypes.includes("hane") || expectedTypes.includes("harai");
+            if (expected.direction == null && needsDirection) {
               const group = this.strokeGroups
                 ? this.strokeGroups[logicalStrokeNum]
                 : [dataStrokeNum];

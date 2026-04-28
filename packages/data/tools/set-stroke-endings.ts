@@ -30,11 +30,23 @@ function saveData(data: KakitoriCharacterConfig): void {
   console.log(`\n  Saved: ${filePath}`);
 }
 
+function formatType(type: StrokeEnding["type"]): string {
+  if (Array.isArray(type)) return type.join("+");
+  return type;
+}
+
+function typeToLabel(type: StrokeEnding["type"]): string {
+  if (Array.isArray(type)) {
+    return type.map((t) => (t === "tome" ? "t" : t === "hane" ? "h" : "r")).join("+");
+  }
+  return type === "tome" ? "t" : type === "hane" ? "h" : "r";
+}
+
 function formatStrokeEnding(ending: StrokeEnding): string {
   const dir = ending.direction
     ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
     : "";
-  return `${ending.type}${dir}`;
+  return `${formatType(ending.type)}${dir}`;
 }
 
 function formatGroups(groups: number[][]): string {
@@ -119,34 +131,40 @@ async function annotateChar(
     const suggestion = suggestStrokeEnding(charData.medians[lastDataIdx]);
     const existingEnding = existing?.strokeEndings?.[i];
     const defaultType = existingEnding?.type ?? suggestion.type;
-    const defaultLabel =
-      defaultType === "tome" ? "t" : defaultType === "hane" ? "h" : "r";
+    const defaultLabel = typeToLabel(defaultType);
 
     const groupLabel = group.length > 1 ? ` [data: ${group.join("+")}]` : "";
     const currentLabel = existingEnding
       ? ` (current: ${formatStrokeEnding(existingEnding)})`
       : "";
     const answer = await rl.question(
-      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai [${defaultLabel}]${currentLabel}: `,
+      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai (use + for multiple, e.g. t+r) [${defaultLabel}]${currentLabel}: `,
     );
 
-    let type: StrokeEnding["type"];
     const input = answer.trim().toLowerCase();
-    if (input === "" || input === defaultLabel) {
+    let type: StrokeEnding["type"];
+    if (input === "") {
       type = defaultType;
-    } else if (input === "t") {
-      type = "tome";
-    } else if (input === "h") {
-      type = "hane";
-    } else if (input === "r") {
-      type = "harai";
     } else {
-      console.log(`  Invalid input "${input}", using default: ${defaultType}`);
-      type = defaultType;
+      const parts = input.split("+").map((s) => s.trim());
+      const parsed = parts.map((p) => {
+        if (p === "t") return "tome" as const;
+        if (p === "h") return "hane" as const;
+        if (p === "r") return "harai" as const;
+        return null;
+      });
+      const valid = parsed.filter((p) => p !== null);
+      if (valid.length === 0) {
+        console.log(`  Invalid input "${input}", using default`);
+        type = defaultType;
+      } else {
+        type = valid.length === 1 ? valid[0] : valid;
+      }
     }
 
+    const types = Array.isArray(type) ? type : [type];
     let direction: [number, number] | null = null;
-    if (type === "hane" || type === "harai") {
+    if (types.includes("hane") || types.includes("harai")) {
       const suggestedDir =
         existingEnding?.direction ?? suggestion.direction;
       direction = suggestedDir ?? suggestStrokeEnding(charData.medians[lastDataIdx]).direction;

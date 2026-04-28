@@ -103,18 +103,22 @@ function validate(): void {
     }
 
     let strokeErrors = false;
+    const validTypes = ["tome", "hane", "harai"];
     for (let i = 0; i < data.strokeEndings.length; i++) {
       const ending = data.strokeEndings[i];
-      if (!["tome", "hane", "harai"].includes(ending.type)) {
-        console.error(
-          `${prefix} Stroke ${i + 1}: invalid type "${ending.type}"`,
-        );
-        strokeErrors = true;
+      const types = Array.isArray(ending.type) ? ending.type : [ending.type];
+
+      for (const t of types) {
+        if (!validTypes.includes(t)) {
+          console.error(
+            `${prefix} Stroke ${i + 1}: invalid type "${t}"`,
+          );
+          strokeErrors = true;
+        }
       }
-      if (
-        (ending.type === "hane" || ending.type === "harai") &&
-        ending.direction != null
-      ) {
+
+      const hasDirectional = types.includes("hane") || types.includes("harai");
+      if (hasDirectional && ending.direction != null) {
         const [dx, dy] = ending.direction;
         const mag = Math.sqrt(dx * dx + dy * dy);
         if (Math.abs(mag - 1) > 0.1) {

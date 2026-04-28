@@ -1,7 +1,8 @@
 export type StrokeEndingType = "tome" | "hane" | "harai";
 
 export interface StrokeEnding {
-  type: StrokeEndingType;
+  /** Acceptable stroke ending types. First is preferred, any match is OK. */
+  type: StrokeEndingType | StrokeEndingType[];
   direction: [number, number] | null;
 }
 

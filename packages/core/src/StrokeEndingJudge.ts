@@ -129,7 +129,8 @@ export function judge(
     detectedType = "tome";
   }
 
-  let correct = detectedType === expected.type;
+  const expectedTypes = Array.isArray(expected.type) ? expected.type : [expected.type];
+  let correct = expectedTypes.includes(detectedType);
   let confidence = 0.5;
 
   if (correct) {
@@ -138,7 +139,7 @@ export function judge(
     if (
       expected.direction != null &&
       actualEndDirection != null &&
-      (expected.type === "hane" || expected.type === "harai")
+      (detectedType === "hane" || detectedType === "harai")
     ) {
       const dirSimilarity = dotProduct(actualEndDirection, expected.direction);
       const threshold = 1 - strictness;
