@@ -99,9 +99,10 @@ export class Kakitori {
       this.targetEl = target;
     }
 
+    const size = options.size ?? 300;
     const hwOptions: Record<string, unknown> = {
-      width: options.width ?? 300,
-      height: options.height ?? 300,
+      width: size,
+      height: size,
       padding: options.padding ?? 20,
       charDataLoader: options.charDataLoader ?? defaultCharDataLoader,
     };
@@ -189,27 +190,23 @@ export class Kakitori {
     loader(
       character,
       (data) => {
-        const width = options.width ?? 300;
-        const height = options.height ?? 300;
+        const size = options.size ?? 300;
         const padding = options.padding ?? 20;
         const strokeColor = options.strokeColor ?? "#555";
 
-        const scale = Math.min(
-          (width - 2 * padding) / 900,
-          (height - 2 * padding) / 900,
-        );
-        const xOffset = padding + (width - 2 * padding - scale * 900) / 2;
-        const yOffset = padding + (height - 2 * padding - scale * 900) / 2;
+        const scale = (size - 2 * padding) / 900;
+        const xOffset = padding + (size - 2 * padding - scale * 900) / 2;
+        const yOffset = padding + (size - 2 * padding - scale * 900) / 2;
 
         const ns = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(ns, "svg");
-        svg.setAttribute("width", String(width));
-        svg.setAttribute("height", String(height));
+        svg.setAttribute("width", String(size));
+        svg.setAttribute("height", String(size));
 
         const g = document.createElementNS(ns, "g");
         g.setAttribute(
           "transform",
-          `translate(${xOffset}, ${height - yOffset}) scale(${scale}, ${-scale})`,
+          `translate(${xOffset}, ${size - yOffset}) scale(${scale}, ${-scale})`,
         );
 
         for (const d of data.strokes) {
@@ -385,7 +382,7 @@ export class Kakitori {
               resolvedExpected,
               strictness,
               timing,
-              Math.min(this.options.width ?? 300, this.options.height ?? 300),
+              this.options.size ?? 300,
             );
             kakitoriData.strokeEnding = judgment;
 

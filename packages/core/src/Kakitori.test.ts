@@ -48,10 +48,9 @@ describe("Kakitori", () => {
       expect(svg).not.toBeNull();
     });
 
-    it("respects width and height options", () => {
+    it("respects size option", () => {
       Kakitori.create(container, "あ", {
-        width: 200,
-        height: 200,
+        size: 200,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -74,8 +73,7 @@ describe("Kakitori", () => {
 
     it("respects width, height, and padding options", () => {
       Kakitori.render(container, "あ", {
-        width: 100,
-        height: 100,
+        size: 100,
         padding: 10,
         charDataLoader: mockCharDataLoader,
       });
@@ -140,8 +138,7 @@ describe("Kakitori", () => {
 
     it("applies correct SVG transform for coordinate system", () => {
       Kakitori.render(container, "あ", {
-        width: 300,
-        height: 300,
+        size: 300,
         padding: 20,
         charDataLoader: mockCharDataLoader,
       });
