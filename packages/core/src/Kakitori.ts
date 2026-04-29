@@ -67,18 +67,25 @@ export class Kakitori {
       ? null
       : options.configLoader ?? defaultConfigLoader;
     if (loader) {
-      this.configReady = loader(character).then((config) => {
-        if (!config) return;
-        this.log?.(`config loaded: ${JSON.stringify(config)}`);
-        // Options take precedence over loaded config
-        if (!options.strokeGroups && config.strokeGroups) {
-          this.strokeGroups = config.strokeGroups;
-          this.buildGroupMaps();
-        }
-        if (!this.strokeEndings && config.strokeEndings) {
-          this.strokeEndings = config.strokeEndings as StrokeEnding[];
-        }
-      });
+      this.configReady = Promise.resolve()
+        .then(() => loader(character))
+        .then((config) => {
+          if (!config) return;
+          this.log?.(`config loaded: ${JSON.stringify(config)}`);
+          // Options take precedence over loaded config
+          if (!options.strokeGroups && config.strokeGroups) {
+            this.strokeGroups = config.strokeGroups;
+            this.buildGroupMaps();
+          }
+          if (!this.strokeEndings && config.strokeEndings) {
+            this.strokeEndings = config.strokeEndings as StrokeEnding[];
+          }
+        })
+        .catch((error) => {
+          this.log?.(
+            `config load failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
     } else {
       this.configReady = Promise.resolve();
     }
