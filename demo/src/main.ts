@@ -203,12 +203,16 @@ quizBtn.addEventListener("click", async () => {
   const strokeCount = kakitori.getLogicalStrokeCount();
   buildSlots(strokeCount, endings);
 
+  kakitori.resetStrokeColors();
+  highlightIdx = -1;
   kakitori.quiz();
 });
 
 animateBtn.addEventListener("click", async () => {
   if (!kakitori) return;
   await kakitori.ready();
+  kakitori.resetStrokeColors();
+  highlightIdx = -1;
   kakitori.animateCharacter();
 });
 
