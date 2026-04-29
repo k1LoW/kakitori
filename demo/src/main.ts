@@ -19,7 +19,7 @@ const cachedCharDataLoader: CharDataLoaderFn = (char, onLoad, onError) => {
 // Background pre-fetch all characters
 const allChars = Object.values(charSets).flat();
 let prefetchIdx = 0;
-const PREFETCH_BATCH = 10;
+const PREFETCH_BATCH = 5;
 
 function prefetchBatch() {
   const end = Math.min(prefetchIdx + PREFETCH_BATCH, allChars.length);
@@ -33,7 +33,7 @@ function prefetchBatch() {
   }
   prefetchIdx = end;
   if (prefetchIdx < allChars.length) {
-    setTimeout(prefetchBatch, 100);
+    setTimeout(prefetchBatch, 200);
   }
 }
 
