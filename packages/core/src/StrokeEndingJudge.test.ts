@@ -1,0 +1,211 @@
+import { describe, it, expect } from "vitest";
+import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
+import type { StrokeEnding } from "./types.js";
+
+function makePoints(coords: [number, number][]): { x: number; y: number }[] {
+  return coords.map(([x, y]) => ({ x, y }));
+}
+
+function makeTimedPoints(
+  coords: [number, number][],
+  intervalMs: number,
+): StrokeTimingData["timedPoints"] {
+  return coords.map(([x, y], i) => ({ x, y, t: i * intervalMs }));
+}
+
+describe("judge", () => {
+  describe("tome detection", () => {
+    it("detects tome when pause before release is long", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const expected: StrokeEnding = { types: ["tome"] };
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 100,
+        timedPoints: makeTimedPoints([
+          [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+        ], 50),
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("decelerating");
+    });
+
+    it("marks incorrect when tome expected but harai detected", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const expected: StrokeEnding = { types: ["tome"] };
+      const timedPoints = makeTimedPoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ], 5);
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 10,
+        timedPoints,
+      };
+      const result = judge(points, expected, 0.7, timing);
+      // With short pause and velocity, should detect harai or tome
+      expect(result.expected).toEqual(["tome"]);
+    });
+  });
+
+  describe("harai detection", () => {
+    it("detects harai when ending with velocity and no pause", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const expected: StrokeEnding = { types: ["harai"] };
+      // Fast movement at the end
+      const timedPoints: StrokeTimingData["timedPoints"] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 50, y: 50, t: 155 },
+      ];
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("accelerating");
+    });
+  });
+
+  describe("hane detection", () => {
+    it("detects hane when sharp direction change at end", () => {
+      // Stroke going right then flicking up
+      const points = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+        [50, 0], [60, 0], [65, 0], [68, -10], [68, -30],
+      ]);
+      const expected: StrokeEnding = { types: ["hane"] };
+      // 20 points: body(40%-70%) moves right, tip(85%-end) moves up
+      const timedPoints: StrokeTimingData["timedPoints"] = [];
+      for (let i = 0; i < 17; i++) {
+        timedPoints.push({ x: i * 5, y: 0, t: i * 50 });
+      }
+      // Last 3 points: flick upward, slow enough to avoid harai (velocity < 0.3)
+      timedPoints.push({ x: 80, y: -10, t: 850 + 100 });
+      timedPoints.push({ x: 80, y: -30, t: 850 + 200 });
+      timedPoints.push({ x: 80, y: -50, t: 850 + 1000 });
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(true);
+    });
+
+    it("does not detect hane when stroke is straight with pause", () => {
+      const points = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+      ]);
+      const expected: StrokeEnding = { types: ["hane"] };
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 100,
+        timedPoints: makeTimedPoints([
+          [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+        ], 50),
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(false);
+    });
+  });
+
+  describe("multiple accepted types", () => {
+    it("accepts when detected type is one of multiple expected types", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const expected: StrokeEnding = { types: ["tome", "harai"] };
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 100,
+        timedPoints: makeTimedPoints([
+          [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+        ], 50),
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(true);
+    });
+  });
+
+  describe("empty types (skip judgment)", () => {
+    it("returns incorrect when types is empty", () => {
+      const points = makePoints([[0, 0], [10, 10]]);
+      const expected: StrokeEnding = { types: [] };
+      const result = judge(points, expected);
+      expect(result.correct).toBe(false);
+    });
+  });
+
+  describe("direction checking", () => {
+    it("validates direction when harai with direction specified", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      // Expected direction: down-right
+      const expected: StrokeEnding = {
+        types: ["harai"],
+        direction: [0.71, 0.71],
+      };
+      const timedPoints: StrokeTimingData["timedPoints"] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 50, y: 50, t: 155 },
+      ];
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(true);
+      expect(result.confidence).toBeGreaterThan(0.5);
+    });
+
+    it("rejects when direction does not match", () => {
+      // Points go right
+      const points = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+      ]);
+      // Expected direction: straight down
+      const expected: StrokeEnding = {
+        types: ["harai"],
+        direction: [0, 1],
+      };
+      const timedPoints: StrokeTimingData["timedPoints"] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 0, t: 50 },
+        { x: 20, y: 0, t: 100 },
+        { x: 30, y: 0, t: 150 },
+        { x: 50, y: 0, t: 155 },
+      ];
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, 0.7, timing);
+      expect(result.correct).toBe(false);
+    });
+  });
+
+  describe("confidence", () => {
+    it("returns higher confidence for correct judgment", () => {
+      const points = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 100,
+        timedPoints: makeTimedPoints([
+          [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+        ], 50),
+      };
+      const correct = judge(points, { types: ["tome"] }, 0.7, timing);
+      const incorrect = judge(points, { types: ["hane"] }, 0.7, timing);
+      expect(correct.confidence).toBeGreaterThan(incorrect.confidence);
+    });
+  });
+});

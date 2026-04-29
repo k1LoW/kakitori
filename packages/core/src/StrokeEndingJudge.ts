@@ -47,27 +47,27 @@ function detectDirectionChangeFromTimedPoints(
   const n = timedPoints.length;
   if (n < 6) return 0;
 
-  // Split tail into two halves: "body direction" and "tip direction"
-  // Use last 30% of points as tail
-  const tailStart = Math.floor(n * 0.7);
-  const midPoint = Math.floor((tailStart + n) / 2);
+  // Body direction: stroke's main direction leading up to the tail.
+  // Use the segment from 40% to 70% of the stroke.
+  const bodyStart = Math.floor(n * 0.4);
+  const bodyEnd = Math.floor(n * 0.7);
 
-  // Body direction: from tailStart to midPoint
+  // Tip direction: last 15% of the stroke
+  const tipStart = Math.floor(n * 0.85);
+
   const bodyDir = normalize(
-    timedPoints[midPoint].x - timedPoints[tailStart].x,
-    timedPoints[midPoint].y - timedPoints[tailStart].y,
+    timedPoints[bodyEnd].x - timedPoints[bodyStart].x,
+    timedPoints[bodyEnd].y - timedPoints[bodyStart].y,
   );
 
-  // Tip direction: from midPoint to end
   const tipDir = normalize(
-    timedPoints[n - 1].x - timedPoints[midPoint].x,
-    timedPoints[n - 1].y - timedPoints[midPoint].y,
+    timedPoints[n - 1].x - timedPoints[tipStart].x,
+    timedPoints[n - 1].y - timedPoints[tipStart].y,
   );
 
-  // If either segment is too short (no real movement), no direction change
   if (
-    distance(timedPoints[tailStart], timedPoints[midPoint]) < 3 ||
-    distance(timedPoints[midPoint], timedPoints[n - 1]) < 3
+    distance(timedPoints[bodyStart], timedPoints[bodyEnd]) < 3 ||
+    distance(timedPoints[tipStart], timedPoints[n - 1]) < 3
   ) {
     return 0;
   }

@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "hanzi-writer": "3.7.3",
+    "happy-dom": "20.9.0",
     "tsdown": "0.12.5",
     "typescript": "5.8.3",
     "vitest": "3.1.3"
