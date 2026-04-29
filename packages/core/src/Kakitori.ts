@@ -178,8 +178,11 @@ export class Kakitori {
     options: RenderOptions = {},
   ): void {
     const el = typeof target === "string"
-      ? document.querySelector(target) as HTMLElement
+      ? document.querySelector(target)
       : target;
+    if (!el) {
+      throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
+    }
     const loader = options.charDataLoader ?? defaultCharDataLoader;
 
     loader(
