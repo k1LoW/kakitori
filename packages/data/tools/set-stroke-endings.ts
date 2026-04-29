@@ -125,8 +125,10 @@ async function annotateChar(
     const suggestion = suggestStrokeEnding(charData.medians[lastDataIdx]);
     const existingEnding = existing?.strokeEndings?.[i];
     const existingTypes = existingEnding?.types ?? [];
-    const defaultTypes = existingTypes.length > 0 ? existingTypes : [suggestion.type];
-    const defaultLabel = typeToLabel(defaultTypes);
+    const defaultTypes = existingEnding !== undefined
+      ? existingTypes
+      : [suggestion.type];
+    const defaultLabel = defaultTypes.length > 0 ? typeToLabel(defaultTypes) : "*";
 
     const groupLabel = group.length > 1 ? ` [data: ${group.join("+")}]` : "";
     const currentLabel = existingEnding
