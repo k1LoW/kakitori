@@ -1,4 +1,4 @@
-export {
+import {
   hiragana,
   katakana,
   grade1,
@@ -11,7 +11,18 @@ export {
   charSets,
 } from "../../core/src/charSets.js";
 
-import { charSets } from "../../core/src/charSets.js";
+export {
+  hiragana,
+  katakana,
+  grade1,
+  grade2,
+  grade3,
+  grade4,
+  grade5,
+  grade6,
+  juniorHigh,
+  charSets,
+};
 
 export function getCharSet(name: string): string[] {
   const set = charSets[name];
