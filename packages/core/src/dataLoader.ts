@@ -1,3 +1,5 @@
+import type { StrokeEndingType } from "./types.js";
+
 const DEFAULT_CHAR_DATA_URL =
   "https://unpkg.com/@k1low/hanzi-writer-data-jp@latest";
 
@@ -17,8 +19,6 @@ export function defaultCharDataLoader(
     .then(onLoad)
     .catch(onError);
 }
-
-import type { StrokeEndingType } from "./types.js";
 
 export interface KakitoriCharacterConfig {
   character: string;
@@ -48,8 +48,12 @@ export function defaultConfigLoader(
       }
       return res.json();
     })
-    .catch((err) => {
-      if (err instanceof DOMException && err.name === "AbortError") {
+    .catch((err: unknown) => {
+      if (
+        err != null &&
+        typeof err === "object" &&
+        (err as { name?: string }).name === "AbortError"
+      ) {
         return null;
       }
       throw err;
