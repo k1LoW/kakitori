@@ -72,8 +72,8 @@ export class Kakitori {
         .then((config) => {
           if (!config) return;
           this.log?.(`config loaded: ${JSON.stringify(config)}`);
-          // Options take precedence over loaded config
-          if (!options.strokeGroups && config.strokeGroups) {
+          // Preserve any stroke groups already set on the instance
+          if (this.strokeGroups == null && config.strokeGroups) {
             this.strokeGroups = config.strokeGroups;
             this.buildGroupMaps();
           }
