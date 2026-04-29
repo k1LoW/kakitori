@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@k1low/hanzi-writer-data-jp": "0.1.1",
     "@k1low/kakitori": "workspace:^",
     "@k1low/kakitori-data": "workspace:^",
     "hanzi-writer": "3.7.3"
