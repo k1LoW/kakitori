@@ -1,3 +1,25 @@
 {
-  "character": "り"
+  "character": "り",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": [
+        0.37,
+        0.93
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.68,
+        -0.74
+      ]
+    }
+  ]
 }

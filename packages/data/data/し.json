@@ -1,3 +1,14 @@
 {
-  "character": "し"
+  "character": "し",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.85,
+        0.52
+      ]
+    }
+  ]
 }

@@ -1,5 +1,17 @@
 {
   "character": "の",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.91,
+        -0.42
+      ]
+    }
+  ],
   "strokeGroups": [
     [
       0,

@@ -1,3 +1,12 @@
 {
-  "character": "ろ"
+  "character": "ろ",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }
