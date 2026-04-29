@@ -2,6 +2,10 @@
 
 A kanji writing practice library with stroke ending judgment (tome/hane/harai).
 
+## Demo
+
+https://k1low.github.io/kakitori/
+
 ## About
 
 kakitori wraps [Hanzi Writer](https://github.com/chanind/hanzi-writer) and adds stroke ending judgment for Japanese writing practice. It uses [@k1low/hanzi-writer-data-jp](https://github.com/k1LoW/hanzi-writer-data-jp) for character data.
@@ -51,10 +55,6 @@ writer.setStrokeEndings([
 
 writer.quiz();
 ```
-
-## Demo
-
-https://k1low.github.io/kakitori/
 
 ## License
 
