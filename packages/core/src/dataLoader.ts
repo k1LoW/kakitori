@@ -48,6 +48,11 @@ export function defaultConfigLoader(
       }
       return res.json();
     })
-    .catch(() => null)
+    .catch((err) => {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        return null;
+      }
+      throw err;
+    })
     .finally(() => clearTimeout(timer));
 }
