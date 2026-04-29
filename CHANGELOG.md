@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.2.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.1.1...packages/data/v0.2.0) - 2026-04-29
+### New Features
+- feat: add kanji data for elementary and junior high school by @k1LoW in https://github.com/k1LoW/kakitori/pull/8
+
 ## [v0.1.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.1.0...packages/data/v0.1.1) - 2026-04-28
 
 ## [v0.1.0](https://github.com/k1LoW/kakitori/commits/packages/data/v0.1.0) - 2026-04-28
