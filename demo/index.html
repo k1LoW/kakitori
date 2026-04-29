@@ -5,35 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kakitori demo</title>
     <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         font-family: sans-serif;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        padding: 2rem;
+        padding: 1rem;
+        max-width: 960px;
+        margin: 0 auto;
       }
-      #writer {
-        border: 1px solid #ccc;
-        margin: 1rem 0;
+      h1 { margin-bottom: 1rem; }
+
+      /* Practice */
+      #practice {
+        display: none;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 2px solid #ccc;
       }
-      .controls {
+      #practice .controls {
         display: flex;
         gap: 0.5rem;
         align-items: center;
+        margin-bottom: 0.5rem;
       }
+      #practice-body {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+      #writer-col {
+        flex-shrink: 0;
+      }
+      #writer {
+        border: 1px solid #ccc;
+      }
+      #result {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        width: 300px;
+      }
+      #stroke-slots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 4px;
+      }
+      .stroke-slot {
+        padding: 2px 6px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #999;
+      }
+      .stroke-slot.ok {
+        border-color: #4a4;
+        color: #4a4;
+        background: #effe8f;
+      }
+      .stroke-slot.ng {
+        border-color: #c44;
+        color: #c44;
+        background: #fee;
+      }
+      #summary {
+        font-size: 0.8rem;
+        color: #666;
+        min-height: 1.2em;
+      }
+      #log {
+        height: 300px;
+        overflow-y: auto;
+        flex: 1;
+        min-width: 0;
+        font-size: 11px;
+        border: 1px solid #ccc;
+        padding: 8px;
+        text-align: left;
+        font-family: monospace;
+      }
+
+      /* Gallery */
+      .section-header {
+        cursor: pointer;
+        user-select: none;
+        padding: 0.5rem 0;
+        font-size: 1.1rem;
+        font-weight: bold;
+        border-bottom: 1px solid #ccc;
+        margin-top: 0.5rem;
+      }
+      .section-header::before { content: "▶ "; font-size: 0.8em; }
+      .section-header.open::before { content: "▼ "; font-size: 0.8em; }
+      .char-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        padding: 0.5rem 0;
+      }
+      .char-cell {
+        width: 60px;
+        height: 60px;
+      }
+      .char-cell svg { display: block; }
+      .char-cell:hover { background: #eef; }
     </style>
   </head>
   <body>
     <h1>kakitori demo</h1>
-    <div class="controls">
-      <label for="char-input">文字:</label>
-      <input id="char-input" type="text" value="あ" maxlength="1" size="3" />
-      <button id="quiz-btn">練習開始</button>
-      <button id="animate-btn">お手本</button>
+
+    <div id="practice">
+      <div class="controls">
+        <span id="practice-char" style="font-size: 1.5rem; margin-right: 0.5rem;"></span>
+        <button id="quiz-btn">練習開始</button>
+        <button id="animate-btn">お手本</button>
+      </div>
+      <div id="practice-body">
+        <div id="writer-col">
+          <div id="writer"></div>
+          <div id="result">
+            <div id="stroke-slots"></div>
+            <div id="summary"></div>
+          </div>
+        </div>
+        <pre id="log"></pre>
+      </div>
     </div>
-    <div id="writer"></div>
-    <div id="result"></div>
-    <pre id="log" style="max-height: 200px; overflow-y: auto; width: 400px; font-size: 11px; border: 1px solid #ccc; padding: 8px; text-align: left; margin-top: 8px;"></pre>
+
+    <div id="gallery"></div>
+
     <script type="module" src="./src/main.ts"></script>
   </body>
 </html>

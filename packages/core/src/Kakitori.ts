@@ -1,5 +1,5 @@
 import HanziWriter from "hanzi-writer";
-import type { KakitoriOptions, KakitoriLogger } from "./KakitoriOptions.js";
+import type { KakitoriOptions, KakitoriLogger, RenderOptions } from "./KakitoriOptions.js";
 import type {
   StrokeEnding,
   KakitoriStrokeData,
@@ -41,6 +41,9 @@ export class Kakitori {
   private dataToGroupPos: Map<number, number> = new Map();
   // Maps data stroke index -> group (array of data stroke indices)
   private dataToGroup: Map<number, number[]> = new Map();
+
+  // onClick listener
+  private boundOnClick: ((e: MouseEvent) => void) | null = null;
 
   // Pointer timing tracking
   private isPointerDown = false;
@@ -114,6 +117,14 @@ export class Kakitori {
     if (options.delayBetweenStrokes != null) hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
 
     this.hw = HanziWriter.create(this.targetEl, character, hwOptions as any);
+
+    if (options.onClick) {
+      this.boundOnClick = (e: MouseEvent) => {
+        const strokeIndex = this.getStrokeIndexAtPoint(e.clientX, e.clientY);
+        options.onClick!({ character: this.character, strokeIndex });
+      };
+      this.targetEl.addEventListener("click", this.boundOnClick);
+    }
   }
 
   private buildGroupMaps(): void {
@@ -159,6 +170,78 @@ export class Kakitori {
     options: KakitoriOptions = {},
   ): Kakitori {
     return new Kakitori(target, character, options);
+  }
+
+  static render(
+    target: string | HTMLElement,
+    character: string,
+    options: RenderOptions = {},
+  ): void {
+    const el = typeof target === "string"
+      ? document.querySelector(target)
+      : target;
+    if (!el) {
+      throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
+    }
+    const loader = options.charDataLoader ?? defaultCharDataLoader;
+
+    loader(
+      character,
+      (data) => {
+        const width = options.width ?? 300;
+        const height = options.height ?? 300;
+        const padding = options.padding ?? 20;
+        const strokeColor = options.strokeColor ?? "#555";
+
+        const scale = Math.min(
+          (width - 2 * padding) / 900,
+          (height - 2 * padding) / 900,
+        );
+        const xOffset = padding + (width - 2 * padding - scale * 900) / 2;
+        const yOffset = padding + (height - 2 * padding - scale * 900) / 2;
+
+        const ns = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(ns, "svg");
+        svg.setAttribute("width", String(width));
+        svg.setAttribute("height", String(height));
+
+        const g = document.createElementNS(ns, "g");
+        g.setAttribute(
+          "transform",
+          `translate(${xOffset}, ${height - yOffset}) scale(${scale}, ${-scale})`,
+        );
+
+        for (const d of data.strokes) {
+          const path = document.createElementNS(ns, "path");
+          path.setAttribute("d", d);
+          path.setAttribute("fill", strokeColor);
+          g.appendChild(path);
+        }
+
+        svg.appendChild(g);
+        el.appendChild(svg);
+
+        if (options.onClick) {
+          svg.style.cursor = "pointer";
+          svg.addEventListener("click", () => {
+            options.onClick!({ character });
+          });
+        }
+      },
+      (err) => { console.error(`Kakitori.render(): failed to load "${character}"`, err); },
+    );
+  }
+
+  ready(): Promise<void> {
+    return this.configReady;
+  }
+
+  getStrokeEndings(): readonly StrokeEnding[] | null {
+    return this.strokeEndings;
+  }
+
+  getStrokeGroups(): readonly number[][] | null {
+    return this.strokeGroups;
   }
 
   setStrokeGroups(strokeGroups: number[][]): void {
@@ -610,5 +693,13 @@ export class Kakitori {
     this.strokeEndings = null;
     this.strokeEndingMistakes = 0;
     await this.hw.setCharacter(char);
+  }
+
+  destroy(): void {
+    this.stopTimingTracking();
+    if (this.boundOnClick) {
+      this.targetEl.removeEventListener("click", this.boundOnClick);
+      this.boundOnClick = null;
+    }
   }
 }
