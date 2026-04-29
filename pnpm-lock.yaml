@@ -17,9 +17,6 @@ importers:
 
   demo:
     dependencies:
-      '@k1low/hanzi-writer-data-jp':
-        specifier: 0.1.1
-        version: 0.1.1
       '@k1low/kakitori':
         specifier: workspace:^
         version: link:../packages/core
