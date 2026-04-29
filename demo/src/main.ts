@@ -139,6 +139,7 @@ function buildSlots(strokeCount: number, endings: Array<{ types?: string[] }> | 
 }
 
 function openPractice(char: string) {
+  kakitori?.destroy();
   practiceEl.style.display = "block";
   practiceCharEl.textContent = char;
 
