@@ -9,7 +9,7 @@ export function defaultCharDataLoader(
   onLoad: (data: { strokes: string[]; medians: number[][][] }) => void,
   onError: (err?: unknown) => void,
 ): void {
-  fetch(`${DEFAULT_CHAR_DATA_URL}/${char}.json`)
+  fetch(`${DEFAULT_CHAR_DATA_URL}/${encodeURIComponent(char)}.json`)
     .then((res) => {
       if (!res.ok) throw new Error(`Failed to load data for "${char}"`);
       return res.json();
@@ -32,7 +32,7 @@ export interface KakitoriCharacterConfig {
 export function defaultConfigLoader(
   char: string,
 ): Promise<KakitoriCharacterConfig | null> {
-  return fetch(`${DEFAULT_CONFIG_URL}/${char}.json`)
+  return fetch(`${DEFAULT_CONFIG_URL}/${encodeURIComponent(char)}.json`)
     .then((res) => {
       if (!res.ok) return null;
       return res.json();
