@@ -100,10 +100,17 @@ export class Kakitori {
     }
 
     const size = options.size ?? 300;
+    const padding = options.padding ?? 20;
+    if (size <= 0) {
+      throw new Error(`Kakitori: size must be positive, got ${size}`);
+    }
+    if (padding >= size / 2) {
+      throw new Error(`Kakitori: padding (${padding}) must be less than size/2 (${size / 2})`);
+    }
     const hwOptions: Record<string, unknown> = {
       width: size,
       height: size,
-      padding: options.padding ?? 20,
+      padding,
       charDataLoader: options.charDataLoader ?? defaultCharDataLoader,
     };
 
@@ -185,13 +192,19 @@ export class Kakitori {
     if (!el) {
       throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
     }
+    const size = options.size ?? 300;
+    const padding = options.padding ?? 20;
+    if (size <= 0) {
+      throw new Error(`Kakitori.render(): size must be positive, got ${size}`);
+    }
+    if (padding >= size / 2) {
+      throw new Error(`Kakitori.render(): padding (${padding}) must be less than size/2 (${size / 2})`);
+    }
     const loader = options.charDataLoader ?? defaultCharDataLoader;
 
     loader(
       character,
       (data) => {
-        const size = options.size ?? 300;
-        const padding = options.padding ?? 20;
         const strokeColor = options.strokeColor ?? "#555";
 
         const scale = (size - 2 * padding) / 900;
