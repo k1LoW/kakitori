@@ -27,7 +27,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "set-stroke-endings": "tsx tools/set-stroke-endings.ts",
-    "validate": "tsx tools/validate.ts",
     "stats": "tsx tools/stats.ts"
   },
   "devDependencies": {
