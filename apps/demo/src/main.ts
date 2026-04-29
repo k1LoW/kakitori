@@ -1,5 +1,5 @@
 import { Kakitori, defaultCharDataLoader } from "@k1low/kakitori";
-import type { KakitoriStrokeData, StrokeEnding } from "@k1low/kakitori";
+import type { KakitoriStrokeData } from "@k1low/kakitori";
 
 const writerEl = document.getElementById("writer")!;
 const charInput = document.getElementById("char-input") as HTMLInputElement;
@@ -18,44 +18,18 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-// Per-character config
-const charConfigs: Record<string, {
-  strokeGroups?: number[][];
-  strokeEndings?: StrokeEnding[];
-}> = {
-  あ: {
-    strokeGroups: [[0], [1], [2, 3]],
-    strokeEndings: [
-      { types: ["tome"] },
-      { types: ["tome"] },
-      { types: ["tome", "harai"] },
-    ],
-  },
-  永: {
-    strokeEndings: [
-      { types: ["tome"] },
-      { types: ["hane"] },
-      { types: ["harai"] },
-      { types: ["harai"] },
-      { types: ["harai"] },
-    ],
-  },
-};
-
 function createKakitori(char: string) {
   writerEl.innerHTML = "";
   resultEl.textContent = "";
   logEl.textContent = "";
   highlightIdx = -1;
 
-  const config = charConfigs[char];
-
+  // Config (strokeGroups, strokeEndings) is auto-loaded from @k1low/kakitori-data
   kakitori = Kakitori.create(writerEl, char, {
     width: 300,
     height: 300,
     charDataLoader: defaultCharDataLoader,
     logger: log,
-    strokeGroups: config?.strokeGroups,
     onCorrectStroke: (data: KakitoriStrokeData) => {
       if (data.strokeEnding) {
         const icon = data.strokeEnding.correct ? "OK" : "NG";
@@ -66,10 +40,6 @@ function createKakitori(char: string) {
       resultEl.textContent += `\nDone! Mistakes: ${data.totalMistakes}, Stroke ending mistakes: ${data.strokeEndingMistakes}`;
     },
   });
-
-  if (config?.strokeEndings) {
-    kakitori.setStrokeEndings(config.strokeEndings);
-  }
 }
 
 // Click on stroke to highlight

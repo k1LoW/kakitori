@@ -1,10 +1,14 @@
 import type { KakitoriStrokeData } from "./types.js";
+import type { KakitoriCharacterConfig } from "./dataLoader.js";
 
 export type KakitoriLogger = (msg: string) => void;
+export type ConfigLoaderFn = (char: string) => Promise<KakitoriCharacterConfig | null>;
 
 export interface KakitoriOptions {
   logger?: KakitoriLogger;
-  /** Maps logical strokes to data stroke indices. e.g. [[0], [1], [2, 3]] merges data strokes 2 and 3 into one. */
+  /** Custom config loader. Defaults to loading from unpkg @k1low/kakitori-data. Set to null to disable auto-loading. */
+  configLoader?: ConfigLoaderFn | null;
+  /** Maps logical strokes to data stroke indices. Overrides config from configLoader. */
   strokeGroups?: number[][];
   width?: number;
   height?: number;

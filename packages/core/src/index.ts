@@ -1,7 +1,8 @@
 export { Kakitori } from "./Kakitori.js";
 export { judge as judgeStrokeEnding, type StrokeTimingData } from "./StrokeEndingJudge.js";
-export { defaultCharDataLoader } from "./dataLoader.js";
-export type { KakitoriOptions, KakitoriLogger } from "./KakitoriOptions.js";
+export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
+export type { KakitoriCharacterConfig } from "./dataLoader.js";
+export type { KakitoriOptions, KakitoriLogger, ConfigLoaderFn } from "./KakitoriOptions.js";
 export type {
   StrokeEndingType,
   StrokeEnding,

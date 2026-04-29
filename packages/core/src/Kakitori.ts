@@ -5,7 +5,7 @@ import type {
   KakitoriStrokeData,
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
-import { defaultCharDataLoader } from "./dataLoader.js";
+import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
@@ -30,6 +30,7 @@ export class Kakitori {
   private strokeEndings: StrokeEnding[] | null = null;
   private strokeGroups: number[][] | null = null;
   private characterData: any = null;
+  private configReady: Promise<void>;
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
@@ -60,6 +61,34 @@ export class Kakitori {
     this.log = options.logger ?? null;
     this.strokeGroups = options.strokeGroups ?? null;
     this.buildGroupMaps();
+
+    // Auto-load config from @k1low/kakitori-data unless disabled (null)
+    const loader = options.configLoader === null
+      ? null
+      : options.configLoader ?? defaultConfigLoader;
+    if (loader) {
+      this.configReady = Promise.resolve()
+        .then(() => loader(character))
+        .then((config) => {
+          if (!config) return;
+          this.log?.(`config loaded: ${JSON.stringify(config)}`);
+          // Preserve any stroke groups already set on the instance
+          if (this.strokeGroups == null && config.strokeGroups) {
+            this.strokeGroups = config.strokeGroups;
+            this.buildGroupMaps();
+          }
+          if (!this.strokeEndings && config.strokeEndings) {
+            this.strokeEndings = config.strokeEndings ?? null;
+          }
+        })
+        .catch((error) => {
+          this.log?.(
+            `config load failed: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+    } else {
+      this.configReady = Promise.resolve();
+    }
 
     if (typeof target === "string") {
       this.targetEl = document.querySelector(target) as HTMLElement;
@@ -199,6 +228,10 @@ export class Kakitori {
   }
 
   quiz(): void {
+    this.configReady.then(() => this.startQuiz());
+  }
+
+  private startQuiz(): void {
     this.strokeEndingMistakes = 0;
     const strictness = this.options.strokeEndingStrictness ?? 0.7;
 
@@ -314,6 +347,10 @@ export class Kakitori {
   }
 
   animateCharacter(): void {
+    this.configReady.then(() => this.startAnimation());
+  }
+
+  private startAnimation(): void {
     if (!this.strokeGroups) {
       this.hw.animateCharacter();
       return;
