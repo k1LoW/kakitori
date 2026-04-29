@@ -195,8 +195,6 @@ export class Kakitori {
         const strokeColor = options.strokeColor ?? "#555";
 
         const scale = (size - 2 * padding) / 900;
-        const xOffset = padding + (size - 2 * padding - scale * 900) / 2;
-        const yOffset = padding + (size - 2 * padding - scale * 900) / 2;
 
         const ns = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(ns, "svg");
@@ -206,7 +204,7 @@ export class Kakitori {
         const g = document.createElementNS(ns, "g");
         g.setAttribute(
           "transform",
-          `translate(${xOffset}, ${size - yOffset}) scale(${scale}, ${-scale})`,
+          `translate(${padding}, ${size - padding}) scale(${scale}, ${-scale})`,
         );
 
         for (const d of data.strokes) {

@@ -250,7 +250,8 @@ describe("judge", () => {
 
       const resultAt600 = judge(scaledPoints, expected, 0.7, scaledTiming, 600);
 
-      expect(resultAt300.correct).toBe(resultAt600.correct);
+      expect(resultAt300.correct).toBe(true);
+      expect(resultAt600.correct).toBe(true);
     });
 
     it("detects tome consistently at different canvas sizes", () => {
@@ -270,6 +271,16 @@ describe("judge", () => {
 
       expect(resultSmall.correct).toBe(true);
       expect(resultLarge.correct).toBe(true);
+    });
+
+    it("throws when canvasSize is 0", () => {
+      const points = makePoints([[0, 0], [10, 10]]);
+      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, 0)).toThrow("canvasSize must be positive");
+    });
+
+    it("throws when canvasSize is negative", () => {
+      const points = makePoints([[0, 0], [10, 10]]);
+      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, -100)).toThrow("canvasSize must be positive");
     });
   });
 });

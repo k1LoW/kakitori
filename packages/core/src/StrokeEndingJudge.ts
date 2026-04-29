@@ -87,6 +87,9 @@ export function judge(
   timing?: StrokeTimingData,
   canvasSize: number = BASE_SIZE,
 ): StrokeEndingJudgment {
+  if (canvasSize <= 0) {
+    throw new Error(`judge(): canvasSize must be positive, got ${canvasSize}`);
+  }
   const scale = canvasSize / BASE_SIZE;
 
   const tailSize = Math.max(3, Math.floor(drawnPoints.length * 0.2));

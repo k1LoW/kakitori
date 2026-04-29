@@ -71,7 +71,7 @@ describe("Kakitori", () => {
       expect(paths).toHaveLength(mockCharData.strokes.length);
     });
 
-    it("respects width, height, and padding options", () => {
+    it("respects size and padding options", () => {
       Kakitori.render(container, "あ", {
         size: 100,
         padding: 10,
