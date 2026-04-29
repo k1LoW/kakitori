@@ -3,15 +3,18 @@ changelog:
     labels:
       - tagpr
   categories:
-    - title: Breaking Changes
+    - title: Breaking Changes 🛠
       labels:
-        - breaking-change
-    - title: New Features
+        - breaking change
+    - title: New Features 🚀
       labels:
         - enhancement
-    - title: Bug Fixes
+    - title: Fix bug 🐛
       labels:
         - bug
+    - title: Dependency Updates ⬆️
+      labels:
+        - dependencies
     - title: Other Changes
       labels:
         - "*"
