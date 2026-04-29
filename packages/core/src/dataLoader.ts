@@ -18,11 +18,13 @@ export function defaultCharDataLoader(
     .catch(onError);
 }
 
+type StrokeEndingType = "tome" | "hane" | "harai";
+
 export interface KakitoriCharacterConfig {
   character: string;
   strokeGroups?: number[][];
   strokeEndings?: Array<{
-    types?: string[];
+    types?: StrokeEndingType[];
     direction?: [number, number] | null;
   }>;
 }

@@ -78,7 +78,7 @@ export class Kakitori {
             this.buildGroupMaps();
           }
           if (!this.strokeEndings && config.strokeEndings) {
-            this.strokeEndings = config.strokeEndings as StrokeEnding[];
+            this.strokeEndings = config.strokeEndings ?? null;
           }
         })
         .catch((error) => {
