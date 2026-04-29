@@ -123,7 +123,7 @@ function clearResult() {
   strokeSlotEls = [];
 }
 
-function buildSlots(strokeCount: number, endings: Array<{ types?: string[] }> | null) {
+function buildSlots(strokeCount: number, endings: readonly { types?: string[] }[] | null) {
   clearResult();
   for (let i = 0; i < strokeCount; i++) {
     const slot = document.createElement("span");
