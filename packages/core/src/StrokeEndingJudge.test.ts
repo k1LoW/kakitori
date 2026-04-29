@@ -36,16 +36,20 @@ describe("judge", () => {
         [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
       ]);
       const expected: StrokeEnding = { types: ["tome"] };
-      const timedPoints = makeTimedPoints([
-        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
-      ], 5);
+      // Fast movement (5ms interval) with short pause -> harai detection
+      const timedPoints: StrokeTimingData["timedPoints"] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 50, y: 50, t: 155 },
+      ];
       const timing: StrokeTimingData = {
-        pauseBeforeRelease: 10,
+        pauseBeforeRelease: 5,
         timedPoints,
       };
       const result = judge(points, expected, 0.7, timing);
-      // With short pause and velocity, should detect harai or tome
-      expect(result.expected).toEqual(["tome"]);
+      expect(result.correct).toBe(false);
     });
   });
 
