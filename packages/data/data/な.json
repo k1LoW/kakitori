@@ -1,5 +1,29 @@
 {
   "character": "な",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ],
   "strokeGroups": [
     [
       0

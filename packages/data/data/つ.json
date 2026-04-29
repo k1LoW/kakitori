@@ -1,3 +1,15 @@
 {
-  "character": "つ"
+  "character": "つ",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.94,
+        -0.33
+      ]
+    }
+  ]
 }

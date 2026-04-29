@@ -1,3 +1,15 @@
 {
-  "character": "え"
+  "character": "え",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

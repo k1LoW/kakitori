@@ -1,3 +1,21 @@
 {
-  "character": "か"
+  "character": "か",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

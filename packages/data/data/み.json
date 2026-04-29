@@ -1,5 +1,22 @@
 {
   "character": "み",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.72,
+        -0.7
+      ]
+    }
+  ],
   "strokeGroups": [
     [
       0,

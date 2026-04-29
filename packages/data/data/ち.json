@@ -1,3 +1,17 @@
 {
-  "character": "ち"
+  "character": "ち",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

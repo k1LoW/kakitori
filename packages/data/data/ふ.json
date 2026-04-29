@@ -1,3 +1,40 @@
 {
-  "character": "ふ"
+  "character": "ふ",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": [
+        -0.93,
+        -0.36
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": [
+        -0.79,
+        0.62
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": [
+        0.47,
+        0.88
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }
