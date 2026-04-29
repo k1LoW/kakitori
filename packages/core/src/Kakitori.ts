@@ -228,7 +228,7 @@ export class Kakitori {
           });
         }
       },
-      () => {},
+      (err) => { console.error(`Kakitori.render(): failed to load "${character}"`, err); },
     );
   }
 
