@@ -15,14 +15,14 @@ importers:
         specifier: 5.8.3
         version: 5.8.3
 
-  apps/demo:
+  demo:
     dependencies:
       '@k1low/kakitori':
         specifier: workspace:^
-        version: link:../../packages/core
+        version: link:../packages/core
       '@k1low/kakitori-data':
         specifier: workspace:^
-        version: link:../../packages/data
+        version: link:../packages/data
       hanzi-writer:
         specifier: 3.7.3
         version: 3.7.3
