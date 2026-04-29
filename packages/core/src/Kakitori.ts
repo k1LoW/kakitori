@@ -109,6 +109,7 @@ export class Kakitori {
     if (options.strokeColor != null) hwOptions.strokeColor = options.strokeColor;
     if (options.outlineColor != null) hwOptions.outlineColor = options.outlineColor;
     if (options.drawingColor != null) hwOptions.drawingColor = options.drawingColor;
+    if (options.drawingWidth != null) hwOptions.drawingWidth = options.drawingWidth;
     if (options.highlightColor != null) hwOptions.highlightColor = options.highlightColor;
     if (options.showOutline != null) hwOptions.showOutline = options.showOutline;
     if (options.showCharacter != null) hwOptions.showCharacter = options.showCharacter;

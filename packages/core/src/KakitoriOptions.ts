@@ -31,6 +31,7 @@ export interface KakitoriOptions {
   strokeColor?: string;
   outlineColor?: string;
   drawingColor?: string;
+  drawingWidth?: number;
   highlightColor?: string;
   showOutline?: boolean;
   showCharacter?: boolean;
