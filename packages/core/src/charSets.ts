@@ -1,5 +1,5 @@
 // Kyoiku kanji by grade (教育漢字)
-// Source: https://www.mext.go.jp/a_menu/shotou/new-cs/youryou/syo/koku/001.htm
+// Source: https://www.mext.go.jp/a_menu/shotou/new-cs/youryou/syo/koku/__icsFiles/afieldfile/2016/10/27/1234920.pdf
 
 export const grade1 = [
   "一",
