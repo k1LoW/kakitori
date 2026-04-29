@@ -160,6 +160,7 @@ function openPractice(char: string) {
   kakitori = Kakitori.create(writerEl, char, {
     width: 300,
     height: 300,
+    drawingWidth: 12,
     charDataLoader: cachedCharDataLoader,
     logger: log,
     onCorrectStroke: (data: KakitoriStrokeData) => {
