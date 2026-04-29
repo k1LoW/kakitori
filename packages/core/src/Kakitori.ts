@@ -694,4 +694,12 @@ export class Kakitori {
     this.strokeEndingMistakes = 0;
     await this.hw.setCharacter(char);
   }
+
+  destroy(): void {
+    this.stopTimingTracking();
+    if (this.boundOnClick) {
+      this.targetEl.removeEventListener("click", this.boundOnClick);
+      this.boundOnClick = null;
+    }
+  }
 }
