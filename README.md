@@ -54,12 +54,7 @@ writer.quiz();
 
 ## Demo
 
-```
-git clone https://github.com/k1LoW/kakitori.git
-cd kakitori
-pnpm install
-pnpm --filter kakitori-demo dev
-```
+https://k1low.github.io/kakitori/
 
 ## License
 
