@@ -212,4 +212,64 @@ describe("judge", () => {
       expect(correct.confidence).toBeGreaterThan(incorrect.confidence);
     });
   });
+
+  describe("canvas size scaling", () => {
+    it("detects harai consistently at different canvas sizes", () => {
+      // Base data at 300px
+      const basePoints = makePoints([
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
+      ]);
+      const baseTiming: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints: [
+          { x: 0, y: 0, t: 0 },
+          { x: 10, y: 10, t: 50 },
+          { x: 20, y: 20, t: 100 },
+          { x: 30, y: 30, t: 150 },
+          { x: 50, y: 50, t: 155 },
+        ],
+      };
+      const expected: StrokeEnding = { types: ["harai"] };
+
+      const resultAt300 = judge(basePoints, expected, 0.7, baseTiming, 300);
+
+      // Scale up to 600px (2x): points and distances double
+      const scaledPoints = makePoints([
+        [0, 0], [20, 20], [40, 40], [60, 60], [80, 80],
+      ]);
+      const scaledTiming: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints: [
+          { x: 0, y: 0, t: 0 },
+          { x: 20, y: 20, t: 50 },
+          { x: 40, y: 40, t: 100 },
+          { x: 60, y: 60, t: 150 },
+          { x: 100, y: 100, t: 155 },
+        ],
+      };
+
+      const resultAt600 = judge(scaledPoints, expected, 0.7, scaledTiming, 600);
+
+      expect(resultAt300.correct).toBe(resultAt600.correct);
+    });
+
+    it("detects tome consistently at different canvas sizes", () => {
+      const expected: StrokeEnding = { types: ["tome"] };
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 100,
+        timedPoints: makeTimedPoints([
+          [0, 0], [5, 5], [10, 10], [15, 15], [20, 20],
+        ], 50),
+      };
+      const points = makePoints([
+        [0, 0], [5, 5], [10, 10], [15, 15], [20, 20],
+      ]);
+
+      const resultSmall = judge(points, expected, 0.7, timing, 60);
+      const resultLarge = judge(points, expected, 0.7, timing, 600);
+
+      expect(resultSmall.correct).toBe(true);
+      expect(resultLarge.correct).toBe(true);
+    });
+  });
 });

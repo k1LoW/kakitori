@@ -385,6 +385,7 @@ export class Kakitori {
               resolvedExpected,
               strictness,
               timing,
+              Math.min(this.options.width ?? 300, this.options.height ?? 300),
             );
             kakitoriData.strokeEnding = judgment;
 

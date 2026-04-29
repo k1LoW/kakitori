@@ -43,6 +43,7 @@ function getEndDirection(points: Point[]): [number, number] | null {
  */
 function detectDirectionChangeFromTimedPoints(
   timedPoints: Array<{ x: number; y: number; t: number }>,
+  minSegmentDist: number,
 ): number {
   const n = timedPoints.length;
   if (n < 6) return 0;
@@ -66,8 +67,8 @@ function detectDirectionChangeFromTimedPoints(
   );
 
   if (
-    distance(timedPoints[bodyStart], timedPoints[bodyEnd]) < 3 ||
-    distance(timedPoints[tipStart], timedPoints[n - 1]) < 3
+    distance(timedPoints[bodyStart], timedPoints[bodyEnd]) < minSegmentDist ||
+    distance(timedPoints[tipStart], timedPoints[n - 1]) < minSegmentDist
   ) {
     return 0;
   }
@@ -76,12 +77,18 @@ function detectDirectionChangeFromTimedPoints(
   return Math.acos(Math.max(-1, Math.min(1, dot)));
 }
 
+// Base canvas size for threshold calibration
+const BASE_SIZE = 300;
+
 export function judge(
   drawnPoints: Point[],
   expected: StrokeEnding,
   strictness: number = 0.7,
   timing?: StrokeTimingData,
+  canvasSize: number = BASE_SIZE,
 ): StrokeEndingJudgment {
+  const scale = canvasSize / BASE_SIZE;
+
   const tailSize = Math.max(3, Math.floor(drawnPoints.length * 0.2));
   const tail = drawnPoints.slice(-tailSize);
   const actualEndDirection = getEndDirection(tail);
@@ -91,11 +98,12 @@ export function judge(
   const hasTomePause = pauseMs >= tomeThreshold;
 
   // Detect direction change from timed points (more reliable than HW points)
+  const minSegmentDist = 3 * scale;
   const directionChange = timing?.timedPoints
-    ? detectDirectionChangeFromTimedPoints(timing.timedPoints)
+    ? detectDirectionChangeFromTimedPoints(timing.timedPoints, minSegmentDist)
     : 0;
 
-  // Compute end velocity from timed points
+  // Compute end velocity from timed points (normalize by scale)
   let endVelocity = 0;
   if (timing && timing.timedPoints.length >= 2) {
     const pts = timing.timedPoints;
@@ -103,7 +111,7 @@ export function judge(
     const prev = pts[pts.length - 2];
     const dt = last.t - prev.t;
     if (dt > 0) {
-      endVelocity = distance(last, prev) / dt;
+      endVelocity = distance(last, prev) / dt / scale;
     }
   }
 
