@@ -236,11 +236,11 @@ export class Kakitori {
     return this.configReady;
   }
 
-  getStrokeEndings(): StrokeEnding[] | null {
+  getStrokeEndings(): readonly StrokeEnding[] | null {
     return this.strokeEndings;
   }
 
-  getStrokeGroups(): number[][] | null {
+  getStrokeGroups(): readonly number[][] | null {
     return this.strokeGroups;
   }
 
