@@ -3,3 +3,4 @@
 	releaseBranch = main
 	versionFile = packages/core/package.json
 	tagPrefix = packages/core
+	changelog = packages/core/CHANGELOG.md
