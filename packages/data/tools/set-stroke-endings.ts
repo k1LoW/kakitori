@@ -36,7 +36,7 @@ function typeToLabel(types: StrokeEndingType[]): string {
 
 function formatStrokeEnding(ending: StrokeEnding): string {
   const types = ending.types ?? [];
-  if (types.length === 0) return "(skip)";
+  if (types.length === 0) return "{}";
   const dir = ending.direction
     ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
     : "";
@@ -133,15 +133,14 @@ async function annotateChar(
       ? ` (current: ${formatStrokeEnding(existingEnding)})`
       : "";
     const answer = await rl.question(
-      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai (use + for multiple, e.g. t+r) [${defaultLabel}]${currentLabel}: `,
+      `  Stroke ${i + 1}/${logicalStrokeCount}${groupLabel} [t]ome/[h]ane/ha[r]ai/[*]any (use + for multiple, e.g. t+r) [${defaultLabel}]${currentLabel}: `,
     );
 
     const input = answer.trim().toLowerCase();
     let types: StrokeEndingType[];
     if (input === "") {
       types = defaultTypes;
-    } else if (input === "-") {
-      // Explicit skip
+    } else if (input === "*" || input === "-") {
       types = [];
     } else {
       const parts = input.split("+").map((s) => s.trim());
