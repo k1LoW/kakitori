@@ -18,7 +18,7 @@ export function defaultCharDataLoader(
     .catch(onError);
 }
 
-type StrokeEndingType = "tome" | "hane" | "harai";
+import type { StrokeEndingType } from "./types.js";
 
 export interface KakitoriCharacterConfig {
   character: string;
