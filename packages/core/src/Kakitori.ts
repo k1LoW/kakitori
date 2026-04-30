@@ -593,6 +593,7 @@ export class Kakitori {
       const groupDelay = currentDelay;
       let groupMaxDuration = 0;
       for (const dataIdx of this.strokeGroups[gi]) {
+        if (dataIdx < 0 || dataIdx >= dataStrokes.length) continue;
         strokeDelays[dataIdx] = groupDelay;
         if (strokeDurations[dataIdx] > groupMaxDuration) {
           groupMaxDuration = strokeDurations[dataIdx];
