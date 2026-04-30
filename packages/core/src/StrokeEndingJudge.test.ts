@@ -214,8 +214,8 @@ describe("judge", () => {
     });
   });
 
-  describe("canvas size scaling", () => {
-    it("detects harai consistently at different canvas sizes", () => {
+  describe("drawable size scaling", () => {
+    it("detects harai consistently at different drawable sizes", () => {
       // Base data at 300px
       const basePoints = makePoints([
         [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
@@ -255,7 +255,7 @@ describe("judge", () => {
       expect(resultAt600.correct).toBe(true);
     });
 
-    it("detects tome consistently at different canvas sizes", () => {
+    it("detects tome consistently at different drawable sizes", () => {
       const expected: StrokeEnding = { types: ["tome"] };
       const timing: StrokeTimingData = {
         pauseBeforeRelease: 100,
@@ -274,7 +274,7 @@ describe("judge", () => {
       expect(resultLarge.correct).toBe(true);
     });
 
-    it("detects hane consistently at different canvas sizes", () => {
+    it("detects hane consistently at different drawable sizes", () => {
       const expected: StrokeEnding = { types: ["hane"] };
 
       const basePoints = makePoints([
@@ -344,22 +344,22 @@ describe("judge", () => {
       expect(resultAt600.correct).toBe(true);
     });
 
-    it("throws when canvasSize is 0", () => {
+    it("throws when drawableSize is 0", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, { drawableSize: 0 })).toThrow("drawableSize must be positive");
     });
 
-    it("throws when canvasSize is negative", () => {
+    it("throws when drawableSize is negative", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, { drawableSize: -100 })).toThrow("drawableSize must be positive");
     });
 
-    it("throws when canvasSize is NaN", () => {
+    it("throws when drawableSize is NaN", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, { drawableSize: Number.NaN })).toThrow("drawableSize must be finite");
     });
 
-    it("throws when canvasSize is Infinity", () => {
+    it("throws when drawableSize is Infinity", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, { drawableSize: Number.POSITIVE_INFINITY })).toThrow("drawableSize must be finite");
     });
