@@ -352,5 +352,15 @@ describe("judge", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, -100)).toThrow("canvasSize must be positive");
     });
+
+    it("throws when canvasSize is NaN", () => {
+      const points = makePoints([[0, 0], [10, 10]]);
+      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, Number.NaN)).toThrow("canvasSize must be finite");
+    });
+
+    it("throws when canvasSize is Infinity", () => {
+      const points = makePoints([[0, 0], [10, 10]]);
+      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, Number.POSITIVE_INFINITY)).toThrow("canvasSize must be finite");
+    });
   });
 });

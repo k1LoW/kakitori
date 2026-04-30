@@ -87,6 +87,9 @@ export function judge(
   timing?: StrokeTimingData,
   canvasSize: number = BASE_SIZE,
 ): StrokeEndingJudgment {
+  if (!Number.isFinite(canvasSize)) {
+    throw new Error(`judge(): canvasSize must be finite, got ${canvasSize}`);
+  }
   if (canvasSize <= 0) {
     throw new Error(`judge(): canvasSize must be positive, got ${canvasSize}`);
   }
