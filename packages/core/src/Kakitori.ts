@@ -8,6 +8,28 @@ import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 import { DEFAULT_SIZE } from "./constants.js";
 
+function validateSizeAndPadding(
+  size: number,
+  padding: number,
+  context: string,
+): void {
+  if (!Number.isFinite(size)) {
+    throw new Error(`${context}: size must be finite, got ${size}`);
+  }
+  if (size <= 0) {
+    throw new Error(`${context}: size must be positive, got ${size}`);
+  }
+  if (!Number.isFinite(padding)) {
+    throw new Error(`${context}: padding must be finite, got ${padding}`);
+  }
+  if (padding < 0) {
+    throw new Error(`${context}: padding must be non-negative, got ${padding}`);
+  }
+  if (padding >= size / 2) {
+    throw new Error(`${context}: padding (${padding}) must be less than size/2 (${size / 2})`);
+  }
+}
+
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
 ): [number, number] | null {
@@ -102,21 +124,7 @@ export class Kakitori {
 
     const size = options.size ?? DEFAULT_SIZE;
     const padding = options.padding ?? 20;
-    if (!Number.isFinite(size)) {
-      throw new Error(`Kakitori: size must be finite, got ${size}`);
-    }
-    if (size <= 0) {
-      throw new Error(`Kakitori: size must be positive, got ${size}`);
-    }
-    if (!Number.isFinite(padding)) {
-      throw new Error(`Kakitori: padding must be finite, got ${padding}`);
-    }
-    if (padding < 0) {
-      throw new Error(`Kakitori: padding must be non-negative, got ${padding}`);
-    }
-    if (padding >= size / 2) {
-      throw new Error(`Kakitori: padding (${padding}) must be less than size/2 (${size / 2})`);
-    }
+    validateSizeAndPadding(size, padding, "Kakitori");
     const hwOptions: Record<string, unknown> = {
       width: size,
       height: size,
@@ -204,21 +212,7 @@ export class Kakitori {
     }
     const size = options.size ?? DEFAULT_SIZE;
     const padding = options.padding ?? 20;
-    if (!Number.isFinite(size)) {
-      throw new Error(`Kakitori.render(): size must be finite, got ${size}`);
-    }
-    if (size <= 0) {
-      throw new Error(`Kakitori.render(): size must be positive, got ${size}`);
-    }
-    if (!Number.isFinite(padding)) {
-      throw new Error(`Kakitori.render(): padding must be finite, got ${padding}`);
-    }
-    if (padding < 0) {
-      throw new Error(`Kakitori.render(): padding must be non-negative, got ${padding}`);
-    }
-    if (padding >= size / 2) {
-      throw new Error(`Kakitori.render(): padding (${padding}) must be less than size/2 (${size / 2})`);
-    }
+    validateSizeAndPadding(size, padding, "Kakitori.render()");
     const loader = options.charDataLoader ?? defaultCharDataLoader;
 
     loader(
