@@ -6,7 +6,7 @@ import type {
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
-import { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
+import { DEFAULT_SIZE, DEFAULT_PADDING, HANZI_COORD_SIZE } from "./constants.js";
 
 const DEFAULT_GRID_COLOR = "#ccc";
 const DEFAULT_GRID_DASH = "10,10";
@@ -277,7 +277,7 @@ export class Kakitori {
       (data) => {
         const strokeColor = options.strokeColor ?? "#555";
 
-        const scale = (size - 2 * padding) / 900;
+        const scale = (size - 2 * padding) / HANZI_COORD_SIZE;
 
         const ns = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(ns, "svg");
@@ -562,7 +562,22 @@ export class Kakitori {
     const PATH_LENGTH = 3333;
     const DASH_ARRAY = 3337;
     const DASH_OFFSET = 3339;
-    const STROKE_DURATION = 0.8 / speed; // seconds per stroke
+    // Base duration: time to draw a stroke that spans the full coordinate size (900).
+    const BASE_STROKE_DURATION = 0.8 / speed;
+
+    // Compute median length (sum of segment distances) for each data stroke.
+    const strokeLengths = dataStrokes.map((s: any) => {
+      let len = 0;
+      for (let i = 1; i < s.points.length; i++) {
+        const dx = s.points[i].x - s.points[i - 1].x;
+        const dy = s.points[i].y - s.points[i - 1].y;
+        len += Math.sqrt(dx * dx + dy * dy);
+      }
+      return len;
+    });
+    const strokeDurations = strokeLengths.map(
+      (len: number) => (len / HANZI_COORD_SIZE) * BASE_STROKE_DURATION,
+    );
 
     // Calculate delay for each data stroke based on groups.
     // Strokes within the same group get the SAME delay (start simultaneously),
@@ -572,10 +587,14 @@ export class Kakitori {
     for (let gi = 0; gi < this.strokeGroups.length; gi++) {
       if (gi > 0) currentDelay += delayBetweenStrokes / 1000;
       const groupDelay = currentDelay;
+      let groupMaxDuration = 0;
       for (const dataIdx of this.strokeGroups[gi]) {
         strokeDelays[dataIdx] = groupDelay;
+        if (strokeDurations[dataIdx] > groupMaxDuration) {
+          groupMaxDuration = strokeDurations[dataIdx];
+        }
       }
-      currentDelay += STROKE_DURATION;
+      currentDelay += groupMaxDuration;
     }
     const totalTime = currentDelay;
 
@@ -600,7 +619,6 @@ export class Kakitori {
         to { stroke-dashoffset: 0; }
       }
       svg.kakitori-anim path[clip-path] {
-        --t: ${STROKE_DURATION}s;
         animation: kakitori-zk var(--t) linear forwards var(--d);
         stroke-dasharray: ${DASH_ARRAY};
         stroke-dashoffset: ${DASH_OFFSET};
@@ -641,6 +659,7 @@ export class Kakitori {
       medianPath.setAttribute("pathLength", String(PATH_LENGTH));
       medianPath.setAttribute("clip-path", `url(#kakitori-c${i})`);
       medianPath.style.setProperty("--d", `${strokeDelays[i]}s`);
+      medianPath.style.setProperty("--t", `${strokeDurations[i]}s`);
 
       // Build median path from stroke points
       const d = stroke.points
