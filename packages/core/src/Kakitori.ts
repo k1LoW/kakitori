@@ -696,7 +696,10 @@ export class Kakitori {
     return null;
   }
 
-  /** Set the color of a logical stroke. Use {@link resetStrokeColors} to restore. */
+  /**
+   * Set the color of a logical stroke.
+   * Use {@link resetStrokeColor} or {@link resetStrokeColors} to restore.
+   */
   setStrokeColor(logicalStrokeNum: number, color: string = "#FF0000"): void {
     const strokePaths = this.getStrokePaths();
     const dataIndices = this.strokeGroups
@@ -706,7 +709,9 @@ export class Kakitori {
     for (const dataIdx of dataIndices) {
       const path = strokePaths[dataIdx];
       if (path) {
-        path.dataset.kakitoriOriginalStroke = path.style.stroke || "";
+        if (path.dataset.kakitoriOriginalStroke === undefined) {
+          path.dataset.kakitoriOriginalStroke = path.style.stroke || "";
+        }
         path.style.stroke = color;
       }
     }

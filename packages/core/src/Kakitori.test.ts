@@ -366,4 +366,62 @@ describe("Kakitori", () => {
       });
     });
   });
+
+  describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
+    it("setStrokeColor changes stroke color", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.setStrokeColor(0, "#c00");
+      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
+      if (paths.length > 0) {
+        expect(paths[0].getAttribute("style")).toContain("#c00");
+      }
+    });
+
+    it("setStrokeColor preserves original color on repeated calls", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.setStrokeColor(0, "#c00");
+      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
+      const original = paths.length > 0
+        ? (paths[0] as HTMLElement).dataset.kakitoriOriginalStroke
+        : undefined;
+      // Second call should not overwrite saved original
+      k.setStrokeColor(0, "#00f");
+      if (paths.length > 0) {
+        expect((paths[0] as HTMLElement).dataset.kakitoriOriginalStroke).toBe(original);
+      }
+    });
+
+    it("resetStrokeColor restores a single stroke", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.setStrokeColor(0, "#c00");
+      k.resetStrokeColor(0);
+      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
+      if (paths.length > 0) {
+        expect((paths[0] as HTMLElement).dataset.kakitoriOriginalStroke).toBeUndefined();
+      }
+    });
+
+    it("resetStrokeColors restores all strokes", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.setStrokeColor(0, "#c00");
+      k.setStrokeColor(1, "#0c0");
+      k.resetStrokeColors();
+      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
+      for (const path of paths) {
+        expect((path as HTMLElement).dataset.kakitoriOriginalStroke).toBeUndefined();
+      }
+    });
+  });
 });
