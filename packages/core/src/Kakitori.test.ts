@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Kakitori } from "./Kakitori.js";
+import { Kakitori, computeMedianLength } from "./Kakitori.js";
 import type { RenderOptions } from "./KakitoriOptions.js";
 import type { CharDataLoaderFn } from "./KakitoriOptions.js";
 
@@ -487,6 +487,45 @@ describe("Kakitori", () => {
       });
       const lines = container.querySelectorAll("svg > line");
       expect(lines).toHaveLength(2);
+    });
+  });
+
+  describe("computeMedianLength", () => {
+    it("returns 0 for empty or single-point arrays", () => {
+      expect(computeMedianLength([])).toBe(0);
+      expect(computeMedianLength([{ x: 0, y: 0 }])).toBe(0);
+    });
+
+    it("computes total euclidean distance", () => {
+      // 3-4-5 right triangle: each segment = 5
+      expect(
+        computeMedianLength([
+          { x: 0, y: 0 },
+          { x: 3, y: 4 },
+        ]),
+      ).toBe(5);
+    });
+
+    it("sums multiple segments", () => {
+      expect(
+        computeMedianLength([
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+          { x: 10, y: 10 },
+        ]),
+      ).toBe(20);
+    });
+
+    it("longer strokes return larger lengths", () => {
+      const short = computeMedianLength([
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ]);
+      const long = computeMedianLength([
+        { x: 0, y: 0 },
+        { x: 500, y: 0 },
+      ]);
+      expect(long).toBeGreaterThan(short);
     });
   });
 });

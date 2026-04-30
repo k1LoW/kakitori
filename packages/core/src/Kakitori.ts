@@ -70,6 +70,18 @@ function validateSizeAndPadding(
   }
 }
 
+export function computeMedianLength(
+  points: Array<{ x: number; y: number }>,
+): number {
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    const dx = points[i].x - points[i - 1].x;
+    const dy = points[i].y - points[i - 1].y;
+    len += Math.sqrt(dx * dx + dy * dy);
+  }
+  return len;
+}
+
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
 ): [number, number] | null {
@@ -562,19 +574,11 @@ export class Kakitori {
     const PATH_LENGTH = 3333;
     const DASH_ARRAY = 3337;
     const DASH_OFFSET = 3339;
-    // Base duration: time to draw a stroke that spans the full coordinate size (900).
+    // Base duration: time to draw a stroke that spans the full HANZI_COORD_SIZE.
     const BASE_STROKE_DURATION = 0.8 / speed;
 
     // Compute median length (sum of segment distances) for each data stroke.
-    const strokeLengths = dataStrokes.map((s: any) => {
-      let len = 0;
-      for (let i = 1; i < s.points.length; i++) {
-        const dx = s.points[i].x - s.points[i - 1].x;
-        const dy = s.points[i].y - s.points[i - 1].y;
-        len += Math.sqrt(dx * dx + dy * dy);
-      }
-      return len;
-    });
+    const strokeLengths = dataStrokes.map((s: any) => computeMedianLength(s.points));
     const strokeDurations = strokeLengths.map(
       (len: number) => (len / HANZI_COORD_SIZE) * BASE_STROKE_DURATION,
     );
@@ -596,7 +600,12 @@ export class Kakitori {
       }
       currentDelay += groupMaxDuration;
     }
-    const totalTime = currentDelay;
+    // totalTime = max end time across all data strokes (handles incomplete strokeGroups).
+    let totalTime = 0;
+    for (let i = 0; i < dataStrokes.length; i++) {
+      const end = strokeDelays[i] + strokeDurations[i];
+      if (end > totalTime) totalTime = end;
+    }
 
     // Build overlay SVG (exact animCJK structure)
     const ns = "http://www.w3.org/2000/svg";
