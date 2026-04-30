@@ -844,12 +844,18 @@ export class Kakitori {
     await this.hw.setCharacter(char);
   }
 
-  /** Clean up event listeners (click, pointer tracking). Call before discarding the instance. */
+  /**
+   * Clean up event listeners, remove the rendered SVG, and release internal references.
+   * After destroy, the instance must not be used.
+   */
   destroy(): void {
     this.stopTimingTracking();
     if (this.boundOnClick) {
       this.targetEl.removeEventListener("click", this.boundOnClick);
       this.boundOnClick = null;
     }
+    this.targetEl.innerHTML = "";
+    this.hw = null as unknown as HanziWriter;
+    this.characterData = null;
   }
 }
