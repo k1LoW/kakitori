@@ -88,6 +88,37 @@ describe("Kakitori", () => {
         });
       }).toThrow("padding must be non-negative");
     });
+
+    it("throws when size is zero", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: 0,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when size is negative", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: -10,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when padding >= size/2", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: 100,
+          padding: 50,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding (50) must be less than size/2");
+    });
   });
 
   describe("render", () => {
@@ -137,6 +168,34 @@ describe("Kakitori", () => {
           charDataLoader: mockCharDataLoader,
         });
       }).toThrow("padding must be non-negative");
+    });
+
+    it("throws when size is zero", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: 0,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when size is negative", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: -10,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when padding >= size/2", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: 100,
+          padding: 50,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding (50) must be less than size/2");
     });
 
     it("applies strokeColor to paths", () => {
