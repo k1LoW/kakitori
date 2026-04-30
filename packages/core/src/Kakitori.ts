@@ -404,7 +404,7 @@ export class Kakitori {
             const judgment = judge(
               hwData.drawnPath.points,
               resolvedExpected,
-              this.options.size ?? DEFAULT_SIZE,
+              (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? 20),
               strictness,
               timing,
             );
