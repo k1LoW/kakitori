@@ -31,6 +31,7 @@ function drawCrossGrid(
   vLine.setAttribute("stroke", color);
   vLine.setAttribute("stroke-width", String(width));
   vLine.setAttribute("stroke-dasharray", dashArray);
+  vLine.setAttribute("pointer-events", "none");
 
   const hLine = document.createElementNS(ns, "line");
   hLine.setAttribute("x1", "0");
@@ -40,6 +41,7 @@ function drawCrossGrid(
   hLine.setAttribute("stroke", color);
   hLine.setAttribute("stroke-width", String(width));
   hLine.setAttribute("stroke-dasharray", dashArray);
+  hLine.setAttribute("pointer-events", "none");
 
   svg.appendChild(vLine);
   svg.appendChild(hLine);

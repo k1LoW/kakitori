@@ -418,4 +418,75 @@ describe("Kakitori", () => {
       expect(paths[1].dataset.kakitoriOriginalStroke).toBeUndefined();
     });
   });
+
+  describe("showGrid option", () => {
+    it("does not draw grid lines when showGrid is omitted", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(0);
+    });
+
+    it("draws cross-hair grid lines when showGrid is true (create)", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(2);
+      // Vertical line spans full size, horizontal line spans full size
+      const v = lines[0];
+      const h = lines[1];
+      expect(v.getAttribute("x1")).toBe("150");
+      expect(v.getAttribute("y1")).toBe("0");
+      expect(v.getAttribute("y2")).toBe("300");
+      expect(h.getAttribute("y1")).toBe("150");
+      expect(h.getAttribute("x1")).toBe("0");
+      expect(h.getAttribute("x2")).toBe("300");
+    });
+
+    it("applies custom GridOptions", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: { color: "#aaf", dashArray: "8,4", width: 0.5 },
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(2);
+      for (const line of lines) {
+        expect(line.getAttribute("stroke")).toBe("#aaf");
+        expect(line.getAttribute("stroke-dasharray")).toBe("8,4");
+        expect(line.getAttribute("stroke-width")).toBe("0.5");
+      }
+    });
+
+    it("sets pointer-events=none on grid lines (does not block hit-test)", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      for (const line of lines) {
+        expect(line.getAttribute("pointer-events")).toBe("none");
+      }
+    });
+
+    it("draws grid lines in render() when showGrid is true", () => {
+      Kakitori.render(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(2);
+    });
+  });
 });
