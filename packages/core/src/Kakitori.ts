@@ -696,10 +696,8 @@ export class Kakitori {
     return null;
   }
 
-  /**
-   * Highlight a logical stroke with a specific color.
-   */
-  highlightStroke(logicalStrokeNum: number, color: string = "#FF0000"): void {
+  /** Set the color of a logical stroke. Use {@link resetStrokeColors} to restore. */
+  setStrokeColor(logicalStrokeNum: number, color: string = "#FF0000"): void {
     const strokePaths = this.getStrokePaths();
     const dataIndices = this.strokeGroups
       ? this.strokeGroups[logicalStrokeNum] ?? []
@@ -714,9 +712,23 @@ export class Kakitori {
     }
   }
 
-  /**
-   * Reset all stroke colors to default.
-   */
+  /** Reset a single logical stroke's color to its original value. */
+  resetStrokeColor(logicalStrokeNum: number): void {
+    const strokePaths = this.getStrokePaths();
+    const dataIndices = this.strokeGroups
+      ? this.strokeGroups[logicalStrokeNum] ?? []
+      : [logicalStrokeNum];
+
+    for (const dataIdx of dataIndices) {
+      const path = strokePaths[dataIdx];
+      if (path && path.dataset.kakitoriOriginalStroke !== undefined) {
+        path.style.stroke = path.dataset.kakitoriOriginalStroke;
+        delete path.dataset.kakitoriOriginalStroke;
+      }
+    }
+  }
+
+  /** Reset all stroke colors to their original values. */
   resetStrokeColors(): void {
     const strokePaths = this.getStrokePaths();
     for (const path of strokePaths) {

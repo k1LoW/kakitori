@@ -220,7 +220,7 @@ writerEl.addEventListener("click", (e) => {
   const idx = kakitori.getStrokeIndexAtPoint(e.clientX, e.clientY);
   if (idx !== null) {
     kakitori.resetStrokeColors();
-    kakitori.highlightStroke(idx, "#c00");
+    kakitori.setStrokeColor(idx, "#c00");
     highlightIdx = idx;
     log(`click: stroke ${idx + 1} highlighted`);
   }
@@ -232,6 +232,6 @@ highlightBtn.addEventListener("click", () => {
   if (count === 0) return;
   kakitori.resetStrokeColors();
   highlightIdx = (highlightIdx + 1) % count;
-  kakitori.highlightStroke(highlightIdx, "#c00");
+  kakitori.setStrokeColor(highlightIdx, "#c00");
   log(`highlight: stroke ${highlightIdx + 1}/${count}`);
 });
