@@ -112,6 +112,33 @@ describe("Kakitori", () => {
       expect(svg?.getAttribute("height")).toBe("100");
     });
 
+    it("throws when size is NaN", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: Number.NaN,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be finite");
+    });
+
+    it("throws when padding is Infinity", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          padding: Number.POSITIVE_INFINITY,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding must be finite");
+    });
+
+    it("throws when padding is negative", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          padding: -1,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding must be non-negative");
+    });
+
     it("applies strokeColor to paths", () => {
       Kakitori.render(container, "あ", {
         strokeColor: "#f00",

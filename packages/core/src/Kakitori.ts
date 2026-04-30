@@ -203,8 +203,17 @@ export class Kakitori {
     }
     const size = options.size ?? 300;
     const padding = options.padding ?? 20;
+    if (!Number.isFinite(size)) {
+      throw new Error(`Kakitori.render(): size must be finite, got ${size}`);
+    }
     if (size <= 0) {
       throw new Error(`Kakitori.render(): size must be positive, got ${size}`);
+    }
+    if (!Number.isFinite(padding)) {
+      throw new Error(`Kakitori.render(): padding must be finite, got ${padding}`);
+    }
+    if (padding < 0) {
+      throw new Error(`Kakitori.render(): padding must be non-negative, got ${padding}`);
     }
     if (padding >= size / 2) {
       throw new Error(`Kakitori.render(): padding (${padding}) must be less than size/2 (${size / 2})`);
