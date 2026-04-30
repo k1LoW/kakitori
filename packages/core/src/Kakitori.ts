@@ -17,9 +17,10 @@ function drawCrossGrid(
   size: number,
   gridOpts: GridOptions | true,
 ): void {
-  const color = (gridOpts !== true && gridOpts.color) || DEFAULT_GRID_COLOR;
-  const dashArray = (gridOpts !== true && gridOpts.dashArray) || DEFAULT_GRID_DASH;
-  const width = (gridOpts !== true && gridOpts.width) || DEFAULT_GRID_WIDTH;
+  const opts = gridOpts === true ? {} : gridOpts;
+  const color = opts.color ?? DEFAULT_GRID_COLOR;
+  const dashArray = opts.dashArray ?? DEFAULT_GRID_DASH;
+  const width = opts.width ?? DEFAULT_GRID_WIDTH;
   const ns = "http://www.w3.org/2000/svg";
   const mid = size / 2;
 
@@ -178,7 +179,6 @@ export class Kakitori {
     if (options.highlightColor != null) hwOptions.highlightColor = options.highlightColor;
     if (options.showOutline != null) hwOptions.showOutline = options.showOutline;
     if (options.showCharacter != null) hwOptions.showCharacter = options.showCharacter;
-    if (options.renderer != null) hwOptions.renderer = options.renderer;
     if (options.strokeAnimationSpeed != null) hwOptions.strokeAnimationSpeed = options.strokeAnimationSpeed;
     if (options.delayBetweenStrokes != null) hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
 

@@ -41,7 +41,6 @@ export interface KakitoriOptions {
   showGrid?: boolean | GridOptions;
   showOutline?: boolean;
   showCharacter?: boolean;
-  renderer?: "svg" | "canvas";
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;
   strokeEndingStrictness?: number;
