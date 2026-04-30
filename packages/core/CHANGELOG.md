@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.4.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.3.0...packages/core/v0.4.0) - 2026-04-30
+### Breaking Changes 🛠
+- feat!: add showGrid cross-hair guide and DEFAULT_PADDING constant by @k1LoW in https://github.com/k1LoW/kakitori/pull/27
+### New Features 🚀
+- feat: scale stroke animation duration by stroke length by @k1LoW in https://github.com/k1LoW/kakitori/pull/29
+
 ## [v0.3.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.2.0...packages/core/v0.3.0) - 2026-04-30
 ### New Features 🚀
 - feat: add drawingWidth option by @k1LoW in https://github.com/k1LoW/kakitori/pull/21
