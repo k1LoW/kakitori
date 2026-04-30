@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Kakitori, computeMedianLength } from "./Kakitori.js";
+import { Kakitori, computeMedianPathLength } from "./Kakitori.js";
 import type { RenderOptions } from "./KakitoriOptions.js";
 import type { CharDataLoaderFn } from "./KakitoriOptions.js";
 
@@ -490,16 +490,16 @@ describe("Kakitori", () => {
     });
   });
 
-  describe("computeMedianLength", () => {
+  describe("computeMedianPathLength", () => {
     it("returns 0 for empty or single-point arrays", () => {
-      expect(computeMedianLength([])).toBe(0);
-      expect(computeMedianLength([{ x: 0, y: 0 }])).toBe(0);
+      expect(computeMedianPathLength([])).toBe(0);
+      expect(computeMedianPathLength([{ x: 0, y: 0 }])).toBe(0);
     });
 
     it("computes total euclidean distance", () => {
       // 3-4-5 right triangle: each segment = 5
       expect(
-        computeMedianLength([
+        computeMedianPathLength([
           { x: 0, y: 0 },
           { x: 3, y: 4 },
         ]),
@@ -508,7 +508,7 @@ describe("Kakitori", () => {
 
     it("sums multiple segments", () => {
       expect(
-        computeMedianLength([
+        computeMedianPathLength([
           { x: 0, y: 0 },
           { x: 10, y: 0 },
           { x: 10, y: 10 },
@@ -517,11 +517,11 @@ describe("Kakitori", () => {
     });
 
     it("longer strokes return larger lengths", () => {
-      const short = computeMedianLength([
+      const short = computeMedianPathLength([
         { x: 0, y: 0 },
         { x: 100, y: 0 },
       ]);
-      const long = computeMedianLength([
+      const long = computeMedianPathLength([
         { x: 0, y: 0 },
         { x: 500, y: 0 },
       ]);

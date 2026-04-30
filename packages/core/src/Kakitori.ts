@@ -70,7 +70,7 @@ function validateSizeAndPadding(
   }
 }
 
-export function computeMedianLength(
+export function computeMedianPathLength(
   points: Array<{ x: number; y: number }>,
 ): number {
   let len = 0;
@@ -556,7 +556,11 @@ export class Kakitori {
   private async animateWithGroups(): Promise<void> {
     if (!this.strokeGroups) return;
 
-    const speed = this.options.strokeAnimationSpeed ?? 1;
+    const rawSpeed = this.options.strokeAnimationSpeed ?? 1;
+    const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
+    if (speed !== rawSpeed) {
+      this.log?.(`strokeAnimationSpeed must be a positive finite number, got ${rawSpeed}; falling back to 1`);
+    }
     const delayBetweenStrokes = this.options.delayBetweenStrokes ?? 1000;
     const strokeColor = this.options.strokeColor ?? "#555";
     const outlineColor = this.options.outlineColor ?? "#DDD";
@@ -578,7 +582,7 @@ export class Kakitori {
     const BASE_STROKE_DURATION = 0.8 / speed;
 
     // Compute median length (sum of segment distances) for each data stroke.
-    const strokeLengths = dataStrokes.map((s: any) => computeMedianLength(s.points));
+    const strokeLengths = dataStrokes.map((s: any) => computeMedianPathLength(s.points));
     const strokeDurations = strokeLengths.map(
       (len: number) => (len / HANZI_COORD_SIZE) * BASE_STROKE_DURATION,
     );
