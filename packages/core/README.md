@@ -16,8 +16,7 @@ npm install @k1low/kakitori hanzi-writer
 import { Kakitori, defaultCharDataLoader } from "@k1low/kakitori";
 
 const writer = Kakitori.create("#target", "永", {
-  width: 300,
-  height: 300,
+  size: 300,
   charDataLoader: defaultCharDataLoader,
   onCorrectStroke: (data) => {
     if (data.strokeEnding) {

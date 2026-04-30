@@ -30,8 +30,7 @@ Features:
 import { Kakitori, defaultCharDataLoader } from "@k1low/kakitori";
 
 const writer = Kakitori.create("#target", "永", {
-  width: 300,
-  height: 300,
+  size: 300,
   charDataLoader: defaultCharDataLoader,
   strokeGroups: [[0], [1], [2, 3]], // optional: merge data strokes
   onCorrectStroke: (data) => {
