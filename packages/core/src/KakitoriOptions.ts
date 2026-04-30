@@ -10,10 +10,17 @@ export type CharDataLoaderFn = (
   onError: (err?: unknown) => void,
 ) => void;
 
+export interface GridOptions {
+  color?: string;
+  dashArray?: string;
+  width?: number;
+}
+
 export interface RenderOptions {
   size?: number;
   padding?: number;
   strokeColor?: string;
+  showGrid?: boolean | GridOptions;
   charDataLoader?: CharDataLoaderFn;
   onClick?: (data: { character: string }) => void;
 }
@@ -31,6 +38,7 @@ export interface KakitoriOptions {
   drawingColor?: string;
   drawingWidth?: number;
   highlightColor?: string;
+  showGrid?: boolean | GridOptions;
   showOutline?: boolean;
   showCharacter?: boolean;
   renderer?: "svg" | "canvas";
