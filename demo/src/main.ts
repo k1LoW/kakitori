@@ -204,7 +204,7 @@ quizBtn.addEventListener("click", async () => {
 
   kakitori.resetStrokeColors();
   highlightIdx = -1;
-  kakitori.quiz();
+  kakitori.start();
 });
 
 animateBtn.addEventListener("click", async () => {
@@ -212,7 +212,7 @@ animateBtn.addEventListener("click", async () => {
   await kakitori.ready();
   kakitori.resetStrokeColors();
   highlightIdx = -1;
-  kakitori.animateCharacter();
+  kakitori.animate();
 });
 
 writerEl.addEventListener("click", (e) => {

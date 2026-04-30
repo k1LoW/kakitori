@@ -34,7 +34,7 @@ writer.setStrokeEndings([
   { types: ["harai"] },
 ]);
 
-writer.quiz();
+writer.start();
 ```
 
 ## License
