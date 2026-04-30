@@ -1,12 +1,52 @@
 import HanziWriter from "hanzi-writer";
-import type { KakitoriOptions, KakitoriLogger, RenderOptions } from "./KakitoriOptions.js";
+import type { KakitoriOptions, KakitoriLogger, RenderOptions, GridOptions } from "./KakitoriOptions.js";
 import type {
   StrokeEnding,
   KakitoriStrokeData,
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
-import { DEFAULT_SIZE } from "./constants.js";
+import { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
+
+const DEFAULT_GRID_COLOR = "#ccc";
+const DEFAULT_GRID_DASH = "10,10";
+const DEFAULT_GRID_WIDTH = 2;
+
+function drawCrossGrid(
+  svg: SVGSVGElement,
+  size: number,
+  gridOpts: GridOptions | true,
+): void {
+  const opts = gridOpts === true ? {} : gridOpts;
+  const color = opts.color ?? DEFAULT_GRID_COLOR;
+  const dashArray = opts.dashArray ?? DEFAULT_GRID_DASH;
+  const width = opts.width ?? DEFAULT_GRID_WIDTH;
+  const ns = "http://www.w3.org/2000/svg";
+  const mid = size / 2;
+
+  const vLine = document.createElementNS(ns, "line");
+  vLine.setAttribute("x1", String(mid));
+  vLine.setAttribute("y1", "0");
+  vLine.setAttribute("x2", String(mid));
+  vLine.setAttribute("y2", String(size));
+  vLine.setAttribute("stroke", color);
+  vLine.setAttribute("stroke-width", String(width));
+  vLine.setAttribute("stroke-dasharray", dashArray);
+  vLine.setAttribute("pointer-events", "none");
+
+  const hLine = document.createElementNS(ns, "line");
+  hLine.setAttribute("x1", "0");
+  hLine.setAttribute("y1", String(mid));
+  hLine.setAttribute("x2", String(size));
+  hLine.setAttribute("y2", String(mid));
+  hLine.setAttribute("stroke", color);
+  hLine.setAttribute("stroke-width", String(width));
+  hLine.setAttribute("stroke-dasharray", dashArray);
+  hLine.setAttribute("pointer-events", "none");
+
+  svg.appendChild(vLine);
+  svg.appendChild(hLine);
+}
 
 function validateSizeAndPadding(
   size: number,
@@ -123,7 +163,7 @@ export class Kakitori {
     }
 
     const size = options.size ?? DEFAULT_SIZE;
-    const padding = options.padding ?? 20;
+    const padding = options.padding ?? DEFAULT_PADDING;
     validateSizeAndPadding(size, padding, "Kakitori.create()");
     const hwOptions: Record<string, unknown> = {
       width: size,
@@ -139,11 +179,17 @@ export class Kakitori {
     if (options.highlightColor != null) hwOptions.highlightColor = options.highlightColor;
     if (options.showOutline != null) hwOptions.showOutline = options.showOutline;
     if (options.showCharacter != null) hwOptions.showCharacter = options.showCharacter;
-    if (options.renderer != null) hwOptions.renderer = options.renderer;
     if (options.strokeAnimationSpeed != null) hwOptions.strokeAnimationSpeed = options.strokeAnimationSpeed;
     if (options.delayBetweenStrokes != null) hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
 
     this.hw = HanziWriter.create(this.targetEl, character, hwOptions as any);
+
+    if (options.showGrid) {
+      const hwSvg = this.targetEl.querySelector("svg");
+      if (hwSvg) {
+        drawCrossGrid(hwSvg as SVGSVGElement, size, options.showGrid);
+      }
+    }
 
     if (options.onClick) {
       this.boundOnClick = (e: MouseEvent) => {
@@ -222,7 +268,7 @@ export class Kakitori {
       throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
     }
     const size = options.size ?? DEFAULT_SIZE;
-    const padding = options.padding ?? 20;
+    const padding = options.padding ?? DEFAULT_PADDING;
     validateSizeAndPadding(size, padding, "Kakitori.render()");
     const loader = options.charDataLoader ?? defaultCharDataLoader;
 
@@ -252,6 +298,11 @@ export class Kakitori {
         }
 
         svg.appendChild(g);
+
+        if (options.showGrid) {
+          drawCrossGrid(svg, size, options.showGrid);
+        }
+
         el.appendChild(svg);
 
         if (options.onClick) {
@@ -422,7 +473,7 @@ export class Kakitori {
               hwData.drawnPath.points,
               resolvedExpected,
               {
-                drawableSize: (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? 20),
+                drawableSize: (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? DEFAULT_PADDING),
                 strictness,
                 timing,
               },

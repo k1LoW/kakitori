@@ -1,9 +1,9 @@
 export { Kakitori } from "./Kakitori.js";
-export { DEFAULT_SIZE } from "./constants.js";
+export { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
 export { judge as judgeStrokeEnding, type StrokeTimingData, type JudgeOptions } from "./StrokeEndingJudge.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { KakitoriCharacterConfig } from "./dataLoader.js";
-export type { KakitoriOptions, KakitoriLogger, ConfigLoaderFn, CharDataLoaderFn, RenderOptions } from "./KakitoriOptions.js";
+export type { KakitoriOptions, KakitoriLogger, ConfigLoaderFn, CharDataLoaderFn, RenderOptions, GridOptions } from "./KakitoriOptions.js";
 export {
   hiragana,
   katakana,
