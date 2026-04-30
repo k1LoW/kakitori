@@ -58,6 +58,36 @@ describe("Kakitori", () => {
       expect(svg?.getAttribute("width")).toBe("200");
       expect(svg?.getAttribute("height")).toBe("200");
     });
+
+    it("throws when size is NaN", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: Number.NaN,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be finite");
+    });
+
+    it("throws when padding is Infinity", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          padding: Number.POSITIVE_INFINITY,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding must be finite");
+    });
+
+    it("throws when padding is negative", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          padding: -1,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding must be non-negative");
+    });
   });
 
   describe("render", () => {
