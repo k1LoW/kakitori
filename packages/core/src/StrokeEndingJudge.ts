@@ -80,20 +80,25 @@ function detectDirectionChangeFromTimedPoints(
 // Calibration baseline for threshold scaling. Independent from DEFAULT_SIZE (user-facing default); they may diverge.
 const BASE_SIZE = 300;
 
+export interface JudgeOptions {
+  drawableSize: number;
+  strictness?: number;
+  timing?: StrokeTimingData;
+}
+
 export function judge(
   drawnPoints: Point[],
   expected: StrokeEnding,
-  canvasSize: number,
-  strictness: number = 0.7,
-  timing?: StrokeTimingData,
+  options: JudgeOptions,
 ): StrokeEndingJudgment {
-  if (!Number.isFinite(canvasSize)) {
-    throw new Error(`judge(): canvasSize must be finite, got ${canvasSize}`);
+  const { drawableSize, strictness = 0.7, timing } = options;
+  if (!Number.isFinite(drawableSize)) {
+    throw new Error(`judge(): drawableSize must be finite, got ${drawableSize}`);
   }
-  if (canvasSize <= 0) {
-    throw new Error(`judge(): canvasSize must be positive, got ${canvasSize}`);
+  if (drawableSize <= 0) {
+    throw new Error(`judge(): drawableSize must be positive, got ${drawableSize}`);
   }
-  const scale = canvasSize / BASE_SIZE;
+  const scale = drawableSize / BASE_SIZE;
 
   const tailSize = Math.max(3, Math.floor(drawnPoints.length * 0.2));
   const tail = drawnPoints.slice(-tailSize);
