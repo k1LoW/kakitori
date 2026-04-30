@@ -208,7 +208,7 @@ export class Kakitori {
   /**
    * Render a character as a lightweight static SVG without HanziWriter.
    * @example
-   * Kakitori.render(el, 'あ', { size: 60, onClick: ({ character }) => console.log(character) });
+   * Kakitori.render('#target', 'あ', { size: 60, onClick: ({ character }) => console.log(character) });
    */
   static render(
     target: string | HTMLElement,
