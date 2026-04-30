@@ -366,4 +366,56 @@ describe("Kakitori", () => {
       });
     });
   });
+
+  describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
+    function createWithStubPaths() {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const ns = "http://www.w3.org/2000/svg";
+      const paths = [
+        document.createElementNS(ns, "path") as unknown as SVGPathElement,
+        document.createElementNS(ns, "path") as unknown as SVGPathElement,
+      ];
+      paths[0].style.stroke = "#555";
+      paths[1].style.stroke = "#555";
+      vi.spyOn(k as any, "getStrokePaths").mockReturnValue(paths);
+      return { k, paths };
+    }
+
+    it("setStrokeColor sets stroke color", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      expect(paths[0].style.stroke).toBe("#c00");
+    });
+
+    it("setStrokeColor preserves original on repeated calls", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
+      k.setStrokeColor(0, "#00f");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
+      expect(paths[0].style.stroke).toBe("#00f");
+    });
+
+    it("resetStrokeColor restores a single stroke", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      k.resetStrokeColor(0);
+      expect(paths[0].style.stroke).toBe("#555");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBeUndefined();
+    });
+
+    it("resetStrokeColors restores all strokes", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      k.setStrokeColor(1, "#0c0");
+      k.resetStrokeColors();
+      expect(paths[0].style.stroke).toBe("#555");
+      expect(paths[1].style.stroke).toBe("#555");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBeUndefined();
+      expect(paths[1].dataset.kakitoriOriginalStroke).toBeUndefined();
+    });
+  });
 });
