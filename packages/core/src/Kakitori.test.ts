@@ -48,16 +48,76 @@ describe("Kakitori", () => {
       expect(svg).not.toBeNull();
     });
 
-    it("respects width and height options", () => {
+    it("respects size option", () => {
       Kakitori.create(container, "あ", {
-        width: 200,
-        height: 200,
+        size: 200,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       const svg = container.querySelector("svg");
       expect(svg?.getAttribute("width")).toBe("200");
       expect(svg?.getAttribute("height")).toBe("200");
+    });
+
+    it("throws when size is NaN", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: Number.NaN,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be finite");
+    });
+
+    it("throws when padding is Infinity", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          padding: Number.POSITIVE_INFINITY,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding must be finite");
+    });
+
+    it("throws when padding is negative", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          padding: -1,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding must be non-negative");
+    });
+
+    it("throws when size is zero", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: 0,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when size is negative", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: -10,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when padding >= size/2", () => {
+      expect(() => {
+        Kakitori.create(container, "あ", {
+          size: 100,
+          padding: 50,
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+      }).toThrow("padding (50) must be less than size/2");
     });
   });
 
@@ -72,16 +132,70 @@ describe("Kakitori", () => {
       expect(paths).toHaveLength(mockCharData.strokes.length);
     });
 
-    it("respects width, height, and padding options", () => {
+    it("respects size and padding options", () => {
       Kakitori.render(container, "あ", {
-        width: 100,
-        height: 100,
+        size: 100,
         padding: 10,
         charDataLoader: mockCharDataLoader,
       });
       const svg = container.querySelector("svg");
       expect(svg?.getAttribute("width")).toBe("100");
       expect(svg?.getAttribute("height")).toBe("100");
+    });
+
+    it("throws when size is NaN", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: Number.NaN,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be finite");
+    });
+
+    it("throws when padding is Infinity", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          padding: Number.POSITIVE_INFINITY,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding must be finite");
+    });
+
+    it("throws when padding is negative", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          padding: -1,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding must be non-negative");
+    });
+
+    it("throws when size is zero", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: 0,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when size is negative", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: -10,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("size must be positive");
+    });
+
+    it("throws when padding >= size/2", () => {
+      expect(() => {
+        Kakitori.render(container, "あ", {
+          size: 100,
+          padding: 50,
+          charDataLoader: mockCharDataLoader,
+        });
+      }).toThrow("padding (50) must be less than size/2");
     });
 
     it("applies strokeColor to paths", () => {
@@ -140,8 +254,7 @@ describe("Kakitori", () => {
 
     it("applies correct SVG transform for coordinate system", () => {
       Kakitori.render(container, "あ", {
-        width: 300,
-        height: 300,
+        size: 300,
         padding: 20,
         charDataLoader: mockCharDataLoader,
       });

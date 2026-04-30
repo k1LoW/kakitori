@@ -101,8 +101,7 @@ function renderSection(grid: HTMLElement, chars: string[]) {
     grid.appendChild(cell);
 
     Kakitori.render(cell, char, {
-      width: 60,
-      height: 60,
+      size: 60,
       padding: 5,
       charDataLoader: cachedCharDataLoader,
       onClick: ({ character }) => openPractice(character),
@@ -158,8 +157,7 @@ function openPractice(char: string) {
   }
 
   kakitori = Kakitori.create(writerEl, char, {
-    width: 300,
-    height: 300,
+    size: 300,
     drawingWidth: 12,
     charDataLoader: cachedCharDataLoader,
     logger: log,

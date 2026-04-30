@@ -11,8 +11,7 @@ export type CharDataLoaderFn = (
 ) => void;
 
 export interface RenderOptions {
-  width?: number;
-  height?: number;
+  size?: number;
   padding?: number;
   strokeColor?: string;
   charDataLoader?: CharDataLoaderFn;
@@ -25,8 +24,7 @@ export interface KakitoriOptions {
   configLoader?: ConfigLoaderFn | null;
   /** Maps logical strokes to data stroke indices. Overrides config from configLoader. */
   strokeGroups?: number[][];
-  width?: number;
-  height?: number;
+  size?: number;
   padding?: number;
   strokeColor?: string;
   outlineColor?: string;

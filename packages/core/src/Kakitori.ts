@@ -6,6 +6,29 @@ import type {
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
+import { DEFAULT_SIZE } from "./constants.js";
+
+function validateSizeAndPadding(
+  size: number,
+  padding: number,
+  context: string,
+): void {
+  if (!Number.isFinite(size)) {
+    throw new Error(`${context}: size must be finite, got ${size}`);
+  }
+  if (size <= 0) {
+    throw new Error(`${context}: size must be positive, got ${size}`);
+  }
+  if (!Number.isFinite(padding)) {
+    throw new Error(`${context}: padding must be finite, got ${padding}`);
+  }
+  if (padding < 0) {
+    throw new Error(`${context}: padding must be non-negative, got ${padding}`);
+  }
+  if (padding >= size / 2) {
+    throw new Error(`${context}: padding (${padding}) must be less than size/2 (${size / 2})`);
+  }
+}
 
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
@@ -99,10 +122,13 @@ export class Kakitori {
       this.targetEl = target;
     }
 
+    const size = options.size ?? DEFAULT_SIZE;
+    const padding = options.padding ?? 20;
+    validateSizeAndPadding(size, padding, "Kakitori.create()");
     const hwOptions: Record<string, unknown> = {
-      width: options.width ?? 300,
-      height: options.height ?? 300,
-      padding: options.padding ?? 20,
+      width: size,
+      height: size,
+      padding,
       charDataLoader: options.charDataLoader ?? defaultCharDataLoader,
     };
 
@@ -184,32 +210,27 @@ export class Kakitori {
     if (!el) {
       throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
     }
+    const size = options.size ?? DEFAULT_SIZE;
+    const padding = options.padding ?? 20;
+    validateSizeAndPadding(size, padding, "Kakitori.render()");
     const loader = options.charDataLoader ?? defaultCharDataLoader;
 
     loader(
       character,
       (data) => {
-        const width = options.width ?? 300;
-        const height = options.height ?? 300;
-        const padding = options.padding ?? 20;
         const strokeColor = options.strokeColor ?? "#555";
 
-        const scale = Math.min(
-          (width - 2 * padding) / 900,
-          (height - 2 * padding) / 900,
-        );
-        const xOffset = padding + (width - 2 * padding - scale * 900) / 2;
-        const yOffset = padding + (height - 2 * padding - scale * 900) / 2;
+        const scale = (size - 2 * padding) / 900;
 
         const ns = "http://www.w3.org/2000/svg";
         const svg = document.createElementNS(ns, "svg");
-        svg.setAttribute("width", String(width));
-        svg.setAttribute("height", String(height));
+        svg.setAttribute("width", String(size));
+        svg.setAttribute("height", String(size));
 
         const g = document.createElementNS(ns, "g");
         g.setAttribute(
           "transform",
-          `translate(${xOffset}, ${height - yOffset}) scale(${scale}, ${-scale})`,
+          `translate(${padding}, ${size - padding}) scale(${scale}, ${-scale})`,
         );
 
         for (const d of data.strokes) {
@@ -383,8 +404,11 @@ export class Kakitori {
             const judgment = judge(
               hwData.drawnPath.points,
               resolvedExpected,
-              strictness,
-              timing,
+              {
+                drawableSize: (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? 20),
+                strictness,
+                timing,
+              },
             );
             kakitoriData.strokeEnding = judgment;
 
