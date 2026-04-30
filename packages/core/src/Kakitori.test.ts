@@ -368,41 +368,54 @@ describe("Kakitori", () => {
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
-    // HanziWriter's internal DOM (clip-path groups) is not fully rendered in happy-dom,
-    // so we test that methods don't throw and handle empty stroke paths gracefully.
-
-    it("setStrokeColor does not throw", () => {
+    function createWithStubPaths() {
       const k = Kakitori.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
-      expect(() => k.setStrokeColor(0, "#c00")).not.toThrow();
-    });
+      const ns = "http://www.w3.org/2000/svg";
+      const paths = [
+        document.createElementNS(ns, "path") as unknown as SVGPathElement,
+        document.createElementNS(ns, "path") as unknown as SVGPathElement,
+      ];
+      paths[0].style.stroke = "#555";
+      paths[1].style.stroke = "#555";
+      vi.spyOn(k as any, "getStrokePaths").mockReturnValue(paths);
+      return { k, paths };
+    }
 
-    it("resetStrokeColor does not throw", () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      expect(() => k.resetStrokeColor(0)).not.toThrow();
-    });
-
-    it("resetStrokeColors does not throw", () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      expect(() => k.resetStrokeColors()).not.toThrow();
-    });
-
-    it("setStrokeColor followed by resetStrokeColors does not throw", () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
+    it("setStrokeColor sets stroke color", () => {
+      const { k, paths } = createWithStubPaths();
       k.setStrokeColor(0, "#c00");
+      expect(paths[0].style.stroke).toBe("#c00");
+    });
+
+    it("setStrokeColor preserves original on repeated calls", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
       k.setStrokeColor(0, "#00f");
-      expect(() => k.resetStrokeColors()).not.toThrow();
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
+      expect(paths[0].style.stroke).toBe("#00f");
+    });
+
+    it("resetStrokeColor restores a single stroke", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      k.resetStrokeColor(0);
+      expect(paths[0].style.stroke).toBe("#555");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBeUndefined();
+    });
+
+    it("resetStrokeColors restores all strokes", () => {
+      const { k, paths } = createWithStubPaths();
+      k.setStrokeColor(0, "#c00");
+      k.setStrokeColor(1, "#0c0");
+      k.resetStrokeColors();
+      expect(paths[0].style.stroke).toBe("#555");
+      expect(paths[1].style.stroke).toBe("#555");
+      expect(paths[0].dataset.kakitoriOriginalStroke).toBeUndefined();
+      expect(paths[1].dataset.kakitoriOriginalStroke).toBeUndefined();
     });
   });
 });
