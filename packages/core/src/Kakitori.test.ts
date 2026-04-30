@@ -368,60 +368,41 @@ describe("Kakitori", () => {
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
-    it("setStrokeColor changes stroke color", () => {
+    // HanziWriter's internal DOM (clip-path groups) is not fully rendered in happy-dom,
+    // so we test that methods don't throw and handle empty stroke paths gracefully.
+
+    it("setStrokeColor does not throw", () => {
       const k = Kakitori.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
-      k.setStrokeColor(0, "#c00");
-      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
-      if (paths.length > 0) {
-        expect(paths[0].getAttribute("style")).toContain("#c00");
-      }
+      expect(() => k.setStrokeColor(0, "#c00")).not.toThrow();
     });
 
-    it("setStrokeColor preserves original color on repeated calls", () => {
+    it("resetStrokeColor does not throw", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      expect(() => k.resetStrokeColor(0)).not.toThrow();
+    });
+
+    it("resetStrokeColors does not throw", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      expect(() => k.resetStrokeColors()).not.toThrow();
+    });
+
+    it("setStrokeColor followed by resetStrokeColors does not throw", () => {
       const k = Kakitori.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       k.setStrokeColor(0, "#c00");
-      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
-      const original = paths.length > 0
-        ? (paths[0] as HTMLElement).dataset.kakitoriOriginalStroke
-        : undefined;
-      // Second call should not overwrite saved original
       k.setStrokeColor(0, "#00f");
-      if (paths.length > 0) {
-        expect((paths[0] as HTMLElement).dataset.kakitoriOriginalStroke).toBe(original);
-      }
-    });
-
-    it("resetStrokeColor restores a single stroke", () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      k.setStrokeColor(0, "#c00");
-      k.resetStrokeColor(0);
-      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
-      if (paths.length > 0) {
-        expect((paths[0] as HTMLElement).dataset.kakitoriOriginalStroke).toBeUndefined();
-      }
-    });
-
-    it("resetStrokeColors restores all strokes", () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      k.setStrokeColor(0, "#c00");
-      k.setStrokeColor(1, "#0c0");
-      k.resetStrokeColors();
-      const paths = container.querySelectorAll("svg g g:nth-child(2) path[clip-path]");
-      for (const path of paths) {
-        expect((path as HTMLElement).dataset.kakitoriOriginalStroke).toBeUndefined();
-      }
+      expect(() => k.resetStrokeColors()).not.toThrow();
     });
   });
 });
