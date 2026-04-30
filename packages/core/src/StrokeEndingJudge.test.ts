@@ -273,6 +273,76 @@ describe("judge", () => {
       expect(resultLarge.correct).toBe(true);
     });
 
+    it("detects hane consistently at different canvas sizes", () => {
+      const expected: StrokeEnding = { types: ["hane"] };
+
+      const basePoints = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+        [50, 0], [60, 0], [65, 0], [68, -10], [68, -30],
+      ]);
+      const baseTiming: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints: [
+          { x: 0, y: 0, t: 0 },
+          { x: 5, y: 0, t: 50 },
+          { x: 10, y: 0, t: 100 },
+          { x: 15, y: 0, t: 150 },
+          { x: 20, y: 0, t: 200 },
+          { x: 25, y: 0, t: 250 },
+          { x: 30, y: 0, t: 300 },
+          { x: 35, y: 0, t: 350 },
+          { x: 40, y: 0, t: 400 },
+          { x: 45, y: 0, t: 450 },
+          { x: 50, y: 0, t: 500 },
+          { x: 55, y: 0, t: 550 },
+          { x: 60, y: 0, t: 600 },
+          { x: 65, y: 0, t: 650 },
+          { x: 70, y: 0, t: 700 },
+          { x: 75, y: 0, t: 750 },
+          { x: 80, y: 0, t: 800 },
+          { x: 80, y: -10, t: 950 },
+          { x: 80, y: -30, t: 1050 },
+          { x: 80, y: -50, t: 1850 },
+        ],
+      };
+
+      const scaledPoints = makePoints([
+        [0, 0], [20, 0], [40, 0], [60, 0], [80, 0],
+        [100, 0], [120, 0], [130, 0], [136, -20], [136, -60],
+      ]);
+      const scaledTiming: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints: [
+          { x: 0, y: 0, t: 0 },
+          { x: 10, y: 0, t: 50 },
+          { x: 20, y: 0, t: 100 },
+          { x: 30, y: 0, t: 150 },
+          { x: 40, y: 0, t: 200 },
+          { x: 50, y: 0, t: 250 },
+          { x: 60, y: 0, t: 300 },
+          { x: 70, y: 0, t: 350 },
+          { x: 80, y: 0, t: 400 },
+          { x: 90, y: 0, t: 450 },
+          { x: 100, y: 0, t: 500 },
+          { x: 110, y: 0, t: 550 },
+          { x: 120, y: 0, t: 600 },
+          { x: 130, y: 0, t: 650 },
+          { x: 140, y: 0, t: 700 },
+          { x: 150, y: 0, t: 750 },
+          { x: 160, y: 0, t: 800 },
+          { x: 160, y: -20, t: 950 },
+          { x: 160, y: -60, t: 1050 },
+          { x: 160, y: -100, t: 1850 },
+        ],
+      };
+
+      const resultAt300 = judge(basePoints, expected, 0.7, baseTiming, 300);
+      const resultAt600 = judge(scaledPoints, expected, 0.7, scaledTiming, 600);
+
+      expect(resultAt300.correct).toBe(true);
+      expect(resultAt600.correct).toBe(true);
+    });
+
     it("throws when canvasSize is 0", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, 0)).toThrow("canvasSize must be positive");
