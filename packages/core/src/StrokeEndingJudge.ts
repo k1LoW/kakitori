@@ -82,9 +82,9 @@ const BASE_SIZE = 300;
 export function judge(
   drawnPoints: Point[],
   expected: StrokeEnding,
+  canvasSize: number,
   strictness: number = 0.7,
   timing?: StrokeTimingData,
-  canvasSize: number,
 ): StrokeEndingJudgment {
   if (!Number.isFinite(canvasSize)) {
     throw new Error(`judge(): canvasSize must be finite, got ${canvasSize}`);

@@ -27,7 +27,7 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("decelerating");
     });
@@ -49,7 +49,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(false);
     });
   });
@@ -72,7 +72,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("accelerating");
     });
@@ -99,7 +99,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(true);
     });
 
@@ -114,7 +114,7 @@ describe("judge", () => {
           [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(false);
     });
   });
@@ -131,7 +131,7 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(true);
     });
   });
@@ -140,7 +140,7 @@ describe("judge", () => {
     it("returns incorrect when types is empty", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       const expected: StrokeEnding = { types: [] };
-      const result = judge(points, expected, 0.7, undefined, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE);
       expect(result.correct).toBe(false);
     });
   });
@@ -166,7 +166,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(true);
       expect(result.confidence).toBeGreaterThan(0.5);
     });
@@ -192,7 +192,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
+      const result = judge(points, expected, DEFAULT_SIZE, 0.7, timing);
       expect(result.correct).toBe(false);
     });
   });
@@ -208,8 +208,8 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const correct = judge(points, { types: ["tome"] }, 0.7, timing, DEFAULT_SIZE);
-      const incorrect = judge(points, { types: ["hane"] }, 0.7, timing, DEFAULT_SIZE);
+      const correct = judge(points, { types: ["tome"] }, DEFAULT_SIZE, 0.7, timing);
+      const incorrect = judge(points, { types: ["hane"] }, DEFAULT_SIZE, 0.7, timing);
       expect(correct.confidence).toBeGreaterThan(incorrect.confidence);
     });
   });
@@ -232,7 +232,7 @@ describe("judge", () => {
       };
       const expected: StrokeEnding = { types: ["harai"] };
 
-      const resultAt300 = judge(basePoints, expected, 0.7, baseTiming, 300);
+      const resultAt300 = judge(basePoints, expected, 300, 0.7, baseTiming);
 
       // Scale up to 600px (2x): points and distances double
       const scaledPoints = makePoints([
@@ -249,7 +249,7 @@ describe("judge", () => {
         ],
       };
 
-      const resultAt600 = judge(scaledPoints, expected, 0.7, scaledTiming, 600);
+      const resultAt600 = judge(scaledPoints, expected, 600, 0.7, scaledTiming);
 
       expect(resultAt300.correct).toBe(true);
       expect(resultAt600.correct).toBe(true);
@@ -267,8 +267,8 @@ describe("judge", () => {
         [0, 0], [5, 5], [10, 10], [15, 15], [20, 20],
       ]);
 
-      const resultSmall = judge(points, expected, 0.7, timing, 60);
-      const resultLarge = judge(points, expected, 0.7, timing, 600);
+      const resultSmall = judge(points, expected, 60, 0.7, timing);
+      const resultLarge = judge(points, expected, 600, 0.7, timing);
 
       expect(resultSmall.correct).toBe(true);
       expect(resultLarge.correct).toBe(true);
@@ -337,8 +337,8 @@ describe("judge", () => {
         ],
       };
 
-      const resultAt300 = judge(basePoints, expected, 0.7, baseTiming, 300);
-      const resultAt600 = judge(scaledPoints, expected, 0.7, scaledTiming, 600);
+      const resultAt300 = judge(basePoints, expected, 300, 0.7, baseTiming);
+      const resultAt600 = judge(scaledPoints, expected, 600, 0.7, scaledTiming);
 
       expect(resultAt300.correct).toBe(true);
       expect(resultAt600.correct).toBe(true);
@@ -346,22 +346,22 @@ describe("judge", () => {
 
     it("throws when canvasSize is 0", () => {
       const points = makePoints([[0, 0], [10, 10]]);
-      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, 0)).toThrow("canvasSize must be positive");
+      expect(() => judge(points, { types: ["tome"] }, 0)).toThrow("canvasSize must be positive");
     });
 
     it("throws when canvasSize is negative", () => {
       const points = makePoints([[0, 0], [10, 10]]);
-      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, -100)).toThrow("canvasSize must be positive");
+      expect(() => judge(points, { types: ["tome"] }, -100)).toThrow("canvasSize must be positive");
     });
 
     it("throws when canvasSize is NaN", () => {
       const points = makePoints([[0, 0], [10, 10]]);
-      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, Number.NaN)).toThrow("canvasSize must be finite");
+      expect(() => judge(points, { types: ["tome"] }, Number.NaN)).toThrow("canvasSize must be finite");
     });
 
     it("throws when canvasSize is Infinity", () => {
       const points = makePoints([[0, 0], [10, 10]]);
-      expect(() => judge(points, { types: ["tome"] }, 0.7, undefined, Number.POSITIVE_INFINITY)).toThrow("canvasSize must be finite");
+      expect(() => judge(points, { types: ["tome"] }, Number.POSITIVE_INFINITY)).toThrow("canvasSize must be finite");
     });
   });
 });

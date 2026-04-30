@@ -410,9 +410,9 @@ export class Kakitori {
             const judgment = judge(
               hwData.drawnPath.points,
               resolvedExpected,
+              this.options.size ?? DEFAULT_SIZE,
               strictness,
               timing,
-              this.options.size ?? DEFAULT_SIZE,
             );
             kakitoriData.strokeEnding = judgment;
 
