@@ -124,7 +124,7 @@ export class Kakitori {
 
     const size = options.size ?? DEFAULT_SIZE;
     const padding = options.padding ?? 20;
-    validateSizeAndPadding(size, padding, "Kakitori");
+    validateSizeAndPadding(size, padding, "Kakitori.create()");
     const hwOptions: Record<string, unknown> = {
       width: size,
       height: size,

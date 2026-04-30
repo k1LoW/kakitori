@@ -77,7 +77,7 @@ function detectDirectionChangeFromTimedPoints(
   return Math.acos(Math.max(-1, Math.min(1, dot)));
 }
 
-// Calibration baseline for threshold scaling. Not the same as DEFAULT_SIZE (user-facing default canvas size).
+// Calibration baseline for threshold scaling. Independent from DEFAULT_SIZE (user-facing default); they may diverge.
 const BASE_SIZE = 300;
 
 export function judge(
