@@ -191,6 +191,12 @@ export class Kakitori {
     return group.length - 1 - pos;
   }
 
+  /**
+   * Create a new Kakitori instance with full HanziWriter integration.
+   * @example
+   * const k = Kakitori.create('#target', 'あ', { size: 300 });
+   * k.start();
+   */
   static create(
     target: string | HTMLElement,
     character: string,
@@ -199,6 +205,11 @@ export class Kakitori {
     return new Kakitori(target, character, options);
   }
 
+  /**
+   * Render a character as a lightweight static SVG without HanziWriter.
+   * @example
+   * Kakitori.render(el, 'あ', { size: 60, onClick: ({ character }) => console.log(character) });
+   */
   static render(
     target: string | HTMLElement,
     character: string,
@@ -254,23 +265,28 @@ export class Kakitori {
     );
   }
 
+  /** Wait for the async config (strokeGroups, strokeEndings) to finish loading. */
   ready(): Promise<void> {
     return this.configReady;
   }
 
+  /** Return the stroke endings loaded from config, or null if not loaded. */
   getStrokeEndings(): readonly StrokeEnding[] | null {
     return this.strokeEndings;
   }
 
+  /** Return the stroke groups loaded from config, or null if not loaded. */
   getStrokeGroups(): readonly number[][] | null {
     return this.strokeGroups;
   }
 
+  /** Override stroke groups. Rebuilds internal group maps. */
   setStrokeGroups(strokeGroups: number[][]): void {
     this.strokeGroups = strokeGroups;
     this.buildGroupMaps();
   }
 
+  /** Override stroke endings. */
   setStrokeEndings(strokeEndings: StrokeEnding[]): void {
     this.strokeEndings = strokeEndings;
   }
@@ -332,7 +348,8 @@ export class Kakitori {
     };
   }
 
-  quiz(): void {
+  /** Start writing practice with stroke order and stroke ending (tome/hane/harai) judgment. */
+  start(): void {
     this.configReady.then(() => this.startQuiz());
   }
 
@@ -454,7 +471,8 @@ export class Kakitori {
     });
   }
 
-  animateCharacter(): void {
+  /** Play stroke-order animation. Uses animCJK-style overlay when strokeGroups are configured. */
+  animate(): void {
     this.configReady.then(() => this.startAnimation());
   }
 
@@ -597,18 +615,22 @@ export class Kakitori {
     hwSvg.style.display = "";
   }
 
+  /** Hide the character strokes. */
   hideCharacter(): void {
     this.hw.hideCharacter();
   }
 
+  /** Show the character strokes. */
   showCharacter(): void {
     this.hw.showCharacter();
   }
 
+  /** Show the character outline (light gray background). */
   showOutline(): void {
     this.hw.showOutline();
   }
 
+  /** Hide the character outline. */
   hideOutline(): void {
     this.hw.hideOutline();
   }
@@ -713,6 +735,7 @@ export class Kakitori {
     return this.getStrokePaths().length;
   }
 
+  /** Change the displayed character. Resets stroke endings and mistake count. */
   async setCharacter(char: string): Promise<void> {
     this.character = char;
     this.strokeEndings = null;
@@ -720,6 +743,7 @@ export class Kakitori {
     await this.hw.setCharacter(char);
   }
 
+  /** Clean up event listeners (click, pointer tracking). Call before discarding the instance. */
   destroy(): void {
     this.stopTimingTracking();
     if (this.boundOnClick) {
