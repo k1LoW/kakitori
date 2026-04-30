@@ -77,7 +77,6 @@ function detectDirectionChangeFromTimedPoints(
   return Math.acos(Math.max(-1, Math.min(1, dot)));
 }
 
-// Base canvas size for threshold calibration
 const BASE_SIZE = 300;
 
 export function judge(
@@ -85,7 +84,7 @@ export function judge(
   expected: StrokeEnding,
   strictness: number = 0.7,
   timing?: StrokeTimingData,
-  canvasSize: number = BASE_SIZE,
+  canvasSize: number,
 ): StrokeEndingJudgment {
   if (!Number.isFinite(canvasSize)) {
     throw new Error(`judge(): canvasSize must be finite, got ${canvasSize}`);

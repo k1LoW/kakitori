@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import type { StrokeEnding } from "./types.js";
+import { DEFAULT_SIZE } from "./constants.js";
 
 function makePoints(coords: [number, number][]): { x: number; y: number }[] {
   return coords.map(([x, y]) => ({ x, y }));
@@ -26,7 +27,7 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("decelerating");
     });
@@ -48,7 +49,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(false);
     });
   });
@@ -71,7 +72,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("accelerating");
     });
@@ -98,7 +99,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(true);
     });
 
@@ -113,7 +114,7 @@ describe("judge", () => {
           [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(false);
     });
   });
@@ -130,7 +131,7 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(true);
     });
   });
@@ -139,7 +140,7 @@ describe("judge", () => {
     it("returns incorrect when types is empty", () => {
       const points = makePoints([[0, 0], [10, 10]]);
       const expected: StrokeEnding = { types: [] };
-      const result = judge(points, expected);
+      const result = judge(points, expected, 0.7, undefined, DEFAULT_SIZE);
       expect(result.correct).toBe(false);
     });
   });
@@ -165,7 +166,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(true);
       expect(result.confidence).toBeGreaterThan(0.5);
     });
@@ -191,7 +192,7 @@ describe("judge", () => {
         pauseBeforeRelease: 5,
         timedPoints,
       };
-      const result = judge(points, expected, 0.7, timing);
+      const result = judge(points, expected, 0.7, timing, DEFAULT_SIZE);
       expect(result.correct).toBe(false);
     });
   });
@@ -207,8 +208,8 @@ describe("judge", () => {
           [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
         ], 50),
       };
-      const correct = judge(points, { types: ["tome"] }, 0.7, timing);
-      const incorrect = judge(points, { types: ["hane"] }, 0.7, timing);
+      const correct = judge(points, { types: ["tome"] }, 0.7, timing, DEFAULT_SIZE);
+      const incorrect = judge(points, { types: ["hane"] }, 0.7, timing, DEFAULT_SIZE);
       expect(correct.confidence).toBeGreaterThan(incorrect.confidence);
     });
   });

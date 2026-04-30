@@ -6,6 +6,7 @@ import type {
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
+import { DEFAULT_SIZE } from "./constants.js";
 
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
@@ -99,7 +100,7 @@ export class Kakitori {
       this.targetEl = target;
     }
 
-    const size = options.size ?? 300;
+    const size = options.size ?? DEFAULT_SIZE;
     const padding = options.padding ?? 20;
     if (!Number.isFinite(size)) {
       throw new Error(`Kakitori: size must be finite, got ${size}`);
@@ -201,7 +202,7 @@ export class Kakitori {
     if (!el) {
       throw new Error(`Kakitori.render(): target selector "${target}" did not match any element.`);
     }
-    const size = options.size ?? 300;
+    const size = options.size ?? DEFAULT_SIZE;
     const padding = options.padding ?? 20;
     if (!Number.isFinite(size)) {
       throw new Error(`Kakitori.render(): size must be finite, got ${size}`);
@@ -411,7 +412,7 @@ export class Kakitori {
               resolvedExpected,
               strictness,
               timing,
-              this.options.size ?? 300,
+              this.options.size ?? DEFAULT_SIZE,
             );
             kakitoriData.strokeEnding = judgment;
 
