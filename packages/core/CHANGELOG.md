@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.3.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.2.0...packages/core/v0.3.0) - 2026-04-30
+### New Features 🚀
+- feat: add drawingWidth option by @k1LoW in https://github.com/k1LoW/kakitori/pull/21
+- feat: add tests (core + data), fix hane detection, add CI test step by @k1LoW in https://github.com/k1LoW/kakitori/pull/22
+### Other Changes
+- docs: update release.yml with new changelog categories and labels by @k1LoW in https://github.com/k1LoW/kakitori/pull/24
+- feat!: size-independent stroke judgment and replace width/height with size by @k1LoW in https://github.com/k1LoW/kakitori/pull/23
+- feat!: rename quiz() to start(), animateCharacter() to animate(), add JSDoc by @k1LoW in https://github.com/k1LoW/kakitori/pull/25
+- feat!: rename highlightStroke() to setStrokeColor(), add resetStrokeColor() by @k1LoW in https://github.com/k1LoW/kakitori/pull/26
+
 ## [v0.2.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.1.0...packages/core/v0.2.0) - 2026-04-29
 ### New Features
 - feat: add strokeEndings data for all hiragana characters by @k1LoW in https://github.com/k1LoW/kakitori/pull/12
