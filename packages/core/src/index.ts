@@ -1,4 +1,4 @@
-export { Kakitori, computeMedianLength } from "./Kakitori.js";
+export { Kakitori } from "./Kakitori.js";
 export { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
 export { judge as judgeStrokeEnding, type StrokeTimingData, type JudgeOptions } from "./StrokeEndingJudge.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
