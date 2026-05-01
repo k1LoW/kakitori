@@ -879,7 +879,7 @@ export class Kakitori {
 
   /**
    * Clean up event listeners, remove the rendered SVG, and mark the instance as destroyed.
-   * After destroy, calling any public method throws.
+   * After destroy, calling any other public method throws. destroy() itself is idempotent.
    */
   destroy(): void {
     if (this.destroyed) return;
