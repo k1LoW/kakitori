@@ -102,6 +102,7 @@ export class Kakitori {
   private hw: HanziWriter;
   private character: string;
   private options: KakitoriOptions;
+  private destroyed = false;
   private strokeEndings: StrokeEnding[] | null = null;
   private strokeGroups: number[][] | null = null;
   private characterData: any = null;
@@ -148,6 +149,7 @@ export class Kakitori {
       this.configReady = Promise.resolve()
         .then(() => loader(character))
         .then((config) => {
+          if (this.destroyed) return;
           if (!config) return;
           this.log?.(`config loaded: ${JSON.stringify(config)}`);
           // Preserve any stroke groups already set on the instance
@@ -160,6 +162,7 @@ export class Kakitori {
           }
         })
         .catch((error) => {
+          if (this.destroyed) return;
           this.log?.(
             `config load failed: ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -209,6 +212,12 @@ export class Kakitori {
         options.onClick!({ character: this.character, strokeIndex });
       };
       this.targetEl.addEventListener("click", this.boundOnClick);
+    }
+  }
+
+  private assertNotDestroyed(): void {
+    if (this.destroyed) {
+      throw new Error("Kakitori: instance has been destroyed and cannot be used.");
     }
   }
 
@@ -330,27 +339,32 @@ export class Kakitori {
 
   /** Wait for the async config (strokeGroups, strokeEndings) to finish loading. */
   ready(): Promise<void> {
+    this.assertNotDestroyed();
     return this.configReady;
   }
 
   /** Return the stroke endings loaded from config, or null if not loaded. */
   getStrokeEndings(): readonly StrokeEnding[] | null {
+    this.assertNotDestroyed();
     return this.strokeEndings;
   }
 
   /** Return the stroke groups loaded from config, or null if not loaded. */
   getStrokeGroups(): readonly number[][] | null {
+    this.assertNotDestroyed();
     return this.strokeGroups;
   }
 
   /** Override stroke groups. Rebuilds internal group maps. */
   setStrokeGroups(strokeGroups: number[][]): void {
+    this.assertNotDestroyed();
     this.strokeGroups = strokeGroups;
     this.buildGroupMaps();
   }
 
   /** Override stroke endings. */
   setStrokeEndings(strokeEndings: StrokeEnding[]): void {
+    this.assertNotDestroyed();
     this.strokeEndings = strokeEndings;
   }
 
@@ -413,7 +427,11 @@ export class Kakitori {
 
   /** Start writing practice with stroke order and stroke ending (tome/hane/harai) judgment. */
   start(): void {
-    this.configReady.then(() => this.startQuiz());
+    this.assertNotDestroyed();
+    this.configReady.then(() => {
+      if (this.destroyed) return;
+      this.startQuiz();
+    });
   }
 
   private startQuiz(): void {
@@ -421,7 +439,10 @@ export class Kakitori {
     const strictness = this.options.strokeEndingStrictness ?? 0.7;
 
     // Pre-load character data for direction auto-computation
-    this.hw.getCharacterData().then((c) => { this.characterData = c; });
+    this.hw.getCharacterData().then((c) => {
+      if (this.destroyed) return;
+      this.characterData = c;
+    });
 
     this.startTimingTracking();
 
@@ -536,7 +557,11 @@ export class Kakitori {
 
   /** Play stroke-order animation. Uses animCJK-style overlay when strokeGroups are configured. */
   animate(): void {
-    this.configReady.then(() => this.startAnimation());
+    this.assertNotDestroyed();
+    this.configReady.then(() => {
+      if (this.destroyed) return;
+      this.startAnimation();
+    });
   }
 
   private startAnimation(): void {
@@ -701,21 +726,25 @@ export class Kakitori {
 
   /** Hide the character strokes. */
   hideCharacter(): void {
+    this.assertNotDestroyed();
     this.hw.hideCharacter();
   }
 
   /** Show the character strokes. */
   showCharacter(): void {
+    this.assertNotDestroyed();
     this.hw.showCharacter();
   }
 
   /** Show the character outline (light gray background). */
   showOutline(): void {
+    this.assertNotDestroyed();
     this.hw.showOutline();
   }
 
   /** Hide the character outline. */
   hideOutline(): void {
+    this.assertNotDestroyed();
     this.hw.hideOutline();
   }
 
@@ -748,6 +777,7 @@ export class Kakitori {
    * Returns null if no stroke found at the point.
    */
   getStrokeIndexAtPoint(clientX: number, clientY: number): number | null {
+    this.assertNotDestroyed();
     const svg = this.targetEl.querySelector("svg");
     if (!svg) return null;
 
@@ -785,6 +815,7 @@ export class Kakitori {
    * Use {@link resetStrokeColor} or {@link resetStrokeColors} to restore.
    */
   setStrokeColor(logicalStrokeNum: number, color: string = "#FF0000"): void {
+    this.assertNotDestroyed();
     const strokePaths = this.getStrokePaths();
     const dataIndices = this.strokeGroups
       ? this.strokeGroups[logicalStrokeNum] ?? []
@@ -803,6 +834,7 @@ export class Kakitori {
 
   /** Reset a single logical stroke's color to its original value. */
   resetStrokeColor(logicalStrokeNum: number): void {
+    this.assertNotDestroyed();
     const strokePaths = this.getStrokePaths();
     const dataIndices = this.strokeGroups
       ? this.strokeGroups[logicalStrokeNum] ?? []
@@ -819,6 +851,7 @@ export class Kakitori {
 
   /** Reset all stroke colors to their original values. */
   resetStrokeColors(): void {
+    this.assertNotDestroyed();
     const strokePaths = this.getStrokePaths();
     for (const path of strokePaths) {
       if (path.dataset.kakitoriOriginalStroke !== undefined) {
@@ -832,24 +865,33 @@ export class Kakitori {
    * Get the total number of logical strokes.
    */
   getLogicalStrokeCount(): number {
+    this.assertNotDestroyed();
     if (this.strokeGroups) return this.strokeGroups.length;
     return this.getStrokePaths().length;
   }
 
   /** Change the displayed character. Resets stroke endings and mistake count. */
   async setCharacter(char: string): Promise<void> {
+    this.assertNotDestroyed();
     this.character = char;
     this.strokeEndings = null;
     this.strokeEndingMistakes = 0;
     await this.hw.setCharacter(char);
   }
 
-  /** Clean up event listeners (click, pointer tracking). Call before discarding the instance. */
+  /**
+   * Clean up event listeners, remove the rendered SVG, and mark the instance as destroyed.
+   * After destroy, calling any other public method throws. destroy() itself is idempotent.
+   */
   destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
     this.stopTimingTracking();
     if (this.boundOnClick) {
       this.targetEl.removeEventListener("click", this.boundOnClick);
       this.boundOnClick = null;
     }
+    this.targetEl.innerHTML = "";
+    this.characterData = null;
   }
 }

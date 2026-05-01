@@ -349,6 +349,53 @@ describe("Kakitori", () => {
       container.click();
       expect(onClick).not.toHaveBeenCalled();
     });
+
+    it("clears the rendered SVG from targetEl", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      expect(container.querySelector("svg")).not.toBeNull();
+      k.destroy();
+      expect(container.querySelector("svg")).toBeNull();
+      expect(container.innerHTML).toBe("");
+    });
+
+    it("can be called multiple times safely", () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.destroy();
+      expect(() => k.destroy()).not.toThrow();
+    });
+
+    it("throws when public methods are called after destroy", async () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.destroy();
+      const expectedMessage = "Kakitori: instance has been destroyed";
+      expect(() => k.start()).toThrow(expectedMessage);
+      expect(() => k.animate()).toThrow(expectedMessage);
+      expect(() => k.ready()).toThrow(expectedMessage);
+      expect(() => k.getStrokeEndings()).toThrow(expectedMessage);
+      expect(() => k.getStrokeGroups()).toThrow(expectedMessage);
+      expect(() => k.setStrokeEndings([])).toThrow(expectedMessage);
+      expect(() => k.setStrokeGroups([[0]])).toThrow(expectedMessage);
+      expect(() => k.hideCharacter()).toThrow(expectedMessage);
+      expect(() => k.showCharacter()).toThrow(expectedMessage);
+      expect(() => k.hideOutline()).toThrow(expectedMessage);
+      expect(() => k.showOutline()).toThrow(expectedMessage);
+      expect(() => k.getStrokeIndexAtPoint(0, 0)).toThrow(expectedMessage);
+      expect(() => k.setStrokeColor(0, "#000")).toThrow(expectedMessage);
+      expect(() => k.resetStrokeColor(0)).toThrow(expectedMessage);
+      expect(() => k.resetStrokeColors()).toThrow(expectedMessage);
+      expect(() => k.getLogicalStrokeCount()).toThrow(expectedMessage);
+      // setCharacter is async; synchronous throw becomes a rejected promise.
+      await expect(k.setCharacter("い")).rejects.toThrow(expectedMessage);
+    });
   });
 
   describe("onClick option", () => {
