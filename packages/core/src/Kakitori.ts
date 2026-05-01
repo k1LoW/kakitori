@@ -149,6 +149,7 @@ export class Kakitori {
       this.configReady = Promise.resolve()
         .then(() => loader(character))
         .then((config) => {
+          if (this.destroyed) return;
           if (!config) return;
           this.log?.(`config loaded: ${JSON.stringify(config)}`);
           // Preserve any stroke groups already set on the instance
@@ -161,6 +162,7 @@ export class Kakitori {
           }
         })
         .catch((error) => {
+          if (this.destroyed) return;
           this.log?.(
             `config load failed: ${error instanceof Error ? error.message : String(error)}`,
           );
