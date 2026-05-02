@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.5.0...packages/data/v0.5.1) - 2026-05-02
+### Fix bug 🐛
+- feat: add strokeGroups data for Arabic numerals 0-9 by @k1LoW in https://github.com/k1LoW/kakitori/pull/34
+
 ## [v0.5.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.4.0...packages/data/v0.5.0) - 2026-05-02
 ### Breaking Changes 🛠
 - feat!: size-independent stroke judgment and replace width/height with size by @k1LoW in https://github.com/k1LoW/kakitori/pull/23
