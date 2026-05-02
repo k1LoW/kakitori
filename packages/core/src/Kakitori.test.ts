@@ -620,7 +620,8 @@ describe("Kakitori", () => {
       await k.ready();
       // Force a failing judgment: expect harai, but the fake stroke has no
       // timing data so the judge falls back to "tome" → mismatch.
-      k.setStrokeGroups([[0], [1]]);
+      // No setStrokeGroups: judgment must apply to every stroke when groups
+      // are unset (regression for the strokeGroups-required bug).
       k.setStrokeEndings([
         { types: ["harai"], direction: [0, -1] },
         { types: ["harai"], direction: [0, -1] },
@@ -651,7 +652,8 @@ describe("Kakitori", () => {
         onMistake,
       });
       await k.ready();
-      k.setStrokeGroups([[0], [1]]);
+      // No setStrokeGroups: judgment must apply to every stroke when groups
+      // are unset (regression for the strokeGroups-required bug).
       k.setStrokeEndings([
         { types: ["harai"], direction: [0, -1] },
         { types: ["harai"], direction: [0, -1] },

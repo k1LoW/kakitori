@@ -539,7 +539,10 @@ export class Kakitori {
     meta: any,
   ): StrokeEndingJudgment | null {
     if (!this.strokeEndings) return null;
-    if (!this.isFirstInGroup(dataStrokeNum)) return null;
+    // When no strokeGroups are configured, every stroke is its own logical
+    // stroke (1:1 mapping), so judgment applies to all strokes. Only gate on
+    // isFirstInGroup when groups are explicitly defined.
+    if (this.strokeGroups && !this.isFirstInGroup(dataStrokeNum)) return null;
 
     const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
     const expected = this.strokeEndings[logicalStrokeNum];
