@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.5.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.4.0...packages/core/v0.5.0) - 2026-05-02
+### New Features 🚀
+- feat: add number charset (Arabic numerals 0-9) by @k1LoW in https://github.com/k1LoW/kakitori/pull/32
+### Other Changes
+- feat!: destroy() clears DOM and guards against post-destroy usage by @k1LoW in https://github.com/k1LoW/kakitori/pull/30
+
 ## [v0.4.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.3.0...packages/core/v0.4.0) - 2026-04-30
 ### Breaking Changes 🛠
 - feat!: add showGrid cross-hair guide and DEFAULT_PADDING constant by @k1LoW in https://github.com/k1LoW/kakitori/pull/27
