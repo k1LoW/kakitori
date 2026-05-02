@@ -44,6 +44,13 @@ export interface KakitoriOptions {
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;
   strokeEndingStrictness?: number;
+  /**
+   * When true, a stroke whose ending (tome/hane/harai) does not match the
+   * expected types is rejected as a miss: the stroke is not advanced and the
+   * user must redraw it. `onStrokeEndingMistake` and `onMistake` both fire.
+   * Default: false.
+   */
+  strokeEndingAsMiss?: boolean;
   leniency?: number;
   showHintAfterMisses?: number | false;
   highlightOnComplete?: boolean;

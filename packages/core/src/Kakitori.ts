@@ -2,6 +2,7 @@ import HanziWriter from "hanzi-writer";
 import type { KakitoriOptions, KakitoriLogger, RenderOptions, GridOptions } from "./KakitoriOptions.js";
 import type {
   StrokeEnding,
+  StrokeEndingJudgment,
   KakitoriStrokeData,
 } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
@@ -110,6 +111,9 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
+
+  // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
+  private pendingEndingJudgment: StrokeEndingJudgment | null = null;
 
   // Maps data stroke index -> logical stroke index (derived from strokeGroups)
   private dataToLogical: Map<number, number> = new Map();
@@ -436,7 +440,7 @@ export class Kakitori {
 
   private startQuiz(): void {
     this.strokeEndingMistakes = 0;
-    const strictness = this.options.strokeEndingStrictness ?? 0.7;
+    this.pendingEndingJudgment = null;
 
     // Pre-load character data for direction auto-computation
     this.hw.getCharacterData().then((c) => {
@@ -446,7 +450,7 @@ export class Kakitori {
 
     this.startTimingTracking();
 
-    this.hw.quiz({
+    const quizPromise = this.hw.quiz({
       leniency: this.options.leniency,
       showHintAfterMisses: this.options.showHintAfterMisses,
       highlightOnComplete: this.options.highlightOnComplete,
@@ -477,49 +481,9 @@ export class Kakitori {
           strokesRemaining: hwData.strokesRemaining - skipsNeeded,
         };
 
-        // Apply stroke ending judgment on the first data stroke of a group
-        // (the one the user actually drew; subsequent strokes are auto-skipped)
-        if (this.isFirstInGroup(dataStrokeNum) && this.strokeEndings != null) {
-          const expected = this.strokeEndings[logicalStrokeNum];
-          // Skip judgment if types is empty or omitted ({})
-          if (expected?.types && expected.types.length > 0) {
-            // Auto-compute direction from median data if not specified
-            let resolvedExpected = expected;
-            const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
-            if (expected.direction == null && needsDirection) {
-              const group = this.strokeGroups
-                ? this.strokeGroups[logicalStrokeNum]
-                : [dataStrokeNum];
-              const lastDataIdx = group[group.length - 1];
-              const medianPoints = this.characterData?.strokes[lastDataIdx]?.points;
-              const autoDir = medianPoints ? computeDirectionFromMedian(medianPoints) : null;
-              if (autoDir) {
-                resolvedExpected = { ...expected, direction: autoDir };
-                this.log?.(`auto direction: stroke=${logicalStrokeNum + 1} dir=[${autoDir}]`);
-              }
-            }
-
-            const timing = this.getTimingData();
-            this.log?.(`judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${hwData.drawnPath.points.length}`);
-
-            const judgment = judge(
-              hwData.drawnPath.points,
-              resolvedExpected,
-              {
-                drawableSize: (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? DEFAULT_PADDING),
-                strictness,
-                timing,
-              },
-            );
-            kakitoriData.strokeEnding = judgment;
-
-            this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.types : "other"} expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
-
-            if (!judgment.correct) {
-              this.strokeEndingMistakes++;
-              this.options.onStrokeEndingMistake?.(kakitoriData);
-            }
-          }
+        if (this.pendingEndingJudgment != null) {
+          kakitoriData.strokeEnding = this.pendingEndingJudgment;
+          this.pendingEndingJudgment = null;
         }
 
         // Only fire callback on the first stroke of a group (the one the user actually drew)
@@ -553,6 +517,119 @@ export class Kakitori {
         });
       },
     });
+
+    // hanzi-writer creates `_quiz` asynchronously inside `quiz()` (after
+    // character data resolves). Patch its `_handleSuccess` once available so
+    // we can intercept the success-then-advance flow with stroke ending
+    // judgment and optionally redirect to the failure path.
+    Promise.resolve(quizPromise).then(() => {
+      if (this.destroyed) return;
+      this.patchQuizForEnding();
+    });
+  }
+
+  /**
+   * Run stroke ending judgment for the data stroke currently being accepted.
+   * Returns null when no judgment applies (no config, not first in group, or
+   * empty `types`).
+   */
+  private computeEndingJudgment(
+    quiz: any,
+    dataStrokeNum: number,
+    meta: any,
+  ): StrokeEndingJudgment | null {
+    if (!this.strokeEndings) return null;
+    if (!this.isFirstInGroup(dataStrokeNum)) return null;
+
+    const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
+    const expected = this.strokeEndings[logicalStrokeNum];
+    if (!expected?.types || expected.types.length === 0) return null;
+
+    let resolvedExpected = expected;
+    const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
+    if (expected.direction == null && needsDirection) {
+      const group = this.strokeGroups
+        ? this.strokeGroups[logicalStrokeNum]
+        : [dataStrokeNum];
+      const lastDataIdx = group[group.length - 1];
+      const medianPoints = this.characterData?.strokes[lastDataIdx]?.points;
+      const autoDir = medianPoints ? computeDirectionFromMedian(medianPoints) : null;
+      if (autoDir) {
+        resolvedExpected = { ...expected, direction: autoDir };
+        this.log?.(`auto direction: stroke=${logicalStrokeNum + 1} dir=[${autoDir}]`);
+      }
+    }
+
+    const hwData = quiz._getStrokeData({ isCorrect: true, meta });
+    const timing = this.getTimingData();
+    const strictness = this.options.strokeEndingStrictness ?? 0.7;
+
+    this.log?.(`judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${hwData.drawnPath.points.length}`);
+
+    const judgment = judge(
+      hwData.drawnPath.points,
+      resolvedExpected,
+      {
+        drawableSize: (this.options.size ?? DEFAULT_SIZE) - 2 * (this.options.padding ?? DEFAULT_PADDING),
+        strictness,
+        timing,
+      },
+    );
+
+    this.log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.types : "other"} expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
+
+    return judgment;
+  }
+
+  /**
+   * Wrap the active hanzi-writer Quiz's `_handleSuccess` so we can run stroke
+   * ending judgment before the stroke is rendered/advanced. When the ending
+   * fails AND `strokeEndingAsMiss` is set, route through `_handleFailure`
+   * instead so the same stroke must be redrawn (no render, no index advance).
+   */
+  private patchQuizForEnding(): void {
+    const quiz: any = (this.hw as any)._quiz;
+    if (!quiz) return;
+    if (quiz.__kakitoriPatched) return;
+    quiz.__kakitoriPatched = true;
+
+    const originalHandleSuccess = quiz._handleSuccess.bind(quiz);
+    const originalHandleFailure = quiz._handleFailure.bind(quiz);
+
+    quiz._handleSuccess = (meta: any) => {
+      const dataStrokeNum: number = quiz._currentStrokeIndex;
+      const judgment = this.computeEndingJudgment(quiz, dataStrokeNum, meta);
+
+      if (judgment && !judgment.correct) {
+        this.strokeEndingMistakes++;
+
+        const hwData = quiz._getStrokeData({
+          isCorrect: !this.options.strokeEndingAsMiss,
+          meta,
+        });
+        const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
+        const kakitoriData: KakitoriStrokeData = {
+          character: this.character,
+          strokeNum: logicalStrokeNum,
+          drawnPath: hwData.drawnPath,
+          isBackwards: hwData.isBackwards,
+          mistakesOnStroke: hwData.mistakesOnStroke,
+          totalMistakes: hwData.totalMistakes,
+          strokesRemaining: hwData.strokesRemaining,
+          strokeEnding: judgment,
+        };
+        this.options.onStrokeEndingMistake?.(kakitoriData);
+
+        if (this.options.strokeEndingAsMiss) {
+          this.log?.(`stroke ending miss → reject stroke (data=${dataStrokeNum})`);
+          originalHandleFailure(meta);
+          return;
+        }
+      }
+
+      this.pendingEndingJudgment = judgment;
+      originalHandleSuccess(meta);
+    };
   }
 
   /** Play stroke-order animation. Uses animCJK-style overlay when strokeGroups are configured. */
@@ -876,6 +953,7 @@ export class Kakitori {
     this.character = char;
     this.strokeEndings = null;
     this.strokeEndingMistakes = 0;
+    this.pendingEndingJudgment = null;
     await this.hw.setCharacter(char);
   }
 

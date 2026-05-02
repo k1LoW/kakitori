@@ -537,6 +537,140 @@ describe("Kakitori", () => {
     });
   });
 
+  describe("hanzi-writer integration (monkey patch survival)", () => {
+    async function startAndWaitForPatch(
+      k: Kakitori,
+      timeoutMs = 1000,
+    ): Promise<any> {
+      k.start();
+      const deadline = Date.now() + timeoutMs;
+      while (Date.now() < deadline) {
+        const quiz = (k as any).hw._quiz;
+        if (quiz?.__kakitoriPatched) return quiz;
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      throw new Error("Quiz patch was not applied within timeout");
+    }
+
+    function fakeUserStroke() {
+      return {
+        points: [
+          { x: 0, y: 0 },
+          { x: 50, y: 50 },
+        ],
+        externalPoints: [
+          { x: 0, y: 0 },
+          { x: 50, y: 50 },
+        ],
+      };
+    }
+
+    it("Quiz instance exposes the private API the patch depends on", async () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const quiz = await startAndWaitForPatch(k);
+
+      expect(typeof quiz._handleSuccess).toBe("function");
+      expect(typeof quiz._handleFailure).toBe("function");
+      expect(typeof quiz._getStrokeData).toBe("function");
+      expect(typeof quiz._currentStrokeIndex).toBe("number");
+      expect(quiz.__kakitoriPatched).toBe(true);
+    });
+
+    it("skips ending judgment when strokeEndings is not set", async () => {
+      const onStrokeEndingMistake = vi.fn();
+      const onMistake = vi.fn();
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        strokeEndingAsMiss: true,
+        onStrokeEndingMistake,
+        onMistake,
+      });
+      await k.ready();
+      const quiz = await startAndWaitForPatch(k);
+
+      quiz._userStroke = fakeUserStroke();
+      const initialIndex = quiz._currentStrokeIndex;
+      const initialMistakes = quiz._totalMistakes;
+
+      quiz._handleSuccess({ isStrokeBackwards: false });
+
+      // Judgment skipped → original success path → stroke advances, no mistakes
+      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
+      expect(quiz._totalMistakes).toBe(initialMistakes);
+      expect(onStrokeEndingMistake).not.toHaveBeenCalled();
+      expect(onMistake).not.toHaveBeenCalled();
+    });
+
+    it("rejects stroke and does not advance when ending fails with strokeEndingAsMiss=true", async () => {
+      const onStrokeEndingMistake = vi.fn();
+      const onMistake = vi.fn();
+      const onCorrectStroke = vi.fn();
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        strokeEndingAsMiss: true,
+        onStrokeEndingMistake,
+        onMistake,
+        onCorrectStroke,
+      });
+      await k.ready();
+      // Force a failing judgment: expect harai, but the fake stroke has no
+      // timing data so the judge falls back to "tome" → mismatch.
+      k.setStrokeGroups([[0], [1]]);
+      k.setStrokeEndings([
+        { types: ["harai"], direction: [0, -1] },
+        { types: ["harai"], direction: [0, -1] },
+      ]);
+      const quiz = await startAndWaitForPatch(k);
+
+      quiz._userStroke = fakeUserStroke();
+      const initialIndex = quiz._currentStrokeIndex;
+
+      quiz._handleSuccess({ isStrokeBackwards: false });
+
+      expect(quiz._currentStrokeIndex).toBe(initialIndex);
+      expect(quiz._totalMistakes).toBeGreaterThan(0);
+      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
+      expect(onMistake).toHaveBeenCalledTimes(1);
+      expect(onCorrectStroke).not.toHaveBeenCalled();
+    });
+
+    it("advances stroke when ending fails with strokeEndingAsMiss=false (default)", async () => {
+      const onStrokeEndingMistake = vi.fn();
+      const onCorrectStroke = vi.fn();
+      const onMistake = vi.fn();
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onStrokeEndingMistake,
+        onCorrectStroke,
+        onMistake,
+      });
+      await k.ready();
+      k.setStrokeGroups([[0], [1]]);
+      k.setStrokeEndings([
+        { types: ["harai"], direction: [0, -1] },
+        { types: ["harai"], direction: [0, -1] },
+      ]);
+      const quiz = await startAndWaitForPatch(k);
+
+      quiz._userStroke = fakeUserStroke();
+      const initialIndex = quiz._currentStrokeIndex;
+
+      quiz._handleSuccess({ isStrokeBackwards: false });
+
+      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
+      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
+      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
+      expect(onMistake).not.toHaveBeenCalled();
+    });
+  });
+
   describe("computeMedianPathLength", () => {
     it("returns 0 for empty or single-point arrays", () => {
       expect(computeMedianPathLength([])).toBe(0);
