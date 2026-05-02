@@ -543,13 +543,12 @@ describe("Kakitori", () => {
       timeoutMs = 1000,
     ): Promise<any> {
       k.start();
-      const deadline = Date.now() + timeoutMs;
-      while (Date.now() < deadline) {
-        const quiz = (k as any).hw._quiz;
-        if (quiz?.__kakitoriPatched) return quiz;
-        await new Promise((r) => setTimeout(r, 5));
-      }
-      throw new Error("Quiz patch was not applied within timeout");
+      await expect
+        .poll(() => (k as any).hw._quiz?.__kakitoriPatched === true, {
+          timeout: timeoutMs,
+        })
+        .toBe(true);
+      return (k as any).hw._quiz;
     }
 
     function fakeUserStroke() {
