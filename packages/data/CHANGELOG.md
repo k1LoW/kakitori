@@ -1,5 +1,20 @@
 # Changelog
 
+## [v0.5.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.4.0...packages/data/v0.5.0) - 2026-05-02
+### Breaking Changes 🛠
+- feat!: size-independent stroke judgment and replace width/height with size by @k1LoW in https://github.com/k1LoW/kakitori/pull/23
+- feat!: rename quiz() to start(), animateCharacter() to animate(), add JSDoc by @k1LoW in https://github.com/k1LoW/kakitori/pull/25
+- feat!: rename highlightStroke() to setStrokeColor(), add resetStrokeColor() by @k1LoW in https://github.com/k1LoW/kakitori/pull/26
+- feat!: add showGrid cross-hair guide and DEFAULT_PADDING constant by @k1LoW in https://github.com/k1LoW/kakitori/pull/27
+### New Features 🚀
+- feat: add drawingWidth option by @k1LoW in https://github.com/k1LoW/kakitori/pull/21
+- feat: add tests (core + data), fix hane detection, add CI test step by @k1LoW in https://github.com/k1LoW/kakitori/pull/22
+- feat: scale stroke animation duration by stroke length by @k1LoW in https://github.com/k1LoW/kakitori/pull/29
+- feat: add number charset (Arabic numerals 0-9) by @k1LoW in https://github.com/k1LoW/kakitori/pull/32
+### Other Changes
+- docs: update release.yml with new changelog categories and labels by @k1LoW in https://github.com/k1LoW/kakitori/pull/24
+- feat!: destroy() clears DOM and guards against post-destroy usage by @k1LoW in https://github.com/k1LoW/kakitori/pull/30
+
 ## [v0.4.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.3.0...packages/data/v0.4.0) - 2026-04-29
 ### New Features
 - feat: add Kakitori.render(), charSets export, and gallery demo by @k1LoW in https://github.com/k1LoW/kakitori/pull/17
