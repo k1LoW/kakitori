@@ -5,6 +5,7 @@ export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { KakitoriCharacterConfig } from "./dataLoader.js";
 export type { KakitoriOptions, KakitoriLogger, ConfigLoaderFn, CharDataLoaderFn, RenderOptions, GridOptions } from "./KakitoriOptions.js";
 export {
+  number,
   hiragana,
   katakana,
   grade1,

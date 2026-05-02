@@ -55,6 +55,7 @@ let strokeSlotEls: HTMLElement[] = [];
 let highlightIdx = -1;
 
 const sectionLabels: Record<string, string> = {
+  number: "数字",
   hiragana: "ひらがな",
   katakana: "カタカナ",
   grade1: "小学1年",
