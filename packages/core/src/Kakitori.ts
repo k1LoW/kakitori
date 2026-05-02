@@ -606,8 +606,18 @@ export class Kakitori {
       if (judgment && !judgment.correct) {
         this.strokeEndingMistakes++;
 
+        // When the stroke will be accepted (`strokeEndingAsMiss=false`),
+        // `onCorrectStroke` later auto-skips the rest of the group and
+        // subtracts `skipsNeeded` from `strokesRemaining`. Mirror that here
+        // so both callbacks report a consistent `strokesRemaining`. When the
+        // stroke is rejected (`strokeEndingAsMiss=true`), no group advance
+        // happens, so leave the raw value.
+        const willAdvance = !this.options.strokeEndingAsMiss;
+        const skipsNeeded = willAdvance
+          ? this.getRemainingSkipsInGroup(dataStrokeNum)
+          : 0;
         const hwData = quiz._getStrokeData({
-          isCorrect: !this.options.strokeEndingAsMiss,
+          isCorrect: willAdvance,
           meta,
         });
         const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
@@ -618,7 +628,7 @@ export class Kakitori {
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
-          strokesRemaining: hwData.strokesRemaining,
+          strokesRemaining: hwData.strokesRemaining - skipsNeeded,
           strokeEnding: judgment,
         };
         this.options.onStrokeEndingMistake?.(kakitoriData);

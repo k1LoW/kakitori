@@ -670,6 +670,34 @@ describe("Kakitori", () => {
       expect(onCorrectStroke).toHaveBeenCalledTimes(1);
       expect(onMistake).not.toHaveBeenCalled();
     });
+
+    it("reports consistent strokesRemaining between onStrokeEndingMistake and onCorrectStroke when group auto-skips", async () => {
+      const onStrokeEndingMistake = vi.fn();
+      const onCorrectStroke = vi.fn();
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onStrokeEndingMistake,
+        onCorrectStroke,
+      });
+      await k.ready();
+      // 2 data strokes collapsed into a single logical stroke: drawing data
+      // stroke 0 auto-skips data stroke 1.
+      k.setStrokeGroups([[0, 1]]);
+      k.setStrokeEndings([{ types: ["harai"], direction: [0, -1] }]);
+      const quiz = await startAndWaitForPatch(k);
+
+      quiz._userStroke = fakeUserStroke();
+      quiz._handleSuccess({ isStrokeBackwards: false });
+
+      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
+      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
+      const mistakeRemaining =
+        onStrokeEndingMistake.mock.calls[0][0].strokesRemaining;
+      const correctRemaining =
+        onCorrectStroke.mock.calls[0][0].strokesRemaining;
+      expect(mistakeRemaining).toBe(correctRemaining);
+    });
   });
 
   describe("computeMedianPathLength", () => {
