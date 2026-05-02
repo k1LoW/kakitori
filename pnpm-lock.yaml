@@ -59,8 +59,8 @@ importers:
   packages/data:
     devDependencies:
       '@k1low/hanzi-writer-data-jp':
-        specifier: 0.2.0
-        version: 0.2.0
+        specifier: 0.2.1
+        version: 0.2.1
       tsdown:
         specifier: 0.12.5
         version: 0.12.5(typescript@5.8.3)
@@ -269,8 +269,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@k1low/hanzi-writer-data-jp@0.2.0':
-    resolution: {integrity: sha512-7hpsvesgmZAHfW42Dlrb16vHViuuAKZ4IEAdQupQgeaEOtupTJqTqotS9yAq6xiHejg2waW5RDmxibOB61y2bg==}
+  '@k1low/hanzi-writer-data-jp@0.2.1':
+    resolution: {integrity: sha512-xflEW/l8pmHpZKvXkaBg+GErhWdf05GlFGQsk5kxdtzlJ01fvJwKfPr9eYCM3sbor2n52F1A0qpY3SCZrH+ibQ==}
 
   '@oxc-project/runtime@0.72.1':
     resolution: {integrity: sha512-8nU/WPeJWF6QJrT8HtEEIojz26bXn677deDX8BDVpjcz97CVKORVAvFhE2/lfjnBYE0+aqmjFeD17YnJQpCyqg==}
@@ -1045,7 +1045,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@k1low/hanzi-writer-data-jp@0.2.0': {}
+  '@k1low/hanzi-writer-data-jp@0.2.1': {}
 
   '@oxc-project/runtime@0.72.1': {}
 
