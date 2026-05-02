@@ -1,5 +1,12 @@
 {
   "character": "3",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ],
   "strokeGroups": [
     [
       0,
