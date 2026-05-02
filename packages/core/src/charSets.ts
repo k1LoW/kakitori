@@ -247,6 +247,12 @@ export const grade2 = [
   "話",
 ];
 
+// Arabic numerals (0-9)
+// Source: https://github.com/k1LoW/animNumber
+export const number = [
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
+];
+
 // Hiragana (basic 46)
 export const hiragana = [
   "あ", "い", "う", "え", "お",
@@ -483,6 +489,7 @@ export const juniorHigh = [
 ];
 
 export const charSets: Record<string, string[]> = {
+  number,
   hiragana,
   katakana,
   grade1,

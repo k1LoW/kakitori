@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  number,
   hiragana,
   katakana,
   grade1,
@@ -14,6 +15,10 @@ import {
 
 describe("charSets", () => {
   describe("character counts", () => {
+    it("number has 10 characters", () => {
+      expect(number).toHaveLength(10);
+    });
+
     it("hiragana has 46 characters", () => {
       expect(hiragana).toHaveLength(46);
     });
@@ -69,7 +74,7 @@ describe("charSets", () => {
   });
 
   describe("no duplicates within each set", () => {
-    const sets = { hiragana, katakana, grade1, grade2, grade3, grade4, grade5, grade6, juniorHigh };
+    const sets = { number, hiragana, katakana, grade1, grade2, grade3, grade4, grade5, grade6, juniorHigh };
 
     for (const [name, chars] of Object.entries(sets)) {
       it(`${name} has no duplicates`, () => {
@@ -102,6 +107,7 @@ describe("charSets", () => {
   describe("charSets record", () => {
     it("contains all expected keys", () => {
       expect(Object.keys(charSets)).toEqual([
+        "number",
         "hiragana", "katakana",
         "grade1", "grade2", "grade3", "grade4", "grade5", "grade6",
         "juniorHigh",
