@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.5.1...packages/data/v0.5.2) - 2026-05-02
+### New Features 🚀
+- feat: add strokeEndingAsMiss option to reject strokes with wrong ending by @k1LoW in https://github.com/k1LoW/kakitori/pull/36
+
 ## [v0.5.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.5.0...packages/data/v0.5.1) - 2026-05-02
 ### Fix bug 🐛
 - feat: add strokeGroups data for Arabic numerals 0-9 by @k1LoW in https://github.com/k1LoW/kakitori/pull/34
