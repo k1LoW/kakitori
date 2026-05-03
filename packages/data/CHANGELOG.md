@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.3](https://github.com/k1LoW/kakitori/compare/packages/data/v0.5.2...packages/data/v0.5.3) - 2026-05-03
+### Fix bug 🐛
+- fix: numeral 7 should be 2 logical strokes, not 1 by @k1LoW in https://github.com/k1LoW/kakitori/pull/38
+
 ## [v0.5.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.5.1...packages/data/v0.5.2) - 2026-05-02
 ### New Features 🚀
 - feat: add strokeEndingAsMiss option to reject strokes with wrong ending by @k1LoW in https://github.com/k1LoW/kakitori/pull/36
