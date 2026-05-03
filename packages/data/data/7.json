@@ -5,11 +5,18 @@
       "types": [
         "tome"
       ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
     }
   ],
   "strokeGroups": [
     [
-      0,
+      0
+    ],
+    [
       1
     ]
   ]
