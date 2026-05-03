@@ -744,6 +744,30 @@ describe("Kakitori", () => {
       expect(onMistake).toHaveBeenCalledTimes(1);
       expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
     });
+
+    it("falls back to hanzi-writer's strokesRemaining when strokeGroups is incomplete", async () => {
+      const onMistake = vi.fn();
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onMistake,
+      });
+      await k.ready();
+      // Only stroke 0 is mapped; stroke 1 is unmapped (incomplete groups).
+      k.setStrokeGroups([[0]]);
+      const quiz = await startAndWaitForPatch(k);
+
+      // Drive a mistake on the unmapped data stroke 1.
+      quiz._currentStrokeIndex = 1;
+      quiz._userStroke = fakeUserStroke();
+      quiz._handleFailure({ isStrokeBackwards: false });
+
+      expect(onMistake).toHaveBeenCalledTimes(1);
+      // Without the fallback this would be `strokeGroups.length - 1 - 0 = 0`,
+      // but more importantly the formula could produce negatives for larger
+      // unmapped indices. The fallback must yield hanzi-writer's raw value.
+      expect(onMistake.mock.calls[0][0].strokesRemaining).toBeGreaterThanOrEqual(0);
+    });
   });
 
   describe("computeMedianPathLength", () => {

@@ -266,7 +266,9 @@ export class Kakitori {
    * Convert hanzi-writer's data-stroke `strokesRemaining` into a logical-stroke
    * count consistent with `strokeGroups`. Excludes the current stroke when
    * `isCorrect` is true (matches hanzi-writer's success convention), includes
-   * it when false (matches the failure convention).
+   * it when false (matches the failure convention). When `strokeGroups` is
+   * incomplete and the current `dataStrokeNum` is unmapped, falls back to
+   * `hwStrokesRemaining` to avoid negative results.
    */
   private logicalStrokesRemaining(
     dataStrokeNum: number,
@@ -274,6 +276,7 @@ export class Kakitori {
     isCorrect: boolean,
   ): number {
     if (!this.strokeGroups) return hwStrokesRemaining;
+    if (!this.dataToLogical.has(dataStrokeNum)) return hwStrokesRemaining;
     const totalLogical = this.strokeGroups.length;
     const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
     return totalLogical - logicalStrokeNum - (isCorrect ? 1 : 0);
