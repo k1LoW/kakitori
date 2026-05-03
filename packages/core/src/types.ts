@@ -32,7 +32,12 @@ export interface StrokeEndingJudgment {
 export interface KakitoriStrokeData {
   /** The character being practiced. */
   character: string;
-  /** Logical stroke index (0-based; respects strokeGroups when configured). */
+  /**
+   * Logical stroke index (0-based; respects `strokeGroups` when configured).
+   * If `strokeGroups` is set but does not map the current data stroke
+   * (incomplete groups), this falls back to the underlying data-stroke index
+   * rather than a logical index.
+   */
   strokeNum: number;
   /** The path the user actually drew for this stroke. */
   drawnPath: {
