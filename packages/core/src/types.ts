@@ -58,6 +58,9 @@ export interface KakitoriStrokeData {
    * `onStrokeEndingMistake` with `strokeEndingAsMiss=false`); includes the
    * current stroke when it is being rejected (`onMistake`, or
    * `onStrokeEndingMistake` with `strokeEndingAsMiss=true`).
+   * If `strokeGroups` is set but does not map the current data stroke
+   * (incomplete groups), this falls back to hanzi-writer's raw
+   * data-stroke count rather than a logical count.
    */
   strokesRemaining: number;
   /** Stroke ending judgment. Present only when ending types are configured for this stroke. */
