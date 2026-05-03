@@ -120,8 +120,8 @@ function log(msg: string) {
 }
 
 function formatStrokeData(data: KakitoriStrokeData): string {
-  const { drawnPath: _drawnPath, ...rest } = data;
-  return JSON.stringify(rest);
+  const { drawnPath, ...rest } = data;
+  return JSON.stringify({ ...rest, drawnPath: { pathString: drawnPath.pathString } });
 }
 
 function clearResult() {
