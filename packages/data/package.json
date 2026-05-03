@@ -1,6 +1,6 @@
 {
   "name": "@k1low/kakitori-data",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Stroke ending data (tome/hane/harai) for kakitori",
   "license": "MIT",
   "repository": {
