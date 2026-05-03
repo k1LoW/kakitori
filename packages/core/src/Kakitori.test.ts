@@ -698,6 +698,52 @@ describe("Kakitori", () => {
         onCorrectStroke.mock.calls[0][0].strokesRemaining;
       expect(mistakeRemaining).toBe(correctRemaining);
     });
+
+    it("reports strokesRemaining in logical-stroke units across multiple groups", async () => {
+      const fourStrokeCharData = {
+        strokes: [
+          "M 0 0 L 100 100",
+          "M 100 100 L 200 200",
+          "M 200 200 L 300 300",
+          "M 300 300 L 400 400",
+        ],
+        medians: [
+          [[0, 0], [100, 100]],
+          [[100, 100], [200, 200]],
+          [[200, 200], [300, 300]],
+          [[300, 300], [400, 400]],
+        ],
+      };
+      const fourStrokeLoader: CharDataLoaderFn = (_char, onLoad) => {
+        onLoad(fourStrokeCharData);
+      };
+      const onCorrectStroke = vi.fn();
+      const onMistake = vi.fn();
+      const k = Kakitori.create(container, "X", {
+        charDataLoader: fourStrokeLoader,
+        configLoader: null,
+        onCorrectStroke,
+        onMistake,
+      });
+      await k.ready();
+      // 2 logical strokes, each spanning 2 data strokes.
+      k.setStrokeGroups([[0, 1], [2, 3]]);
+      const quiz = await startAndWaitForPatch(k);
+
+      // Drawing data stroke 0 (first of group [0, 1]): logical stroke 0 done
+      // → 1 logical stroke remaining (group [2, 3]).
+      quiz._userStroke = fakeUserStroke();
+      quiz._handleSuccess({ isStrokeBackwards: false });
+      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
+      expect(onCorrectStroke.mock.calls[0][0].strokesRemaining).toBe(1);
+
+      // Mistake on data stroke 2 (first of group [2, 3]): logical stroke 1
+      // is the current pending one → 1 logical stroke remaining (current).
+      quiz._userStroke = fakeUserStroke();
+      quiz._handleFailure({ isStrokeBackwards: false });
+      expect(onMistake).toHaveBeenCalledTimes(1);
+      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
+    });
   });
 
   describe("computeMedianPathLength", () => {

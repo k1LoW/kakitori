@@ -263,6 +263,23 @@ export class Kakitori {
   }
 
   /**
+   * Convert hanzi-writer's data-stroke `strokesRemaining` into a logical-stroke
+   * count consistent with `strokeGroups`. Excludes the current stroke when
+   * `isCorrect` is true (matches hanzi-writer's success convention), includes
+   * it when false (matches the failure convention).
+   */
+  private logicalStrokesRemaining(
+    dataStrokeNum: number,
+    hwStrokesRemaining: number,
+    isCorrect: boolean,
+  ): number {
+    if (!this.strokeGroups) return hwStrokesRemaining;
+    const totalLogical = this.strokeGroups.length;
+    const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
+    return totalLogical - logicalStrokeNum - (isCorrect ? 1 : 0);
+  }
+
+  /**
    * Create a new Kakitori instance with full HanziWriter integration.
    * @example
    * const k = Kakitori.create('#target', 'あ', { size: 300 });
@@ -478,7 +495,7 @@ export class Kakitori {
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
-          strokesRemaining: hwData.strokesRemaining - skipsNeeded,
+          strokesRemaining: this.logicalStrokesRemaining(dataStrokeNum, hwData.strokesRemaining, true),
         };
 
         if (this.pendingEndingJudgment != null) {
@@ -501,7 +518,7 @@ export class Kakitori {
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
-          strokesRemaining: hwData.strokesRemaining,
+          strokesRemaining: this.logicalStrokesRemaining(hwData.strokeNum, hwData.strokesRemaining, false),
         };
         this.log?.(`mistake: data=${hwData.strokeNum} logical=${logicalStrokeNum}`);
         this.options.onMistake?.(kakitoriData);
@@ -606,16 +623,11 @@ export class Kakitori {
       if (judgment && !judgment.correct) {
         this.strokeEndingMistakes++;
 
-        // When the stroke will be accepted (`strokeEndingAsMiss=false`),
-        // `onCorrectStroke` later auto-skips the rest of the group and
-        // subtracts `skipsNeeded` from `strokesRemaining`. Mirror that here
-        // so both callbacks report a consistent `strokesRemaining`. When the
-        // stroke is rejected (`strokeEndingAsMiss=true`), no group advance
-        // happens, so leave the raw value.
+        // Report `strokesRemaining` in logical-stroke units consistent with
+        // `onCorrectStroke` / `onMistake`. When the stroke will be accepted
+        // (`strokeEndingAsMiss=false`), exclude the current stroke; when
+        // rejected (`strokeEndingAsMiss=true`), include it.
         const willAdvance = !this.options.strokeEndingAsMiss;
-        const skipsNeeded = willAdvance
-          ? this.getRemainingSkipsInGroup(dataStrokeNum)
-          : 0;
         const hwData = quiz._getStrokeData({
           isCorrect: willAdvance,
           meta,
@@ -628,7 +640,7 @@ export class Kakitori {
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
-          strokesRemaining: hwData.strokesRemaining - skipsNeeded,
+          strokesRemaining: this.logicalStrokesRemaining(dataStrokeNum, hwData.strokesRemaining, willAdvance),
           strokeEnding: judgment,
         };
         this.options.onStrokeEndingMistake?.(kakitoriData);

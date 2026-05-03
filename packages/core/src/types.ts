@@ -47,7 +47,13 @@ export interface KakitoriStrokeData {
   mistakesOnStroke: number;
   /** Mistakes accumulated across the entire character so far. */
   totalMistakes: number;
-  /** Remaining logical strokes after this one (accounts for strokeGroups auto-skip). */
+  /**
+   * Logical strokes remaining (respects `strokeGroups`). Excludes the current
+   * stroke when the stroke is being accepted (`onCorrectStroke`, or
+   * `onStrokeEndingMistake` with `strokeEndingAsMiss=false`); includes the
+   * current stroke when it is being rejected (`onMistake`, or
+   * `onStrokeEndingMistake` with `strokeEndingAsMiss=true`).
+   */
   strokesRemaining: number;
   /** Stroke ending judgment. Present only when ending types are configured for this stroke. */
   strokeEnding?: StrokeEndingJudgment;
