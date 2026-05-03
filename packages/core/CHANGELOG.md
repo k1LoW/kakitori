@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.6.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.5.0...packages/core/v0.6.0) - 2026-05-03
+### New Features 🚀
+- feat: add strokeEndingAsMiss option to reject strokes with wrong ending by @k1LoW in https://github.com/k1LoW/kakitori/pull/36
+### Fix bug 🐛
+- feat: add strokeGroups data for Arabic numerals 0-9 by @k1LoW in https://github.com/k1LoW/kakitori/pull/34
+- fix: numeral 7 should be 2 logical strokes, not 1 by @k1LoW in https://github.com/k1LoW/kakitori/pull/38
+
 ## [v0.5.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.4.0...packages/core/v0.5.0) - 2026-05-02
 ### New Features 🚀
 - feat: add number charset (Arabic numerals 0-9) by @k1LoW in https://github.com/k1LoW/kakitori/pull/32
