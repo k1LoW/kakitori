@@ -7,8 +7,9 @@ export interface StrokeEnding {
   types?: StrokeEndingType[];
   /**
    * Expected end direction as a normalized 2D vector, used for hane/harai validation.
-   * When null or omitted and `types` includes hane/harai, direction is auto-computed
-   * from the median's last segment.
+   * When null or omitted and `types` includes hane/harai, direction is best-effort
+   * auto-computed from the median's last segment when character data is available;
+   * if character data has not loaded yet, direction-based validation is skipped.
    */
   direction?: [number, number] | null;
 }
