@@ -30,7 +30,7 @@
     "stats": "tsx tools/stats.ts"
   },
   "devDependencies": {
-    "@k1low/hanzi-writer-data-jp": "0.2.4",
+    "@k1low/hanzi-writer-data-jp": "0.3.0",
     "tsdown": "0.12.5",
     "tsx": "4.19.4",
     "typescript": "5.8.3",
