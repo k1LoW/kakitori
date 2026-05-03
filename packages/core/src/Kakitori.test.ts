@@ -763,10 +763,12 @@ describe("Kakitori", () => {
       quiz._handleFailure({ isStrokeBackwards: false });
 
       expect(onMistake).toHaveBeenCalledTimes(1);
-      // Without the fallback this would be `strokeGroups.length - 1 - 0 = 0`,
-      // but more importantly the formula could produce negatives for larger
-      // unmapped indices. The fallback must yield hanzi-writer's raw value.
-      expect(onMistake.mock.calls[0][0].strokesRemaining).toBeGreaterThanOrEqual(0);
+      // Without the fallback the formula would yield `strokeGroups.length -
+      // dataStrokeNum - 0 = 1 - 1 - 0 = 0`. With the fallback, callbacks
+      // receive hanzi-writer's raw value: `strokes.length - currentIndex - 0
+      // = 2 - 1 - 0 = 1`. Asserting the exact value catches a regression of
+      // the fallback (and underflow for larger unmapped indices in general).
+      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
     });
   });
 
