@@ -119,6 +119,11 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
+function formatStrokeData(data: KakitoriStrokeData): string {
+  const { drawnPath: _drawnPath, ...rest } = data;
+  return JSON.stringify(rest);
+}
+
 function clearResult() {
   strokeSlotsEl.innerHTML = "";
   summaryEl.textContent = "";
@@ -164,6 +169,7 @@ function openPractice(char: string) {
     charDataLoader: cachedCharDataLoader,
     logger: log,
     onCorrectStroke: (data: KakitoriStrokeData) => {
+      log(`onCorrectStroke ${formatStrokeData(data)}`);
       const slot = strokeSlotEls[data.strokeNum];
       if (slot && data.strokeEnding) {
         const ok = data.strokeEnding.correct;
@@ -174,15 +180,18 @@ function openPractice(char: string) {
         slot.className = "stroke-slot ok";
       }
     },
-    onMistake: () => {
+    onMistake: (data: KakitoriStrokeData) => {
+      log(`onMistake ${formatStrokeData(data)}`);
       mistakes++;
       updateSummary();
     },
-    onStrokeEndingMistake: () => {
+    onStrokeEndingMistake: (data: KakitoriStrokeData) => {
+      log(`onStrokeEndingMistake ${formatStrokeData(data)}`);
       strokeEndingMistakes++;
       updateSummary();
     },
-    onComplete: () => {
+    onComplete: (data: { character: string; totalMistakes: number; strokeEndingMistakes: number }) => {
+      log(`onComplete ${JSON.stringify(data)}`);
       updateSummary();
     },
   });
