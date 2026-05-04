@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.7.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.6.0...packages/core/v0.7.0) - 2026-05-04
+### New Features 🚀
+- feat(data): add zenkaku (full-width) Arabic numerals 0-9 by @k1LoW in https://github.com/k1LoW/kakitori/pull/43
+- feat(core): redefine tome/hane/harai judgment criteria by @k1LoW in https://github.com/k1LoW/kakitori/pull/44
+### Other Changes
+- fix: report strokesRemaining in logical-stroke units; document result types by @k1LoW in https://github.com/k1LoW/kakitori/pull/42
+
 ## [v0.6.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.5.0...packages/core/v0.6.0) - 2026-05-03
 ### New Features 🚀
 - feat: add strokeEndingAsMiss option to reject strokes with wrong ending by @k1LoW in https://github.com/k1LoW/kakitori/pull/36
