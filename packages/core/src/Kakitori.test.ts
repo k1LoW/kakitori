@@ -774,25 +774,33 @@ describe("Kakitori", () => {
 
   describe("animate() rapid succession", () => {
     it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      await k.ready();
-      k.setStrokeGroups([[0], [1]]);
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
 
-      k.animate();
-      k.animate();
-      k.animate();
-      k.animate();
+        k.animate();
+        k.animate();
+        k.animate();
+        k.animate();
 
-      // Drain microtasks so each queued animateWithGroups() reaches its
-      // post-await runId check; superseded runs return without touching DOM.
-      for (let i = 0; i < 20; i++) await Promise.resolve();
-      await new Promise((r) => setTimeout(r, 0));
+        // Drain microtasks so each queued animateWithGroups() reaches its
+        // post-await runId check; superseded runs return without touching DOM.
+        for (let i = 0; i < 20; i++) await Promise.resolve();
 
-      const overlays = container.querySelectorAll("svg.kakitori-anim");
-      expect(overlays.length).toBeLessThanOrEqual(1);
+        const overlays = container.querySelectorAll("svg.kakitori-anim");
+        expect(overlays.length).toBeLessThanOrEqual(1);
+
+        // Drain the surviving run's pending cleanup timer so we don't leak
+        // a real setTimeout into the next test.
+        await vi.runAllTimersAsync();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it("a stale cleanup timer from a superseded run cannot unhide HanziWriter or remove the new overlay", async () => {
