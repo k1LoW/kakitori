@@ -8,11 +8,35 @@
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
         font-family: sans-serif;
-        padding: 1rem;
+        padding: 2rem;
         max-width: 960px;
         margin: 0 auto;
+        background: #fafafa;
+        color: #222;
       }
-      h1 { margin-bottom: 1rem; }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      header h1 { margin-bottom: 0; }
+      header a { font-size: 0.9rem; color: #0366d6; }
+      p.desc {
+        color: #666;
+        font-size: 0.9rem;
+        margin-bottom: 1.5rem;
+      }
+      p.desc a { color: #0366d6; }
+      button {
+        padding: 6px 16px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+      button:hover { background: #f0f0f0; }
 
       /* Practice */
       #practice {
@@ -36,7 +60,9 @@
         flex-shrink: 0;
       }
       #writer {
-        border: 1px solid #ccc;
+        border: 1px solid #ddd;
+        background: #fff;
+        border-radius: 4px;
       }
       #result {
         margin-top: 0.5rem;
@@ -78,7 +104,9 @@
         flex: 1;
         min-width: 0;
         font-size: 11px;
-        border: 1px solid #ccc;
+        border: 1px solid #ddd;
+        background: #fff;
+        border-radius: 4px;
         padding: 8px;
         text-align: left;
         font-family: monospace;
@@ -111,7 +139,13 @@
     </style>
   </head>
   <body>
-    <h1>kakitori demo</h1>
+    <header>
+      <h1>kakitori demo</h1>
+    </header>
+    <p class="desc">
+      Kanji writing practice library with stroke ending judgment (tome / hane / harai).
+      <a href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </p>
 
     <div id="practice">
       <div class="controls">
