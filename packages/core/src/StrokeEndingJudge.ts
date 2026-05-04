@@ -35,46 +35,58 @@ function getEndDirection(points: Point[]): [number, number] | null {
   return normalize(last.x - prev.x, last.y - prev.y);
 }
 
+interface TailAnalysis {
+  directionChange: number;
+  bodySpeed: number;
+  tipSpeed: number;
+}
+
 /**
- * Detect the maximum direction change in the tail of the stroke.
- * Compares the direction of the "body" (middle section) vs the "tip" (last section).
- * This is more robust than just looking at the last 3 points, because hane
- * involves a direction change over several points.
+ * Analyze the tail of the stroke: direction change and per-segment speed.
+ * Body covers 40%-70% of the stroke; tip covers 85%-end. Comparing these two
+ * windows is more robust than just inspecting the last 3 points, because hane
+ * involves a direction change spanning several points.
+ *
+ * Speeds are normalized by scale so thresholds stay invariant across drawable sizes.
  */
-function detectDirectionChangeFromTimedPoints(
+function analyzeTailFromTimedPoints(
   timedPoints: Array<{ x: number; y: number; t: number }>,
   minSegmentDist: number,
-): number {
+  scale: number,
+): TailAnalysis {
+  const empty: TailAnalysis = { directionChange: 0, bodySpeed: 0, tipSpeed: 0 };
   const n = timedPoints.length;
-  if (n < 6) return 0;
+  if (n < 6) return empty;
 
-  // Body direction: stroke's main direction leading up to the tail.
-  // Use the segment from 40% to 70% of the stroke.
   const bodyStart = Math.floor(n * 0.4);
   const bodyEnd = Math.floor(n * 0.7);
-
-  // Tip direction: last 15% of the stroke
   const tipStart = Math.floor(n * 0.85);
+
+  const bodyDist = distance(timedPoints[bodyStart], timedPoints[bodyEnd]);
+  const tipDist = distance(timedPoints[tipStart], timedPoints[n - 1]);
+
+  if (bodyDist < minSegmentDist || tipDist < minSegmentDist) {
+    return empty;
+  }
 
   const bodyDir = normalize(
     timedPoints[bodyEnd].x - timedPoints[bodyStart].x,
     timedPoints[bodyEnd].y - timedPoints[bodyStart].y,
   );
-
   const tipDir = normalize(
     timedPoints[n - 1].x - timedPoints[tipStart].x,
     timedPoints[n - 1].y - timedPoints[tipStart].y,
   );
 
-  if (
-    distance(timedPoints[bodyStart], timedPoints[bodyEnd]) < minSegmentDist ||
-    distance(timedPoints[tipStart], timedPoints[n - 1]) < minSegmentDist
-  ) {
-    return 0;
-  }
-
   const dot = dotProduct(bodyDir, tipDir);
-  return Math.acos(Math.max(-1, Math.min(1, dot)));
+  const directionChange = Math.acos(Math.max(-1, Math.min(1, dot)));
+
+  const bodyDt = timedPoints[bodyEnd].t - timedPoints[bodyStart].t;
+  const tipDt = timedPoints[n - 1].t - timedPoints[tipStart].t;
+  const bodySpeed = bodyDt > 0 ? bodyDist / bodyDt / scale : 0;
+  const tipSpeed = tipDt > 0 ? tipDist / tipDt / scale : 0;
+
+  return { directionChange, bodySpeed, tipSpeed };
 }
 
 // Calibration baseline for threshold scaling. Independent from DEFAULT_SIZE (user-facing default); they may diverge.
@@ -101,51 +113,37 @@ export function judge(
   const scale = drawableSize / BASE_SIZE;
 
   const tailSize = Math.max(3, Math.floor(drawnPoints.length * 0.2));
-  const tail = drawnPoints.slice(-tailSize);
-  const actualEndDirection = getEndDirection(tail);
+  const drawnTail = drawnPoints.slice(-tailSize);
+  const actualEndDirection = getEndDirection(drawnTail);
 
   const pauseMs = timing?.pauseBeforeRelease ?? 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
-  // Detect direction change from timed points (more reliable than HW points)
   const minSegmentDist = 3 * scale;
-  const directionChange = timing?.timedPoints
-    ? detectDirectionChangeFromTimedPoints(timing.timedPoints, minSegmentDist)
-    : 0;
-
-  // Compute end velocity from timed points (normalize by scale)
-  let endVelocity = 0;
-  if (timing && timing.timedPoints.length >= 2) {
-    const pts = timing.timedPoints;
-    const last = pts[pts.length - 1];
-    const prev = pts[pts.length - 2];
-    const dt = last.t - prev.t;
-    if (dt > 0) {
-      endVelocity = distance(last, prev) / dt / scale;
-    }
-  }
+  const tail = timing?.timedPoints
+    ? analyzeTailFromTimedPoints(timing.timedPoints, minSegmentDist, scale)
+    : { directionChange: 0, bodySpeed: 0, tipSpeed: 0 };
 
   let velocityProfile: "decelerating" | "constant" | "accelerating" = "constant";
   let detectedType: StrokeEndingType;
 
-  // Tome: user clearly paused before releasing
+  // Tome: user clearly paused before releasing.
+  // Hane: sharp turn (>= 90deg) AND the post-turn (tip) speed exceeds the
+  //       pre-turn (body) speed. The acceleration check is what separates a
+  //       deliberate flick from a slow corner that just trails off.
+  // Harai: anything else (no speed condition required).
   if (hasTomePause) {
     detectedType = "tome";
     velocityProfile = "decelerating";
-  }
-  // Hane: sharp direction change (> 60 degrees) at the end
-  else if (directionChange > Math.PI / 3) {
+  } else if (
+    tail.directionChange >= Math.PI / 2 &&
+    tail.tipSpeed > tail.bodySpeed
+  ) {
     detectedType = "hane";
-  }
-  // Harai: no pause, moving at the end
-  else if (endVelocity > 0.3) {
-    detectedType = "harai";
     velocityProfile = "accelerating";
-  }
-  // Default: tome
-  else {
-    detectedType = "tome";
+  } else {
+    detectedType = "harai";
   }
 
   let correct = (expected.types ?? []).includes(detectedType);
