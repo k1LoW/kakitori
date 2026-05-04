@@ -22,41 +22,53 @@ function angle(v1: [number, number], v2: [number, number]): number {
 /**
  * Suggest stroke ending type from median data.
  *
- * Heuristic based on the last few points of the median:
- * - If there is a sharp direction change (> 60 degrees) near the end: hane
- * - If the stroke ends moving mostly downward or diagonally: harai
+ * Median data carries no timing, so the speed condition for hane (tip faster
+ * than body) cannot be evaluated here. We approximate hane purely from the
+ * geometric direction change, using the same body (40-70%) vs tip (85-end)
+ * windows as the runtime judge so suggestions and judgments stay aligned:
+ * - Direction change >= 90 degrees between body and tip: hane
+ * - End sweeps diagonally/sideways: harai
  * - Otherwise: tome
  */
 export function suggestStrokeEnding(
   median: number[][],
 ): SuggestionResult {
-  if (median.length < 3) {
+  const n = median.length;
+  if (n < 3) {
     return { type: "tome", direction: null };
   }
 
-  const last = median[median.length - 1] as [number, number];
-  const prev = median[median.length - 2] as [number, number];
-  const prevPrev = median[median.length - 3] as [number, number];
-
+  const last = median[n - 1] as [number, number];
+  const prev = median[n - 2] as [number, number];
   const dirEnd: [number, number] = [last[0] - prev[0], last[1] - prev[1]];
-  const dirPrev: [number, number] = [prev[0] - prevPrev[0], prev[1] - prevPrev[1]];
-
   const normEnd = normalize(dirEnd);
-  const normPrev = normalize(dirPrev);
 
-  const angleDiff = angle(normPrev, normEnd);
+  if (n >= 6) {
+    const bodyStart = Math.floor(n * 0.4);
+    const bodyEnd = Math.floor(n * 0.7);
+    const tipStart = Math.floor(n * 0.85);
 
-  // Sharp direction change at the end suggests hane
-  if (angleDiff > Math.PI / 3) {
-    return { type: "hane", direction: normEnd };
+    const bodyStartPt = median[bodyStart] as [number, number];
+    const bodyEndPt = median[bodyEnd] as [number, number];
+    const tipStartPt = median[tipStart] as [number, number];
+
+    const bodyDir = normalize([
+      bodyEndPt[0] - bodyStartPt[0],
+      bodyEndPt[1] - bodyStartPt[1],
+    ]);
+    const tipDir = normalize([
+      last[0] - tipStartPt[0],
+      last[1] - tipStartPt[1],
+    ]);
+
+    if (angle(bodyDir, tipDir) >= Math.PI / 2) {
+      return { type: "hane", direction: tipDir };
+    }
   }
 
-  // Diagonal downward or sideways sweep suggests harai
-  // In hanzi-writer coordinate system, Y decreases downward
-  if (
-    Math.abs(normEnd[0]) > 0.5 &&
-    Math.abs(normEnd[1]) > 0.3
-  ) {
+  // Diagonal downward or sideways sweep suggests harai.
+  // In hanzi-writer coordinate system, Y decreases downward.
+  if (Math.abs(normEnd[0]) > 0.5 && Math.abs(normEnd[1]) > 0.3) {
     return { type: "harai", direction: normEnd };
   }
 

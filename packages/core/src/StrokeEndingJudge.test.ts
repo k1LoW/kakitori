@@ -55,12 +55,11 @@ describe("judge", () => {
   });
 
   describe("harai detection", () => {
-    it("detects harai when ending with velocity and no pause", () => {
+    it("detects harai when no pause and no sharp turn-with-acceleration", () => {
       const points = makePoints([
         [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
       ]);
       const expected: StrokeEnding = { types: ["harai"] };
-      // Fast movement at the end
       const timedPoints: StrokeTimingData["timedPoints"] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -74,33 +73,75 @@ describe("judge", () => {
       };
       const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7, timing });
       expect(result.correct).toBe(true);
-      expect(result.velocityProfile).toBe("accelerating");
     });
-  });
 
-  describe("hane detection", () => {
-    it("detects hane when sharp direction change at end", () => {
-      // Stroke going right then flicking up
+    it("detects harai even when stroke decelerates (no speed condition)", () => {
       const points = makePoints([
-        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
-        [50, 0], [60, 0], [65, 0], [68, -10], [68, -30],
+        [0, 0], [10, 10], [20, 20], [30, 30], [40, 40],
       ]);
-      const expected: StrokeEnding = { types: ["hane"] };
-      // 20 points: body(40%-70%) moves right, tip(85%-end) moves up
+      const expected: StrokeEnding = { types: ["harai"] };
+      // Slow tip relative to body, no pause, no direction change.
       const timedPoints: StrokeTimingData["timedPoints"] = [];
       for (let i = 0; i < 17; i++) {
-        timedPoints.push({ x: i * 5, y: 0, t: i * 50 });
+        timedPoints.push({ x: i * 5, y: i * 5, t: i * 50 });
       }
-      // Last 3 points: flick upward, slow enough to avoid harai (velocity < 0.3)
-      timedPoints.push({ x: 80, y: -10, t: 850 + 100 });
-      timedPoints.push({ x: 80, y: -30, t: 850 + 200 });
-      timedPoints.push({ x: 80, y: -50, t: 850 + 1000 });
+      timedPoints.push({ x: 85, y: 85, t: 1000 });
+      timedPoints.push({ x: 90, y: 90, t: 1500 });
+      timedPoints.push({ x: 95, y: 95, t: 2000 });
       const timing: StrokeTimingData = {
         pauseBeforeRelease: 5,
         timedPoints,
       };
       const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7, timing });
       expect(result.correct).toBe(true);
+    });
+  });
+
+  describe("hane detection", () => {
+    it("detects hane when sharp turn AND tip is faster than body", () => {
+      // Stroke going right then flicking up
+      const points = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+        [50, 0], [60, 0], [65, 0], [68, -10], [68, -30],
+      ]);
+      const expected: StrokeEnding = { types: ["hane"] };
+      // 20 points: body(40%-70%) moves right at ~5units/50ms, tip(85%-end) flicks up faster.
+      const timedPoints: StrokeTimingData["timedPoints"] = [];
+      for (let i = 0; i < 17; i++) {
+        timedPoints.push({ x: i * 5, y: 0, t: i * 50 });
+      }
+      timedPoints.push({ x: 80, y: -10, t: 870 });
+      timedPoints.push({ x: 80, y: -30, t: 890 });
+      timedPoints.push({ x: 80, y: -50, t: 910 });
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7, timing });
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("accelerating");
+    });
+
+    it("does not detect hane when sharp turn but tip is slower than body", () => {
+      const points = makePoints([
+        [0, 0], [10, 0], [20, 0], [30, 0], [40, 0],
+        [50, 0], [60, 0], [65, 0], [68, -10], [68, -30],
+      ]);
+      const expected: StrokeEnding = { types: ["hane"] };
+      // Same shape (sharp turn) but tip moves slower than the body.
+      const timedPoints: StrokeTimingData["timedPoints"] = [];
+      for (let i = 0; i < 17; i++) {
+        timedPoints.push({ x: i * 5, y: 0, t: i * 50 });
+      }
+      timedPoints.push({ x: 80, y: -10, t: 1500 });
+      timedPoints.push({ x: 80, y: -20, t: 2500 });
+      timedPoints.push({ x: 80, y: -30, t: 3500 });
+      const timing: StrokeTimingData = {
+        pauseBeforeRelease: 5,
+        timedPoints,
+      };
+      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7, timing });
+      expect(result.correct).toBe(false);
     });
 
     it("does not detect hane when stroke is straight with pause", () => {
@@ -301,9 +342,9 @@ describe("judge", () => {
           { x: 70, y: 0, t: 700 },
           { x: 75, y: 0, t: 750 },
           { x: 80, y: 0, t: 800 },
-          { x: 80, y: -10, t: 950 },
-          { x: 80, y: -30, t: 1050 },
-          { x: 80, y: -50, t: 1850 },
+          { x: 80, y: -10, t: 820 },
+          { x: 80, y: -30, t: 840 },
+          { x: 80, y: -50, t: 860 },
         ],
       };
 
@@ -331,9 +372,9 @@ describe("judge", () => {
           { x: 140, y: 0, t: 700 },
           { x: 150, y: 0, t: 750 },
           { x: 160, y: 0, t: 800 },
-          { x: 160, y: -20, t: 950 },
-          { x: 160, y: -60, t: 1050 },
-          { x: 160, y: -100, t: 1850 },
+          { x: 160, y: -20, t: 820 },
+          { x: 160, y: -60, t: 840 },
+          { x: 160, y: -100, t: 860 },
         ],
       };
 
