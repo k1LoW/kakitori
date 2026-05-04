@@ -772,6 +772,74 @@ describe("Kakitori", () => {
     });
   });
 
+  describe("animate() rapid succession", () => {
+    it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      k.setStrokeGroups([[0], [1]]);
+
+      k.animate();
+      k.animate();
+      k.animate();
+      k.animate();
+
+      // Drain microtasks so each queued animateWithGroups() reaches its
+      // post-await runId check; superseded runs return without touching DOM.
+      for (let i = 0; i < 20; i++) await Promise.resolve();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const overlays = container.querySelectorAll("svg.kakitori-anim");
+      expect(overlays.length).toBeLessThanOrEqual(1);
+    });
+
+    it("a stale cleanup timer from a superseded run cannot unhide HanziWriter or remove the new overlay", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        k.animate();
+        // Drain microtasks for run #1 to append its overlay and arm its timer.
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        k.animate();
+        // Drain microtasks for run #2 to swap in its overlay (run #1's timer
+        // is still pending in fake-time).
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        const overlay = container.querySelector("svg.kakitori-anim");
+        const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+        expect(overlay).not.toBeNull();
+        expect(hw).not.toBeNull();
+        expect(hw!.style.display).toBe("none");
+
+        // Advance enough for run #1's timer to fire but not run #2's.
+        // Run #1's totalTime was based on stroke 0 only (run #1 captured
+        // strokeGroups state); we conservatively pick a small slice.
+        await vi.advanceTimersByTimeAsync(300);
+
+        // Run #2's overlay must still be present and hwSvg must remain hidden:
+        // the older timer must short-circuit on runId mismatch.
+        expect(container.querySelector("svg.kakitori-anim")).toBe(overlay);
+        expect(hw!.style.display).toBe("none");
+
+        // Drain everything; the final state should be clean.
+        await vi.runAllTimersAsync();
+        expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
+        expect(hw!.style.display).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("computeMedianPathLength", () => {
     it("returns 0 for empty or single-point arrays", () => {
       expect(computeMedianPathLength([])).toBe(0);
