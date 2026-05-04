@@ -111,6 +111,10 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
+  // Monotonic counter to identify the current animateWithGroups run; lets a
+  // newer run supersede an older one's pending cleanup when animate() is
+  // called repeatedly in quick succession.
+  private animateRunId = 0;
 
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   private pendingEndingJudgment: StrokeEndingJudgment | null = null;
@@ -686,6 +690,13 @@ export class Kakitori {
   private async animateWithGroups(): Promise<void> {
     if (!this.strokeGroups) return;
 
+    // Supersede any in-flight run: drop its leftover overlay and let its
+    // cleanup short-circuit when its setTimeout fires.
+    const myRun = ++this.animateRunId;
+    this.targetEl
+      .querySelectorAll("svg.kakitori-anim")
+      .forEach((el) => el.remove());
+
     const rawSpeed = this.options.strokeAnimationSpeed ?? 1;
     const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
     if (speed !== rawSpeed) {
@@ -823,8 +834,9 @@ export class Kakitori {
 
     this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
-    // Wait for animation, then clean up
+    // Wait for animation, then clean up. Skip if a newer run has superseded us.
     await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));
+    if (myRun !== this.animateRunId) return;
     overlaySvg.remove();
     hwSvg.style.display = "";
   }
