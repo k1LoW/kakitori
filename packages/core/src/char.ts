@@ -767,6 +767,11 @@ function createImpl(
     // Find all clip-paths in defs and determine the stroke index
     const clipPaths = svg.querySelectorAll("defs clipPath");
     const strokeCount = getStrokePaths().length;
+    // Guard against missing main-group paths: without them `i % 0` would
+    // yield NaN and silently break the `number | null` contract.
+    if (strokeCount === 0) {
+      return null;
+    }
     for (let i = 0; i < clipPaths.length; i++) {
       if (clipPaths[i].id === maskId) {
         // clip-paths repeat for each group (outline, main, highlight),
