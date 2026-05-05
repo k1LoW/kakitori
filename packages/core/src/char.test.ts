@@ -415,33 +415,54 @@ describe("char", () => {
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
-    function createWithStubPaths() {
+    // Construct the SVG layering that hanzi-writer's getStrokePaths walks:
+    //   <svg> > <g> > <g outline>(path[clip-path] x 2)
+    //                   <g main>(path[clip-path] x 2)   ← what we manipulate
+    //                   <g highlight>(path[clip-path] x 2)
+    // Real getStrokePaths picks groupsWithPaths[1] (main) and returns its
+    // paths in order. By writing this DOM ourselves, the production path
+    // lookup runs unchanged and tests don't need to reach into char's
+    // closure to swap implementations.
+    function createWithStrokePaths() {
       const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
+      const hwSvg = container.querySelector("svg") as SVGSVGElement;
       const ns = "http://www.w3.org/2000/svg";
-      const paths = [
-        document.createElementNS(ns, "path") as unknown as SVGPathElement,
-        document.createElementNS(ns, "path") as unknown as SVGPathElement,
-      ];
-      paths[0].style.stroke = "#555";
-      paths[1].style.stroke = "#555";
-      // Test seam: char closure exposes a `testHooks` bag that lets us
-      // bypass hanzi-writer's jsdom rendering. Mutate (don't replace) so the
-      // closure-side reference still points at the same object.
-      (k as any).testHooks.getStrokePaths = () => paths;
-      return { k, paths };
+      let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
+      if (!outerG) {
+        outerG = document.createElementNS(ns, "g") as SVGGElement;
+        hwSvg.appendChild(outerG);
+      }
+      outerG.innerHTML = "";
+      const groupPaths: SVGPathElement[][] = [];
+      for (let gIdx = 0; gIdx < 3; gIdx++) {
+        const g = document.createElementNS(ns, "g") as SVGGElement;
+        outerG.appendChild(g);
+        const paths: SVGPathElement[] = [];
+        for (let i = 0; i < 2; i++) {
+          const path = document.createElementNS(ns, "path") as SVGPathElement;
+          path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
+          path.style.stroke = "#555";
+          g.appendChild(path);
+          paths.push(path);
+        }
+        groupPaths.push(paths);
+      }
+      // The main group is index 1 in groupsWithPaths; setStrokeColor will
+      // mutate these.
+      return { k, paths: groupPaths[1] };
     }
 
     it("setStrokeColor sets stroke color", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       expect(paths[0].style.stroke).toBe("#c00");
     });
 
     it("setStrokeColor preserves original on repeated calls", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
       k.setStrokeColor(0, "#00f");
@@ -450,7 +471,7 @@ describe("char", () => {
     });
 
     it("resetStrokeColor restores a single stroke", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       k.resetStrokeColor(0);
       expect(paths[0].style.stroke).toBe("#555");
@@ -458,7 +479,7 @@ describe("char", () => {
     });
 
     it("resetStrokeColors restores all strokes", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       k.setStrokeColor(1, "#0c0");
       k.resetStrokeColors();
@@ -597,240 +618,16 @@ describe("char", () => {
     });
   });
 
-  describe("hanzi-writer integration (monkey patch survival)", () => {
-    async function startAndWaitForPatch(
-      k: Char,
-      timeoutMs = 1000,
-    ): Promise<any> {
-      k.start();
-      await expect
-        .poll(() => (k as any).hw?._quiz?.__kakitoriPatched === true, {
-          timeout: timeoutMs,
-        })
-        .toBe(true);
-      return (k as any).hw._quiz;
-    }
-
-    function fakeUserStroke() {
-      return {
-        points: [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
-        ],
-        externalPoints: [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
-        ],
-      };
-    }
-
-    it("Quiz instance exposes the private API the patch depends on", async () => {
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      await k.ready();
-      const quiz = await startAndWaitForPatch(k);
-
-      expect(typeof quiz._handleSuccess).toBe("function");
-      expect(typeof quiz._handleFailure).toBe("function");
-      expect(typeof quiz._getStrokeData).toBe("function");
-      expect(typeof quiz._currentStrokeIndex).toBe("number");
-      expect(quiz.__kakitoriPatched).toBe(true);
-    });
-
-    it("skips ending judgment when strokeEndings is not set", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onMistake = vi.fn();
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        strokeEndingAsMiss: true,
-        onStrokeEndingMistake,
-        onMistake,
-      });
-      await k.ready();
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-      const initialMistakes = quiz._totalMistakes;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      // Judgment skipped → original success path → stroke advances, no mistakes
-      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
-      expect(quiz._totalMistakes).toBe(initialMistakes);
-      expect(onStrokeEndingMistake).not.toHaveBeenCalled();
-      expect(onMistake).not.toHaveBeenCalled();
-    });
-
-    it("rejects stroke and does not advance when ending fails with strokeEndingAsMiss=true", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        strokeEndingAsMiss: true,
-        onStrokeEndingMistake,
-        onMistake,
-        onCorrectStroke,
-      });
-      await k.ready();
-      // Force a failing judgment: expect harai, but the fake stroke has no
-      // timing data so the judge falls back to "tome" → mismatch.
-      // No setStrokeGroups: judgment must apply to every stroke when groups
-      // are unset (regression for the strokeGroups-required bug).
-      k.setStrokeEndings([
-        { types: ["harai"], direction: [0, -1] },
-        { types: ["harai"], direction: [0, -1] },
-      ]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(quiz._currentStrokeIndex).toBe(initialIndex);
-      expect(quiz._totalMistakes).toBeGreaterThan(0);
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).not.toHaveBeenCalled();
-    });
-
-    it("advances stroke when ending fails with strokeEndingAsMiss=false (default)", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const onMistake = vi.fn();
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onStrokeEndingMistake,
-        onCorrectStroke,
-        onMistake,
-      });
-      await k.ready();
-      // No setStrokeGroups: judgment must apply to every stroke when groups
-      // are unset (regression for the strokeGroups-required bug).
-      k.setStrokeEndings([
-        { types: ["harai"], direction: [0, -1] },
-        { types: ["harai"], direction: [0, -1] },
-      ]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      expect(onMistake).not.toHaveBeenCalled();
-    });
-
-    it("reports consistent strokesRemaining between onStrokeEndingMistake and onCorrectStroke when group auto-skips", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onStrokeEndingMistake,
-        onCorrectStroke,
-      });
-      await k.ready();
-      // 2 data strokes collapsed into a single logical stroke: drawing data
-      // stroke 0 auto-skips data stroke 1.
-      k.setStrokeGroups([[0, 1]]);
-      k.setStrokeEndings([{ types: ["harai"], direction: [0, -1] }]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      const mistakeRemaining =
-        onStrokeEndingMistake.mock.calls[0][0].strokesRemaining;
-      const correctRemaining =
-        onCorrectStroke.mock.calls[0][0].strokesRemaining;
-      expect(mistakeRemaining).toBe(correctRemaining);
-    });
-
-    it("reports strokesRemaining in logical-stroke units across multiple groups", async () => {
-      const fourStrokeCharData = {
-        strokes: [
-          "M 0 0 L 100 100",
-          "M 100 100 L 200 200",
-          "M 200 200 L 300 300",
-          "M 300 300 L 400 400",
-        ],
-        medians: [
-          [[0, 0], [100, 100]],
-          [[100, 100], [200, 200]],
-          [[200, 200], [300, 300]],
-          [[300, 300], [400, 400]],
-        ],
-      };
-      const fourStrokeLoader: CharDataLoaderFn = (_char, onLoad) => {
-        onLoad(fourStrokeCharData);
-      };
-      const onCorrectStroke = vi.fn();
-      const onMistake = vi.fn();
-      const k = char.create(container, "X", {
-        charDataLoader: fourStrokeLoader,
-        configLoader: null,
-        onCorrectStroke,
-        onMistake,
-      });
-      await k.ready();
-      // 2 logical strokes, each spanning 2 data strokes.
-      k.setStrokeGroups([[0, 1], [2, 3]]);
-      const quiz = await startAndWaitForPatch(k);
-
-      // Drawing data stroke 0 (first of group [0, 1]): logical stroke 0 done
-      // → 1 logical stroke remaining (group [2, 3]).
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleSuccess({ isStrokeBackwards: false });
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke.mock.calls[0][0].strokesRemaining).toBe(1);
-
-      // Mistake on data stroke 2 (first of group [2, 3]): logical stroke 1
-      // is the current pending one → 1 logical stroke remaining (current).
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleFailure({ isStrokeBackwards: false });
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
-    });
-
-    it("falls back to hanzi-writer's strokesRemaining when strokeGroups is incomplete", async () => {
-      const onMistake = vi.fn();
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onMistake,
-      });
-      await k.ready();
-      // Only stroke 0 is mapped; stroke 1 is unmapped (incomplete groups).
-      k.setStrokeGroups([[0]]);
-      const quiz = await startAndWaitForPatch(k);
-
-      // Drive a mistake on the unmapped data stroke 1.
-      quiz._currentStrokeIndex = 1;
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleFailure({ isStrokeBackwards: false });
-
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      // Without the fallback the formula would yield `strokeGroups.length -
-      // dataStrokeNum - 0 = 1 - 1 - 0 = 0`. With the fallback, callbacks
-      // receive hanzi-writer's raw value: `strokes.length - currentIndex - 0
-      // = 2 - 1 - 0 = 1`. Asserting the exact value catches a regression of
-      // the fallback (and underflow for larger unmapped indices in general).
-      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
-    });
-  });
+  // The previous "monkey patch survival" tests poked hanzi-writer's private
+  // _quiz directly via (k as any).hw to verify the patch behavior. Those
+  // tests have been split across pure-function suites and a contract test:
+  //   - hanziWriterContract.test.ts pins the hanzi-writer private API.
+  //   - endingJudgment.test.ts covers computeEndingJudgment routing
+  //     (skipped when no config, mid-group skip, etc.).
+  //   - patchEndingJudgment.test.ts covers attachEndingJudgmentPatch routing
+  //     (advance vs reject based on judgment + strokeEndingAsMiss).
+  //   - strokeGroups.test.ts covers logicalStrokesRemaining behavior across
+  //     groups, fallback to hanzi-writer's count, etc.
 
   describe("animate() rapid succession", () => {
     it("uses the overlay path even when strokeGroups was never configured", async () => {

@@ -5,9 +5,18 @@ import type {
   StrokeEndingJudgment,
   CharStrokeData,
 } from "./types.js";
-import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
+import type { StrokeTimingData } from "./StrokeEndingJudge.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 import { DEFAULT_SIZE, DEFAULT_PADDING, HANZI_COORD_SIZE } from "./constants.js";
+import { computeEndingJudgment } from "./endingJudgment.js";
+import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
+import {
+  isFirstInGroup as isFirstInGroupPure,
+  isLastInGroup as isLastInGroupPure,
+  getLogicalStrokeNum as getLogicalStrokeNumPure,
+  getRemainingSkipsInGroup as getRemainingSkipsInGroupPure,
+  logicalStrokesRemaining as logicalStrokesRemainingPure,
+} from "./strokeGroups.js";
 
 const DEFAULT_GRID_COLOR = "#ccc";
 const DEFAULT_GRID_DASH = "10,10";
@@ -81,26 +90,6 @@ export function computeMedianPathLength(
     len += Math.sqrt(dx * dx + dy * dy);
   }
   return len;
-}
-
-function computeDirectionFromMedian(
-  points: Array<{ x: number; y: number }>,
-): [number, number] | null {
-  if (points.length < 2) {
-    return null;
-  }
-  const last = points[points.length - 1];
-  const prev = points[points.length - 2];
-  const dx = last.x - prev.x;
-  const dy = last.y - prev.y;
-  const mag = Math.sqrt(dx * dx + dy * dy);
-  if (mag === 0) {
-    return null;
-  }
-  return [
-    Math.round((dx / mag) * 100) / 100,
-    Math.round((dy / mag) * 100) / 100,
-  ];
 }
 
 /**
@@ -189,13 +178,6 @@ function createImpl(
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   let pendingEndingJudgment: StrokeEndingJudgment | null = null;
 
-  // Maps data stroke index -> logical stroke index (derived from strokeGroups)
-  const dataToLogical: Map<number, number> = new Map();
-  // Maps data stroke index -> position within its group (0 = first, 1 = second, ...)
-  const dataToGroupPos: Map<number, number> = new Map();
-  // Maps data stroke index -> group (array of data stroke indices)
-  const dataToGroup: Map<number, number[]> = new Map();
-
   // onClick listener
   let boundOnClick: ((e: MouseEvent) => void) | null = null;
 
@@ -215,70 +197,28 @@ function createImpl(
     }
   }
 
-  function buildGroupMaps(): void {
-    dataToLogical.clear();
-    dataToGroupPos.clear();
-    dataToGroup.clear();
-    if (!strokeGroups) {
-      return;
-    }
-    for (let logical = 0; logical < strokeGroups.length; logical++) {
-      const group = strokeGroups[logical];
-      for (let pos = 0; pos < group.length; pos++) {
-        dataToLogical.set(group[pos], logical);
-        dataToGroupPos.set(group[pos], pos);
-        dataToGroup.set(group[pos], group);
-      }
-    }
-  }
-
   function isFirstInGroup(dataStrokeNum: number): boolean {
-    return dataToGroupPos.get(dataStrokeNum) === 0;
+    return isFirstInGroupPure(strokeGroups, dataStrokeNum);
   }
 
   function isLastInGroup(dataStrokeNum: number): boolean {
-    const group = dataToGroup.get(dataStrokeNum);
-    if (!group) {
-      return true;
-    }
-    return dataToGroupPos.get(dataStrokeNum) === group.length - 1;
+    return isLastInGroupPure(strokeGroups, dataStrokeNum);
   }
 
   function getLogicalStrokeNum(dataStrokeNum: number): number {
-    return dataToLogical.get(dataStrokeNum) ?? dataStrokeNum;
+    return getLogicalStrokeNumPure(strokeGroups, dataStrokeNum);
   }
 
   function getRemainingSkipsInGroup(dataStrokeNum: number): number {
-    const group = dataToGroup.get(dataStrokeNum);
-    if (!group) {
-      return 0;
-    }
-    const pos = dataToGroupPos.get(dataStrokeNum) ?? 0;
-    return group.length - 1 - pos;
+    return getRemainingSkipsInGroupPure(strokeGroups, dataStrokeNum);
   }
 
-  /**
-   * Convert hanzi-writer's data-stroke `strokesRemaining` into a logical-stroke
-   * count consistent with `strokeGroups`. Excludes the current stroke when
-   * `isCorrect` is true (matches hanzi-writer's success convention), includes
-   * it when false (matches the failure convention). When `strokeGroups` is
-   * incomplete and the current `dataStrokeNum` is unmapped, falls back to
-   * `hwStrokesRemaining` to avoid negative results.
-   */
   function logicalStrokesRemaining(
     dataStrokeNum: number,
     hwStrokesRemaining: number,
     isCorrect: boolean,
   ): number {
-    if (!strokeGroups) {
-      return hwStrokesRemaining;
-    }
-    if (!dataToLogical.has(dataStrokeNum)) {
-      return hwStrokesRemaining;
-    }
-    const totalLogical = strokeGroups.length;
-    const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
-    return totalLogical - logicalStrokeNum - (isCorrect ? 1 : 0);
+    return logicalStrokesRemainingPure(strokeGroups, dataStrokeNum, hwStrokesRemaining, isCorrect);
   }
 
   function startTimingTracking(): void {
@@ -343,100 +283,49 @@ function createImpl(
   }
 
   /**
-   * Run stroke ending judgment for the data stroke currently being accepted.
-   * Returns null when no judgment applies (no config, not first in group, or
-   * empty `types`).
+   * Adapter around the pure {@link computeEndingJudgment}: pulls the drawn
+   * points and timing out of the active hanzi-writer quiz and forwards the
+   * remaining inputs (config, character data, options) from the closure.
    */
-  function computeEndingJudgment(
+  function runEndingJudgment(
     quiz: any,
     dataStrokeNum: number,
     meta: any,
   ): StrokeEndingJudgment | null {
-    if (!strokeEndings) {
-      return null;
-    }
-    // When no strokeGroups are configured, every stroke is its own logical
-    // stroke (1:1 mapping), so judgment applies to all strokes. Only gate on
-    // isFirstInGroup when groups are explicitly defined.
-    if (strokeGroups && !isFirstInGroup(dataStrokeNum)) {
-      return null;
-    }
-    const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
-    const expected = strokeEndings[logicalStrokeNum];
-    if (!expected?.types || expected.types.length === 0) {
-      return null;
-    }
-    let resolvedExpected = expected;
-    const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
-    if (expected.direction == null && needsDirection) {
-      const group = strokeGroups
-        ? strokeGroups[logicalStrokeNum]
-        : [dataStrokeNum];
-      const lastDataIdx = group[group.length - 1];
-      const medianPoints = characterData?.strokes[lastDataIdx]?.points;
-      const autoDir = medianPoints ? computeDirectionFromMedian(medianPoints) : null;
-      if (autoDir) {
-        resolvedExpected = { ...expected, direction: autoDir };
-        log?.(`auto direction: stroke=${logicalStrokeNum + 1} dir=[${autoDir}]`);
-      }
-    }
-
     const hwData = quiz._getStrokeData({ isCorrect: true, meta });
-    const timing = getTimingData();
-    const strictness = options.strokeEndingStrictness ?? 0.7;
-
-    log?.(`judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${hwData.drawnPath.points.length}`);
-
-    const judgment = judge(
-      hwData.drawnPath.points,
-      resolvedExpected,
-      {
-        drawableSize: (options.size ?? DEFAULT_SIZE) - 2 * (options.padding ?? DEFAULT_PADDING),
-        strictness,
-        timing,
-      },
-    );
-
-    log?.(`judge result: stroke=${logicalStrokeNum + 1} detected=${judgment.correct ? expected.types : "other"} expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(2)} velocity=${judgment.velocityProfile}`);
-
-    return judgment;
+    return computeEndingJudgment({
+      dataStrokeNum,
+      drawnPoints: hwData.drawnPath.points,
+      timing: getTimingData(),
+      strokeEndings,
+      strokeGroups,
+      characterData,
+      drawableSize: (options.size ?? DEFAULT_SIZE) - 2 * (options.padding ?? DEFAULT_PADDING),
+      strictness: options.strokeEndingStrictness ?? 0.7,
+      log,
+    });
   }
 
   /**
-   * Wrap the active hanzi-writer Quiz's `_handleSuccess` so we can run stroke
-   * ending judgment before the stroke is rendered/advanced. When the ending
-   * fails AND `strokeEndingAsMiss` is set, route through `_handleFailure`
-   * instead so the same stroke must be redrawn (no render, no index advance).
+   * Wrap the active hanzi-writer Quiz so stroke ending judgment runs before
+   * the success-and-advance step. Delegates the wiring to
+   * {@link attachEndingJudgmentPatch}; this closure-side function is the
+   * adapter that pulls dependencies out of the closure.
    */
   function patchQuizForEnding(): void {
     const quiz: any = (hw as any)._quiz;
     if (!quiz) {
       return;
     }
-    if (quiz.__kakitoriPatched) {
-      return;
-    }
-    quiz.__kakitoriPatched = true;
-
-    const originalHandleSuccess = quiz._handleSuccess.bind(quiz);
-    const originalHandleFailure = quiz._handleFailure.bind(quiz);
-
-    quiz._handleSuccess = (meta: any) => {
-      const dataStrokeNum: number = quiz._currentStrokeIndex;
-      const judgment = computeEndingJudgment(quiz, dataStrokeNum, meta);
-
-      if (judgment && !judgment.correct) {
+    attachEndingJudgmentPatch(quiz, {
+      runJudgment: runEndingJudgment,
+      onMistake: (judgment, { quiz: q, dataStrokeNum, willAdvance, meta }) => {
         strokeEndingMistakes++;
-
         // Report `strokesRemaining` in logical-stroke units consistent with
         // `onCorrectStroke` / `onMistake`. When the stroke will be accepted
         // (`strokeEndingAsMiss=false`), exclude the current stroke; when
         // rejected (`strokeEndingAsMiss=true`), include it.
-        const willAdvance = !options.strokeEndingAsMiss;
-        const hwData = quiz._getStrokeData({
-          isCorrect: willAdvance,
-          meta,
-        });
+        const hwData = q._getStrokeData({ isCorrect: willAdvance, meta });
         const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
         const charData: CharStrokeData = {
           character: currentCharacter,
@@ -449,17 +338,13 @@ function createImpl(
           strokeEnding: judgment,
         };
         options.onStrokeEndingMistake?.(charData);
-
-        if (options.strokeEndingAsMiss) {
-          log?.(`stroke ending miss → reject stroke (data=${dataStrokeNum})`);
-          originalHandleFailure(meta);
-          return;
-        }
-      }
-
-      pendingEndingJudgment = judgment;
-      originalHandleSuccess(meta);
-    };
+      },
+      onResolved: (j) => {
+        pendingEndingJudgment = j;
+      },
+      strokeEndingAsMiss: !!options.strokeEndingAsMiss,
+      log,
+    });
   }
 
   function startQuiz(): void {
@@ -764,7 +649,7 @@ function createImpl(
    * We want the "main" group (second one) for coloring.
    * Returns paths in data stroke order.
    */
-  function defaultGetStrokePaths(): SVGPathElement[] {
+  function getStrokePaths(): SVGPathElement[] {
     const svg = hwSvg;
     if (!svg) {
       return [];
@@ -782,17 +667,6 @@ function createImpl(
       return [];
     }
     return Array.from(mainGroup.querySelectorAll("path[clip-path]")) as SVGPathElement[];
-  }
-
-  // Test seam: methods that rely on stroke paths read through this hook so
-  // tests can swap the implementation without depending on hanzi-writer's
-  // jsdom rendering. Production callers should never reassign this.
-  const testHooks = {
-    getStrokePaths: defaultGetStrokePaths,
-  };
-
-  function getStrokePaths(): SVGPathElement[] {
-    return testHooks.getStrokePaths();
   }
 
   // === public methods ===
@@ -814,7 +688,6 @@ function createImpl(
   function setStrokeGroups(next: number[][]): void {
     assertNotDestroyed();
     strokeGroups = next;
-    buildGroupMaps();
   }
 
   function setStrokeEndings(next: StrokeEnding[]): void {
@@ -979,7 +852,6 @@ function createImpl(
 
   // === construction ===
   let currentCharacter = character;
-  buildGroupMaps();
 
   // Auto-load config from @k1low/kakitori-data unless disabled (null)
   const loader = options.configLoader === null
@@ -1000,7 +872,6 @@ function createImpl(
         // Preserve any stroke groups already set on the instance
         if (strokeGroups == null && config.strokeGroups) {
           strokeGroups = config.strokeGroups;
-          buildGroupMaps();
         }
         if (!strokeEndings && config.strokeEndings) {
           strokeEndings = config.strokeEndings ?? null;
@@ -1116,7 +987,7 @@ function createImpl(
   // once and not mutated after construction.
   void gridSvg;
 
-  const api: Char = {
+  return {
     ready,
     start,
     animate,
@@ -1136,12 +1007,6 @@ function createImpl(
     setCharacter,
     destroy,
   };
-  // Escape hatch for internal tests that need to verify the hanzi-writer
-  // monkey patch or replace internal seams. Not part of the public Char
-  // interface; tests must cast.
-  (api as any).hw = hw;
-  (api as any).testHooks = testHooks;
-  return api;
 }
 
 function renderImpl(
