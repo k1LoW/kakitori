@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.9.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.8.0...packages/core/v0.9.0) - 2026-05-05
+### Breaking Changes 🛠
+- feat(core)!: replace Kakitori class with char namespace by @k1LoW in https://github.com/k1LoW/kakitori/pull/53
+### New Features 🚀
+- feat(core): always derive animate duration from stroke length by @k1LoW in https://github.com/k1LoW/kakitori/pull/51
+
 ## [v0.8.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.7.0...packages/core/v0.8.0) - 2026-05-05
 ### Breaking Changes 🛠
 - fix(core)!: keep the grid visible while animate() is running by @k1LoW in https://github.com/k1LoW/kakitori/pull/50
