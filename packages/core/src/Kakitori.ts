@@ -25,9 +25,6 @@ function drawCrossGrid(
   const ns = "http://www.w3.org/2000/svg";
   const mid = size / 2;
 
-  // visibility is set explicitly so the grid stays visible when its container
-  // SVG is set to visibility: hidden during animate(); SVG visibility is
-  // overridable by descendants.
   const vLine = document.createElementNS(ns, "line");
   vLine.setAttribute("x1", String(mid));
   vLine.setAttribute("y1", "0");
@@ -37,7 +34,6 @@ function drawCrossGrid(
   vLine.setAttribute("stroke-width", String(width));
   vLine.setAttribute("stroke-dasharray", dashArray);
   vLine.setAttribute("pointer-events", "none");
-  vLine.setAttribute("visibility", "visible");
 
   const hLine = document.createElementNS(ns, "line");
   hLine.setAttribute("x1", "0");
@@ -48,7 +44,6 @@ function drawCrossGrid(
   hLine.setAttribute("stroke-width", String(width));
   hLine.setAttribute("stroke-dasharray", dashArray);
   hLine.setAttribute("pointer-events", "none");
-  hLine.setAttribute("visibility", "visible");
 
   svg.appendChild(vLine);
   svg.appendChild(hLine);
@@ -120,6 +115,16 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
+  // Wrapper element inserted into targetEl; owns the positioning context for
+  // hanzi-writer's SVG, the optional grid SVG, and the animate() overlay.
+  // Always cleaned up via destroy() (which clears targetEl.innerHTML), so
+  // targetEl itself is never mutated.
+  private layerEl!: HTMLElement;
+  // hanzi-writer's main SVG, captured right after HanziWriter.create().
+  private hwSvg: SVGSVGElement | null = null;
+  // Optional grid SVG layered behind hanzi-writer's SVG so it stays visible
+  // while hanzi-writer is hidden during animate(). Null when showGrid is off.
+  private gridSvg: SVGSVGElement | null = null;
   // Reference to the overlay SVG currently displayed by an animateWithGroups()
   // run, or null when no animation is in flight. A run's cleanup only fires if
   // its overlay is still the active one, which lets a newer run supersede an
@@ -238,19 +243,44 @@ export class Kakitori {
     if (options.delayBetweenStrokes != null) {
       hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
     }
-    this.hw = HanziWriter.create(this.targetEl, character, hwOptions as any);
+    // Wrap hanzi-writer's SVG in a positioned layer container so the optional
+    // grid SVG and the animate() overlay can layer onto it without mutating
+    // the user-supplied targetEl. destroy() clears targetEl.innerHTML, which
+    // also drops this wrapper, so no host-element style is ever left behind.
+    this.layerEl = document.createElement("div");
+    this.layerEl.style.position = "relative";
+    this.layerEl.style.display = "inline-block";
+    this.layerEl.style.lineHeight = "0";
+    this.targetEl.appendChild(this.layerEl);
 
-    // Establish a positioning context so the animate() overlay can layer over
-    // hanzi-writer's SVG via position:absolute.
-    if (getComputedStyle(this.targetEl).position === "static") {
-      this.targetEl.style.position = "relative";
+    this.hw = HanziWriter.create(this.layerEl, character, hwOptions as any);
+
+    const hwSvg = this.layerEl.querySelector("svg") as SVGSVGElement | null;
+    if (hwSvg) {
+      // Promote hanzi-writer's SVG into its own stacking context above the
+      // grid so the grid sits behind the character outline, the user's drawn
+      // strokes, and the animate() overlay (overlay is appended last and
+      // stacks above hwSvg even without an explicit z-index).
+      hwSvg.style.position = "relative";
+      hwSvg.style.zIndex = "1";
+      this.hwSvg = hwSvg;
     }
 
     if (options.showGrid) {
-      const hwSvg = this.targetEl.querySelector("svg");
-      if (hwSvg) {
-        drawCrossGrid(hwSvg as SVGSVGElement, size, options.showGrid);
-      }
+      const ns = "http://www.w3.org/2000/svg";
+      const gridSvg = document.createElementNS(ns, "svg");
+      gridSvg.classList.add("kakitori-grid");
+      gridSvg.setAttribute("width", String(size));
+      gridSvg.setAttribute("height", String(size));
+      gridSvg.style.position = "absolute";
+      gridSvg.style.top = "0";
+      gridSvg.style.left = "0";
+      gridSvg.style.pointerEvents = "none";
+      drawCrossGrid(gridSvg, size, options.showGrid);
+      // Insert before hwSvg so grid is the first child; since hwSvg is the
+      // only z-indexed sibling, the grid implicitly stacks behind it.
+      this.layerEl.insertBefore(gridSvg, this.layerEl.firstChild);
+      this.gridSvg = gridSvg;
     }
 
     if (options.onClick) {
@@ -771,8 +801,7 @@ export class Kakitori {
     const character = await this.hw.getCharacterData();
     const dataStrokes = character.strokes;
 
-    // Ignore overlay SVGs from in-flight superseded runs so we get HanziWriter's.
-    const hwSvg = this.targetEl.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+    const hwSvg = this.hwSvg;
     if (!hwSvg) {
       return;
     }
@@ -914,10 +943,9 @@ export class Kakitori {
       this.activeOverlay?.remove();
       this.activeOverlay = overlaySvg;
       // Use visibility (not display) so hanzi-writer's SVG keeps occupying
-      // layout space and grid lines inside it (which set visibility:visible
-      // explicitly) remain visible while the rest of the SVG is hidden.
+      // layout space; the grid SVG (a separate sibling) stays visible.
       hwSvg.style.visibility = "hidden";
-      this.targetEl.appendChild(overlaySvg);
+      this.layerEl.appendChild(overlaySvg);
 
       this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
@@ -966,7 +994,7 @@ export class Kakitori {
    * Returns paths in data stroke order.
    */
   private getStrokePaths(): SVGPathElement[] {
-    const svg = this.targetEl.querySelector("svg:not(.kakitori-anim)");
+    const svg = this.hwSvg;
     if (!svg) {
       return [];
     }
@@ -993,7 +1021,7 @@ export class Kakitori {
    */
   getStrokeIndexAtPoint(clientX: number, clientY: number): number | null {
     this.assertNotDestroyed();
-    const svg = this.targetEl.querySelector("svg:not(.kakitori-anim)");
+    const svg = this.hwSvg;
     if (!svg) {
       return null;
     }

@@ -804,6 +804,51 @@ describe("Kakitori", () => {
       }
     });
 
+    it("keeps the showGrid grid visible while animate() is running", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          showGrid: true,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement | null;
+        const hwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement | null;
+        expect(gridSvg).not.toBeNull();
+        expect(hwSvg).not.toBeNull();
+        expect(gridSvg!.style.visibility).not.toBe("hidden");
+
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+
+        // Mid-animation: hanzi-writer's SVG hides itself but the grid SVG
+        // (a separate sibling) must stay visible — that's the whole point of
+        // the structural separation.
+        expect(hwSvg!.style.visibility).toBe("hidden");
+        expect(gridSvg!.isConnected).toBe(true);
+        expect(gridSvg!.style.visibility).not.toBe("hidden");
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+
+        await vi.runAllTimersAsync();
+
+        // After cleanup the grid is still in place and hwSvg is back.
+        expect(hwSvg!.style.visibility).toBe("");
+        expect(gridSvg!.isConnected).toBe(true);
+        expect(container.querySelector("svg.kakitori-anim")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("a stale cleanup timer from a superseded run cannot unhide HanziWriter or remove the new overlay", async () => {
       vi.useFakeTimers();
       try {
