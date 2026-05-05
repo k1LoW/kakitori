@@ -411,6 +411,12 @@ export class Kakitori {
         svg.setAttribute("width", String(size));
         svg.setAttribute("height", String(size));
 
+        // Draw the grid first so it sits behind the character strokes,
+        // matching the layering used by Kakitori.create().
+        if (options.showGrid) {
+          drawCrossGrid(svg, size, options.showGrid);
+        }
+
         const g = document.createElementNS(ns, "g");
         g.setAttribute(
           "transform",
@@ -425,10 +431,6 @@ export class Kakitori {
         }
 
         svg.appendChild(g);
-
-        if (options.showGrid) {
-          drawCrossGrid(svg, size, options.showGrid);
-        }
 
         el.appendChild(svg);
 
@@ -859,8 +861,8 @@ export class Kakitori {
     overlaySvg.setAttribute("width", width);
     overlaySvg.setAttribute("height", height);
     // Layer the overlay above the (visibility-hidden) hanzi-writer SVG so it
-    // covers the same area; grid lines inside hanzi-writer's SVG stay visible
-    // through the overlay's transparent regions.
+    // covers the same area. The grid SVG sits as a separate sibling behind
+    // both, so it stays visible through the overlay's transparent regions.
     overlaySvg.style.position = "absolute";
     overlaySvg.style.top = "0";
     overlaySvg.style.left = "0";
