@@ -894,9 +894,16 @@ function createImpl(
     configReady = Promise.resolve();
   }
 
-  const targetEl: HTMLElement = typeof target === "string"
-    ? document.querySelector(target) as HTMLElement
-    : target;
+  let targetEl: HTMLElement;
+  if (typeof target === "string") {
+    const found = document.querySelector(target);
+    if (!found) {
+      throw new Error(`char.create(): target selector "${target}" did not match any element.`);
+    }
+    targetEl = found as HTMLElement;
+  } else {
+    targetEl = target;
+  }
 
   const size = options.size ?? DEFAULT_SIZE;
   const padding = options.padding ?? DEFAULT_PADDING;
