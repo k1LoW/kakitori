@@ -754,7 +754,9 @@ function createImpl(
     strokeEndingMistakes = 0;
     pendingEndingJudgment = null;
     if (wasActive) {
-      hw.setCharacter(currentCharacter).catch(() => {});
+      hw.setCharacter(currentCharacter).catch((err: unknown) => {
+        log?.(`cancelActiveQuiz reload failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
   }
 
