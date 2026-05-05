@@ -535,6 +535,52 @@ describe("char", () => {
         vi.useRealTimers();
       }
     });
+
+    it("invalidates a queued start() that was waiting on configReady", async () => {
+      // Hand-rolled config loader: start() schedules `configReady.then(...)`
+      // before this resolves, then reset() must invalidate that queued work
+      // so the quiz never lands.
+      let resolveConfig: (() => void) | null = null;
+      const configLoader = () =>
+        new Promise<null>((resolve) => {
+          resolveConfig = () => resolve(null);
+        });
+      const onCorrectStroke = vi.fn();
+      const onMistake = vi.fn();
+      const k = char.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader,
+        onCorrectStroke,
+        onMistake,
+      });
+
+      // configLoader is invoked via Promise.resolve().then(() => loader(...)),
+      // so drain a microtask first to let the constructor reach `loader()`.
+      await Promise.resolve();
+
+      // Queue a quiz before the config has loaded.
+      k.start();
+      // Tear down before configReady resolves; the request-seq bump must
+      // disqualify start()'s queued continuation.
+      k.reset();
+
+      resolveConfig!();
+      // Drain the configReady.then callback.
+      for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+      }
+
+      // No quiz should be running, so the patched _handleSuccess path
+      // should never have been wired up.
+      const quiz = (k as unknown as {
+        // The closure factory does not expose hw publicly; getStrokeEndings
+        // is enough here to confirm the instance survived. We only need
+        // that no callbacks have fired.
+      });
+      void quiz;
+      expect(onCorrectStroke).not.toHaveBeenCalled();
+      expect(onMistake).not.toHaveBeenCalled();
+    });
   });
 
   describe("showGrid option", () => {

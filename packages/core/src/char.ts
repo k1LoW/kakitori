@@ -197,6 +197,13 @@ function createImpl(
   // via setStrokeColor.
   let quizActive = false;
 
+  // Monotonic counter bumped on every start() / animate() / reset() call.
+  // Their `configReady.then(...)` callbacks capture the seq at scheduling
+  // time and bail when a later call has superseded them, so e.g.
+  // `start(); reset();` cannot leave a quiz running once configReady
+  // resolves.
+  let requestSeq = 0;
+
   // onClick listener
   let boundOnClick: ((e: MouseEvent) => void) | null = null;
 
@@ -763,8 +770,9 @@ function createImpl(
   function start(): void {
     assertNotDestroyed();
     cancelActiveAnimation();
+    const seq = ++requestSeq;
     configReady.then(() => {
-      if (destroyed) {
+      if (destroyed || seq !== requestSeq) {
         return;
       }
       startQuiz();
@@ -774,8 +782,9 @@ function createImpl(
   function animate(): void {
     assertNotDestroyed();
     cancelActiveQuiz();
+    const seq = ++requestSeq;
     configReady.then(() => {
-      if (destroyed) {
+      if (destroyed || seq !== requestSeq) {
         return;
       }
       startAnimation();
@@ -901,6 +910,10 @@ function createImpl(
 
   function reset(): void {
     assertNotDestroyed();
+    // Invalidate any start()/animate() that is still waiting on configReady
+    // so it does not re-enter quiz / overlay state after we tear everything
+    // down here.
+    ++requestSeq;
     cancelActiveAnimation();
     cancelActiveQuiz();
     resetStrokeColors();
