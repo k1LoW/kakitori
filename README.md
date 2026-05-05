@@ -27,9 +27,9 @@ Features:
 ## Usage
 
 ```javascript
-import { Kakitori, defaultCharDataLoader } from "@k1low/kakitori";
+import { char, defaultCharDataLoader } from "@k1low/kakitori";
 
-const writer = Kakitori.create("#target", "永", {
+const writer = char.create("#target", "永", {
   size: 300,
   charDataLoader: defaultCharDataLoader,
   strokeGroups: [[0], [1], [2, 3]], // optional: merge data strokes

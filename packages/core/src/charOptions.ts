@@ -1,8 +1,8 @@
-import type { KakitoriStrokeData } from "./types.js";
-import type { KakitoriCharacterConfig } from "./dataLoader.js";
+import type { CharStrokeData } from "./types.js";
+import type { CharacterConfig } from "./dataLoader.js";
 
-export type KakitoriLogger = (msg: string) => void;
-export type ConfigLoaderFn = (char: string) => Promise<KakitoriCharacterConfig | null>;
+export type CharLogger = (msg: string) => void;
+export type ConfigLoaderFn = (char: string) => Promise<CharacterConfig | null>;
 
 export type CharDataLoaderFn = (
   char: string,
@@ -25,8 +25,8 @@ export interface RenderOptions {
   onClick?: (data: { character: string }) => void;
 }
 
-export interface KakitoriOptions {
-  logger?: KakitoriLogger;
+export interface CharOptions {
+  logger?: CharLogger;
   /** Custom config loader. Defaults to loading from unpkg @k1low/kakitori-data. Set to null to disable auto-loading. */
   configLoader?: ConfigLoaderFn | null;
   /** Maps logical strokes to data stroke indices. Overrides config from configLoader. */
@@ -55,9 +55,9 @@ export interface KakitoriOptions {
   showHintAfterMisses?: number | false;
   highlightOnComplete?: boolean;
   charDataLoader?: CharDataLoaderFn;
-  onCorrectStroke?: (data: KakitoriStrokeData) => void;
-  onStrokeEndingMistake?: (data: KakitoriStrokeData) => void;
-  onMistake?: (data: KakitoriStrokeData) => void;
+  onCorrectStroke?: (data: CharStrokeData) => void;
+  onStrokeEndingMistake?: (data: CharStrokeData) => void;
+  onMistake?: (data: CharStrokeData) => void;
   onComplete?: (data: {
     character: string;
     totalMistakes: number;

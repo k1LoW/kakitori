@@ -22,7 +22,7 @@ export function defaultCharDataLoader(
     .catch(onError);
 }
 
-export interface KakitoriCharacterConfig {
+export interface CharacterConfig {
   character: string;
   strokeGroups?: number[][];
   strokeEndings?: Array<{
@@ -35,7 +35,7 @@ const CONFIG_TIMEOUT_MS = 3000;
 
 export function defaultConfigLoader(
   char: string,
-): Promise<KakitoriCharacterConfig | null> {
+): Promise<CharacterConfig | null> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), CONFIG_TIMEOUT_MS);
   return fetch(`${DEFAULT_CONFIG_URL}/${encodeURIComponent(char)}.json`, {
