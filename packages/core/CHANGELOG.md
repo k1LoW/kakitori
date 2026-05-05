@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.8.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.7.0...packages/core/v0.8.0) - 2026-05-05
+### Breaking Changes 🛠
+- fix(core)!: keep the grid visible while animate() is running by @k1LoW in https://github.com/k1LoW/kakitori/pull/50
+### Fix bug 🐛
+- fix(core): prevent overlay stacking on rapid animate() calls by @k1LoW in https://github.com/k1LoW/kakitori/pull/48
+### Other Changes
+- chore: introduce oxlint by @k1LoW in https://github.com/k1LoW/kakitori/pull/49
+
 ## [v0.7.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.6.0...packages/core/v0.7.0) - 2026-05-04
 ### New Features 🚀
 - feat(data): add zenkaku (full-width) Arabic numerals 0-9 by @k1LoW in https://github.com/k1LoW/kakitori/pull/43
