@@ -190,6 +190,13 @@ function createImpl(
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   let pendingEndingJudgment: StrokeEndingJudgment | null = null;
 
+  // True between start() invoking hw.quiz() and the quiz reaching onComplete
+  // or being cancelled. Gates the user-stroke reload in cancelActiveQuiz so a
+  // cancel-before-quiz path (e.g. animate() with no prior practice) does not
+  // trigger an unnecessary char-data reload that would also wipe colors set
+  // via setStrokeColor.
+  let quizActive = false;
+
   // onClick listener
   let boundOnClick: ((e: MouseEvent) => void) | null = null;
 
@@ -360,6 +367,7 @@ function createImpl(
   }
 
   function startQuiz(): void {
+    quizActive = true;
     strokeEndingMistakes = 0;
     pendingEndingJudgment = null;
 
@@ -431,6 +439,7 @@ function createImpl(
       },
 
       onComplete: (summary) => {
+        quizActive = false;
         stopTimingTracking();
         log?.(`complete: totalMistakes=${summary.totalMistakes} strokeEndingMistakes=${strokeEndingMistakes}`);
         options.onComplete?.({
@@ -738,11 +747,15 @@ function createImpl(
    * completing, and any in-flight reload is harmless once superseded.
    */
   function cancelActiveQuiz(): void {
+    const wasActive = quizActive;
+    quizActive = false;
     hw.cancelQuiz();
     stopTimingTracking();
     strokeEndingMistakes = 0;
     pendingEndingJudgment = null;
-    hw.setCharacter(currentCharacter).catch(() => {});
+    if (wasActive) {
+      hw.setCharacter(currentCharacter).catch(() => {});
+    }
   }
 
   function start(): void {
