@@ -26,7 +26,6 @@ Each character has a JSON file (e.g. `data/あ.json`):
 ```
 pnpm set-stroke-endings あ        # Set stroke endings for a character
 pnpm set-stroke-endings --set hiragana  # Batch set by character set
-pnpm validate                     # Validate all data files
 pnpm stats                        # Show progress
 ```
 
