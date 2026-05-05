@@ -829,6 +829,33 @@ describe("Kakitori", () => {
   });
 
   describe("animate() rapid succession", () => {
+    it("uses the overlay path even when strokeGroups was never configured", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+
+        // No setStrokeGroups call: animate() must still go through the
+        // overlay path with identity grouping (one logical stroke per data
+        // stroke), not fall back to hanzi-writer's animateCharacter.
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+
+        await vi.runAllTimersAsync();
+        expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
       vi.useFakeTimers();
       try {

@@ -767,7 +767,11 @@ export class Kakitori {
     };
   }
 
-  /** Play stroke-order animation. Uses animCJK-style overlay when strokeGroups are configured. */
+  /**
+   * Play stroke-order animation. Always uses the animCJK-style overlay so
+   * each stroke's duration is proportional to its median length; defaults to
+   * one-stroke-per-group when strokeGroups is not configured.
+   */
   animate(): void {
     this.assertNotDestroyed();
     this.configReady.then(() => {
