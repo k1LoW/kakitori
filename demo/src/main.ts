@@ -4,14 +4,14 @@ import type { Char, CharStrokeData, CharDataLoaderFn } from "@k1low/kakitori";
 // Pre-fetch character data cache
 const charDataCache = new Map<string, { strokes: string[]; medians: number[][][] }>();
 
-const cachedCharDataLoader: CharDataLoaderFn = (c, onLoad, onError) => {
-  const cached = charDataCache.get(c);
+const cachedCharDataLoader: CharDataLoaderFn = (ch, onLoad, onError) => {
+  const cached = charDataCache.get(ch);
   if (cached) {
     onLoad(cached);
     return;
   }
-  defaultCharDataLoader(c, (data) => {
-    charDataCache.set(c, data);
+  defaultCharDataLoader(ch, (data) => {
+    charDataCache.set(ch, data);
     onLoad(data);
   }, onError);
 };
@@ -24,10 +24,10 @@ const PREFETCH_BATCH = 5;
 function prefetchBatch() {
   const end = Math.min(prefetchIdx + PREFETCH_BATCH, allChars.length);
   for (let i = prefetchIdx; i < end; i++) {
-    const c = allChars[i];
-    if (!charDataCache.has(c)) {
-      defaultCharDataLoader(c, (data) => {
-        charDataCache.set(c, data);
+    const ch = allChars[i];
+    if (!charDataCache.has(ch)) {
+      defaultCharDataLoader(ch, (data) => {
+        charDataCache.set(ch, data);
       }, () => {});
     }
   }
@@ -46,11 +46,12 @@ const practiceCharEl = document.getElementById("practice-char")!;
 const quizBtn = document.getElementById("quiz-btn")!;
 const animateBtn = document.getElementById("animate-btn")!;
 const highlightBtn = document.getElementById("highlight-btn")!;
+const resetBtn = document.getElementById("reset-btn")!;
 const strokeSlotsEl = document.getElementById("stroke-slots")!;
 const summaryEl = document.getElementById("summary")!;
 const logEl = document.getElementById("log")!;
 
-let kakitori: Char | null = null;
+let c: Char | null = null;
 let strokeSlotEls: HTMLElement[] = [];
 let highlightIdx = -1;
 
@@ -96,12 +97,12 @@ for (const [key, chars] of Object.entries(charSets)) {
 }
 
 function renderSection(grid: HTMLElement, chars: string[]) {
-  for (const c of chars) {
+  for (const ch of chars) {
     const cell = document.createElement("div");
     cell.className = "char-cell";
     grid.appendChild(cell);
 
-    char.render(cell, c, {
+    char.render(cell, ch, {
       size: 60,
       padding: 5,
       charDataLoader: cachedCharDataLoader,
@@ -145,10 +146,10 @@ function buildSlots(strokeCount: number, endings: readonly { types?: string[] }[
   summaryEl.textContent = "Mistakes: 0, Stroke ending mistakes: 0";
 }
 
-function openPractice(c: string) {
-  kakitori?.destroy();
+function openPractice(character: string) {
+  c?.destroy();
   practiceEl.style.display = "block";
-  practiceCharEl.textContent = c;
+  practiceCharEl.textContent = character;
 
   writerEl.innerHTML = "";
   clearResult();
@@ -162,7 +163,7 @@ function openPractice(c: string) {
     summaryEl.textContent = `Mistakes: ${mistakes}, Stroke ending mistakes: ${strokeEndingMistakes}`;
   }
 
-  kakitori = char.create(writerEl, c, {
+  c = char.create(writerEl, character, {
     size: 300,
     drawingWidth: 12,
     showGrid: true,
@@ -203,56 +204,66 @@ function openPractice(c: string) {
 openPractice("あ");
 
 quizBtn.addEventListener("click", async () => {
-  if (!kakitori) {
+  if (!c) {
     return;
   }
-  await kakitori.ready();
+  await c.ready();
 
-  const endings = kakitori.getStrokeEndings();
+  const endings = c.getStrokeEndings();
   const has = endings && endings.length > 0;
   log(`strokeEndings: ${has ? "yes" : "no"}`);
 
-  const strokeCount = kakitori.getLogicalStrokeCount();
+  const strokeCount = c.getLogicalStrokeCount();
   buildSlots(strokeCount, endings);
 
-  kakitori.resetStrokeColors();
+  c.resetStrokeColors();
   highlightIdx = -1;
-  kakitori.start();
+  c.start();
 });
 
 animateBtn.addEventListener("click", async () => {
-  if (!kakitori) {
+  if (!c) {
     return;
   }
-  await kakitori.ready();
-  kakitori.resetStrokeColors();
+  await c.ready();
+  c.resetStrokeColors();
   highlightIdx = -1;
-  kakitori.animate();
+  c.animate();
 });
 
 writerEl.addEventListener("click", (e) => {
-  if (!kakitori) {
+  if (!c) {
     return;
   }
-  const idx = kakitori.getStrokeIndexAtPoint(e.clientX, e.clientY);
+  const idx = c.getStrokeIndexAtPoint(e.clientX, e.clientY);
   if (idx !== null) {
-    kakitori.resetStrokeColors();
-    kakitori.setStrokeColor(idx, "#c00");
+    c.resetStrokeColors();
+    c.setStrokeColor(idx, "#c00");
     highlightIdx = idx;
     log(`click: stroke ${idx + 1} highlighted`);
   }
 });
 
 highlightBtn.addEventListener("click", () => {
-  if (!kakitori) {
+  if (!c) {
     return;
   }
-  const count = kakitori.getLogicalStrokeCount();
+  const count = c.getLogicalStrokeCount();
   if (count === 0) {
     return;
   }
-  kakitori.resetStrokeColors();
+  c.resetStrokeColors();
   highlightIdx = (highlightIdx + 1) % count;
-  kakitori.setStrokeColor(highlightIdx, "#c00");
+  c.setStrokeColor(highlightIdx, "#c00");
   log(`highlight: stroke ${highlightIdx + 1}/${count}`);
+});
+
+resetBtn.addEventListener("click", () => {
+  if (!c) {
+    return;
+  }
+  c.reset();
+  highlightIdx = -1;
+  clearResult();
+  log("reset");
 });
