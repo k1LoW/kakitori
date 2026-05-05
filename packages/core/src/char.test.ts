@@ -29,6 +29,50 @@ describe("char", () => {
     document.body.removeChild(container);
   });
 
+  // Construct the SVG layering that hanzi-writer's getStrokePaths walks:
+  //   <svg> > <g> > <g outline>(path[clip-path] x 2)
+  //                   <g main>(path[clip-path] x 2)   ← what we manipulate
+  //                   <g highlight>(path[clip-path] x 2)
+  // Real getStrokePaths picks groupsWithPaths[1] (main) and returns its
+  // paths in order. By writing this DOM ourselves, the production path
+  // lookup runs unchanged and tests don't need to reach into char's
+  // closure to swap implementations.
+  //
+  // Reuses the existing outer <g> (clearing it) so hanzi-writer's own
+  // children don't bleed into `:scope > g > g` and shift the main-group
+  // index past 1.
+  function createWithStrokePaths() {
+    const k = char.create(container, "あ", {
+      charDataLoader: mockCharDataLoader,
+      configLoader: null,
+    });
+    const hwSvg = container.querySelector("svg") as SVGSVGElement;
+    const ns = "http://www.w3.org/2000/svg";
+    let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
+    if (!outerG) {
+      outerG = document.createElementNS(ns, "g") as SVGGElement;
+      hwSvg.appendChild(outerG);
+    }
+    outerG.innerHTML = "";
+    const groupPaths: SVGPathElement[][] = [];
+    for (let gIdx = 0; gIdx < 3; gIdx++) {
+      const g = document.createElementNS(ns, "g") as SVGGElement;
+      outerG.appendChild(g);
+      const paths: SVGPathElement[] = [];
+      for (let i = 0; i < 2; i++) {
+        const path = document.createElementNS(ns, "path") as SVGPathElement;
+        path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
+        path.style.stroke = "#555";
+        g.appendChild(path);
+        paths.push(path);
+      }
+      groupPaths.push(paths);
+    }
+    // The main group is index 1 in groupsWithPaths; setStrokeColor will
+    // mutate these.
+    return { k, paths: groupPaths[1] };
+  }
+
   describe("create", () => {
     it("creates a Char instance", () => {
       const k = char.create(container, "あ", {
@@ -416,46 +460,6 @@ describe("char", () => {
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
-    // Construct the SVG layering that hanzi-writer's getStrokePaths walks:
-    //   <svg> > <g> > <g outline>(path[clip-path] x 2)
-    //                   <g main>(path[clip-path] x 2)   ← what we manipulate
-    //                   <g highlight>(path[clip-path] x 2)
-    // Real getStrokePaths picks groupsWithPaths[1] (main) and returns its
-    // paths in order. By writing this DOM ourselves, the production path
-    // lookup runs unchanged and tests don't need to reach into char's
-    // closure to swap implementations.
-    function createWithStrokePaths() {
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      const hwSvg = container.querySelector("svg") as SVGSVGElement;
-      const ns = "http://www.w3.org/2000/svg";
-      let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
-      if (!outerG) {
-        outerG = document.createElementNS(ns, "g") as SVGGElement;
-        hwSvg.appendChild(outerG);
-      }
-      outerG.innerHTML = "";
-      const groupPaths: SVGPathElement[][] = [];
-      for (let gIdx = 0; gIdx < 3; gIdx++) {
-        const g = document.createElementNS(ns, "g") as SVGGElement;
-        outerG.appendChild(g);
-        const paths: SVGPathElement[] = [];
-        for (let i = 0; i < 2; i++) {
-          const path = document.createElementNS(ns, "path") as SVGPathElement;
-          path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
-          path.style.stroke = "#555";
-          g.appendChild(path);
-          paths.push(path);
-        }
-        groupPaths.push(paths);
-      }
-      // The main group is index 1 in groupsWithPaths; setStrokeColor will
-      // mutate these.
-      return { k, paths: groupPaths[1] };
-    }
-
     it("setStrokeColor sets stroke color", () => {
       const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
@@ -493,35 +497,12 @@ describe("char", () => {
 
   describe("reset()", () => {
     it("clears stroke colors", () => {
-      const k = char.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      const hwSvg = container.querySelector("svg") as SVGSVGElement;
-      const ns = "http://www.w3.org/2000/svg";
-      const outerG = document.createElementNS(ns, "g") as SVGGElement;
-      hwSvg.appendChild(outerG);
-      const groupPaths: SVGPathElement[][] = [];
-      for (let gIdx = 0; gIdx < 3; gIdx++) {
-        const g = document.createElementNS(ns, "g") as SVGGElement;
-        outerG.appendChild(g);
-        const paths: SVGPathElement[] = [];
-        for (let i = 0; i < 2; i++) {
-          const path = document.createElementNS(ns, "path") as SVGPathElement;
-          path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
-          path.style.stroke = "#555";
-          g.appendChild(path);
-          paths.push(path);
-        }
-        groupPaths.push(paths);
-      }
-      const mainPaths = groupPaths[1];
-
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
-      expect(mainPaths[0].style.stroke).toBe("#c00");
+      expect(paths[0].style.stroke).toBe("#c00");
 
       k.reset();
-      expect(mainPaths[0].style.stroke).toBe("#555");
+      expect(paths[0].style.stroke).toBe("#555");
     });
 
     it("tears down an in-flight animate() overlay", async () => {
