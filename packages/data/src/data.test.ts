@@ -39,7 +39,9 @@ describe("data files", () => {
       });
 
       it("strokeGroups covers all data strokes without duplicates", () => {
-        if (!data.strokeGroups) return;
+        if (!data.strokeGroups) {
+          return;
+        }
         const dataStrokeCount = charData.strokes.length;
         const allIndices = data.strokeGroups.flat();
         const uniqueIndices = new Set(allIndices);
@@ -52,7 +54,9 @@ describe("data files", () => {
       });
 
       it("strokeEndings length matches logical stroke count", () => {
-        if (!data.strokeEndings) return;
+        if (!data.strokeEndings) {
+          return;
+        }
         const dataStrokeCount = charData.strokes.length;
         const logicalStrokeCount = data.strokeGroups
           ? data.strokeGroups.length
@@ -61,7 +65,9 @@ describe("data files", () => {
       });
 
       it("strokeEndings have valid types", () => {
-        if (!data.strokeEndings) return;
+        if (!data.strokeEndings) {
+          return;
+        }
         for (const ending of data.strokeEndings) {
           for (const t of ending.types ?? []) {
             expect(validTypes).toContain(t);
@@ -70,7 +76,9 @@ describe("data files", () => {
       });
 
       it("direction vectors are unit vectors", () => {
-        if (!data.strokeEndings) return;
+        if (!data.strokeEndings) {
+          return;
+        }
         for (const ending of data.strokeEndings) {
           if (ending.direction != null) {
             const [dx, dy] = ending.direction;

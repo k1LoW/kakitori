@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Kakitori, computeMedianPathLength } from "./Kakitori.js";
-import type { RenderOptions } from "./KakitoriOptions.js";
 import type { CharDataLoaderFn } from "./KakitoriOptions.js";
 
 const mockCharData = {
@@ -791,8 +790,9 @@ describe("Kakitori", () => {
         // Drain microtasks so each queued animateWithGroups() resumes from
         // its getCharacterData() await and synchronously runs the swap that
         // claims activeOverlay; only the last run's overlay should remain.
-        for (let i = 0; i < 20; i++) await Promise.resolve();
-
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
         const overlays = container.querySelectorAll("svg.kakitori-anim");
         expect(overlays.length).toBeLessThanOrEqual(1);
 
@@ -822,8 +822,9 @@ describe("Kakitori", () => {
 
         // Run #1 schedules its cleanup timer at fake-T=0 → fires near T≈210ms.
         k.animate();
-        for (let i = 0; i < 20; i++) await Promise.resolve();
-
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
         // Advance fake time before run #2 so run #2's timer is scheduled
         // strictly later than run #1's, leaving a window where only run #1's
         // timer has fired.
@@ -831,8 +832,9 @@ describe("Kakitori", () => {
 
         // Run #2 schedules its cleanup timer at fake-T=100 → fires near T≈310ms.
         k.animate();
-        for (let i = 0; i < 20; i++) await Promise.resolve();
-
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
         const overlay = container.querySelector("svg.kakitori-anim");
         const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
         expect(overlay).not.toBeNull();

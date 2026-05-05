@@ -6,18 +6,20 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
-    "lint": "turbo run lint",
+    "lint": "oxlint .",
+    "lint:fix": "oxlint --fix .",
     "typecheck": "turbo run typecheck",
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check ."
   },
   "devDependencies": {
+    "oxlint": "1.62.0",
     "turbo": "2.5.4",
     "typescript": "5.8.3"
   },
   "packageManager": "pnpm@10.32.1",
   "engines": {
-    "node": ">= 22.0.0"
+    "node": ">= 22.12.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [
