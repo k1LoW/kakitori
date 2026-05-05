@@ -729,12 +729,20 @@ function createImpl(
    * surface. Forwards to hanzi-writer's cancelQuiz, drops our pointer
    * timing listeners, and clears per-run counters; the next start() rebuilds
    * everything from scratch.
+   *
+   * hanzi-writer's `cancelQuiz` does NOT erase strokes the user has already
+   * drawn on the canvas, so without the reload below a half-finished
+   * practice would re-emerge once animate()'s overlay is taken down. We
+   * reload the same character to reset the renderer's userStrokes state.
+   * Fire-and-forget: callers (animate / reset) do not depend on it
+   * completing, and any in-flight reload is harmless once superseded.
    */
   function cancelActiveQuiz(): void {
     hw.cancelQuiz();
     stopTimingTracking();
     strokeEndingMistakes = 0;
     pendingEndingJudgment = null;
+    hw.setCharacter(currentCharacter).catch(() => {});
   }
 
   function start(): void {

@@ -226,6 +226,10 @@ animateBtn.addEventListener("click", async () => {
     return;
   }
   await c.ready();
+  // animate() cancels any in-flight quiz; mirror that by clearing the
+  // tome/hane/harai slots and Mistakes line so the per-quiz UI does not
+  // linger after お手本 takes over.
+  clearResult();
   c.resetStrokeColors();
   highlightIdx = -1;
   c.animate();
