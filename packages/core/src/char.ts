@@ -1,4 +1,4 @@
-import HanziWriter from "hanzi-writer";
+import HanziWriter, { type HanziWriterOptions } from "hanzi-writer";
 import type { CharOptions, CharLogger, RenderOptions, GridOptions } from "./charOptions.js";
 import type {
   StrokeEnding,
@@ -17,6 +17,11 @@ import {
   getRemainingSkipsInGroup as getRemainingSkipsInGroupPure,
   logicalStrokesRemaining as logicalStrokesRemainingPure,
 } from "./strokeGroups.js";
+import type {
+  HanziCharacterData,
+  HanziQuiz,
+  QuizStrokeMeta,
+} from "./hanziWriterInternals.js";
 
 const DEFAULT_GRID_COLOR = "#ccc";
 const DEFAULT_GRID_DASH = "10,10";
@@ -155,7 +160,7 @@ function createImpl(
   let destroyed = false;
   let strokeEndings: StrokeEnding[] | null = null;
   let strokeGroups: number[][] | null = options.strokeGroups ?? null;
-  let characterData: any = null;
+  let characterData: HanziCharacterData | null = null;
   let strokeEndingMistakes = 0;
   const log: CharLogger | null = options.logger ?? null;
 
@@ -288,9 +293,9 @@ function createImpl(
    * remaining inputs (config, character data, options) from the closure.
    */
   function runEndingJudgment(
-    quiz: any,
+    quiz: HanziQuiz,
     dataStrokeNum: number,
-    meta: any,
+    meta: QuizStrokeMeta,
   ): StrokeEndingJudgment | null {
     const hwData = quiz._getStrokeData({ isCorrect: true, meta });
     return computeEndingJudgment({
@@ -313,7 +318,7 @@ function createImpl(
    * adapter that pulls dependencies out of the closure.
    */
   function patchQuizForEnding(): void {
-    const quiz: any = (hw as any)._quiz;
+    const quiz = (hw as unknown as { _quiz?: HanziQuiz })._quiz;
     if (!quiz) {
       return;
     }
@@ -457,7 +462,7 @@ function createImpl(
     const strokeColor = options.strokeColor ?? "#555";
     const outlineColor = options.outlineColor ?? "#DDD";
 
-    const charData = await hw.getCharacterData();
+    const charData = (await hw.getCharacterData()) as unknown as HanziCharacterData;
     const dataStrokes = charData.strokes;
 
     // Default to identity grouping (one logical stroke per data stroke) so the
@@ -482,7 +487,7 @@ function createImpl(
     const BASE_STROKE_DURATION = 0.8 / speed;
 
     // Compute median length (sum of segment distances) for each data stroke.
-    const strokeLengths = dataStrokes.map((s: any) => computeMedianPathLength(s.points));
+    const strokeLengths = dataStrokes.map((s) => computeMedianPathLength(s.points as Array<{ x: number; y: number }>));
     const strokeDurations = strokeLengths.map(
       (len: number) => (len / HANZI_COORD_SIZE) * BASE_STROKE_DURATION,
     );
@@ -594,7 +599,7 @@ function createImpl(
 
       // Build median path from stroke points
       const d = stroke.points
-        .map((p: any, j: number) => `${j === 0 ? "M" : "L"}${p.x} ${p.y}`)
+        .map((p, j) => `${j === 0 ? "M" : "L"}${p.x} ${p.y}`)
         .join("");
       medianPath.setAttribute("d", d);
 
@@ -896,7 +901,7 @@ function createImpl(
   const size = options.size ?? DEFAULT_SIZE;
   const padding = options.padding ?? DEFAULT_PADDING;
   validateSizeAndPadding(size, padding, "char.create()");
-  const hwOptions: Record<string, unknown> = {
+  const hwOptions: Partial<HanziWriterOptions> = {
     width: size,
     height: size,
     padding,
@@ -940,7 +945,7 @@ function createImpl(
   layerEl.style.lineHeight = "0";
   targetEl.appendChild(layerEl);
 
-  const hw = HanziWriter.create(layerEl, currentCharacter, hwOptions as any);
+  const hw = HanziWriter.create(layerEl, currentCharacter, hwOptions);
 
   const initialHwSvg = layerEl.querySelector("svg") as SVGSVGElement | null;
   if (initialHwSvg) {

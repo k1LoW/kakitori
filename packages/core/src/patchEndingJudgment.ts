@@ -1,5 +1,6 @@
 import type { StrokeEndingJudgment } from "./types.js";
 import type { CharLogger } from "./charOptions.js";
+import type { HanziQuiz, QuizStrokeMeta } from "./hanziWriterInternals.js";
 
 export interface EndingPatchOptions {
   /**
@@ -7,9 +8,9 @@ export interface EndingPatchOptions {
    * null means "no judgment applies" (the success path runs unchanged).
    */
   runJudgment: (
-    quiz: any,
+    quiz: HanziQuiz,
     dataStrokeNum: number,
-    meta: any,
+    meta: QuizStrokeMeta,
   ) => StrokeEndingJudgment | null;
   /**
    * Fired when judgment is non-null and `correct=false`. Caller can fire
@@ -18,7 +19,12 @@ export interface EndingPatchOptions {
    */
   onMistake?: (
     judgment: StrokeEndingJudgment,
-    ctx: { quiz: any; dataStrokeNum: number; willAdvance: boolean; meta: any },
+    ctx: {
+      quiz: HanziQuiz;
+      dataStrokeNum: number;
+      willAdvance: boolean;
+      meta: QuizStrokeMeta;
+    },
   ) => void;
   /**
    * Fired right before the original `_handleSuccess` runs (either because
@@ -44,7 +50,7 @@ export interface EndingPatchOptions {
  * can be unit-tested with a fake quiz.
  */
 export function attachEndingJudgmentPatch(
-  quiz: any,
+  quiz: HanziQuiz,
   options: EndingPatchOptions,
 ): void {
   if (quiz.__kakitoriPatched) {
@@ -55,7 +61,7 @@ export function attachEndingJudgmentPatch(
   const originalHandleSuccess = quiz._handleSuccess.bind(quiz);
   const originalHandleFailure = quiz._handleFailure.bind(quiz);
 
-  quiz._handleSuccess = (meta: any) => {
+  quiz._handleSuccess = (meta: QuizStrokeMeta) => {
     const dataStrokeNum: number = quiz._currentStrokeIndex;
     const judgment = options.runJudgment(quiz, dataStrokeNum, meta);
 

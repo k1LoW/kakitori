@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
 import type { StrokeEndingJudgment } from "./types.js";
+import type { HanziQuiz, QuizStrokeMeta } from "./hanziWriterInternals.js";
 
 function failingJudgment(): StrokeEndingJudgment {
   return {
@@ -22,23 +23,16 @@ function passingJudgment(): StrokeEndingJudgment {
   };
 }
 
-interface FakeQuiz {
-  _currentStrokeIndex: number;
-  _handleSuccess: (meta: any) => void;
-  _handleFailure: (meta: any) => void;
-  _getStrokeData: (args: any) => any;
-  __kakitoriPatched?: boolean;
-}
-
 function createFakeQuiz(): {
-  quiz: FakeQuiz;
+  quiz: HanziQuiz;
   originalSuccess: ReturnType<typeof vi.fn>;
   originalFailure: ReturnType<typeof vi.fn>;
 } {
   const originalSuccess = vi.fn();
   const originalFailure = vi.fn();
-  const quiz: FakeQuiz = {
+  const quiz: HanziQuiz = {
     _currentStrokeIndex: 0,
+    _totalMistakes: 0,
     _handleSuccess: originalSuccess,
     _handleFailure: originalFailure,
     _getStrokeData: () => ({
@@ -143,7 +137,8 @@ describe("attachEndingJudgmentPatch", () => {
     const { quiz } = createFakeQuiz();
     quiz._currentStrokeIndex = 3;
     const runJudgment = vi.fn(
-      (_quiz: any, _dataStrokeNum: number, _meta: any) => failingJudgment(),
+      (_quiz: HanziQuiz, _dataStrokeNum: number, _meta: QuizStrokeMeta) =>
+        failingJudgment(),
     );
     const onMistake = vi.fn();
     attachEndingJudgmentPatch(quiz, {

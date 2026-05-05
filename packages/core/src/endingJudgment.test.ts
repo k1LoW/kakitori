@@ -67,6 +67,7 @@ describe("computeEndingJudgment", () => {
     const characterData = {
       strokes: [
         {
+          path: "M 0 0 L 100 -100",
           points: [
             { x: 0, y: 0 },
             { x: 100, y: -100 },

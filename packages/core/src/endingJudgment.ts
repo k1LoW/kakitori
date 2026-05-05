@@ -1,9 +1,10 @@
 import type { StrokeEnding, StrokeEndingJudgment } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import type { CharLogger } from "./charOptions.js";
+import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
 
 export function computeDirectionFromMedian(
-  points: Array<{ x: number; y: number }>,
+  points: ReadonlyArray<Pt>,
 ): [number, number] | null {
   if (points.length < 2) {
     return null;
@@ -44,7 +45,7 @@ export interface EndingJudgmentInput {
   /** Data-stroke index (hanzi-writer's perspective). */
   dataStrokeNum: number;
   /** Points the user actually drew, in hanzi-writer coord space. */
-  drawnPoints: Array<{ x: number; y: number }>;
+  drawnPoints: ReadonlyArray<Pt>;
   /** Pointer-derived timing for the same stroke. */
   timing: StrokeTimingData;
   /** Configured stroke endings (logical-stroke indexed). */
@@ -52,9 +53,7 @@ export interface EndingJudgmentInput {
   /** Logical→data stroke grouping. Null = identity (1:1). */
   strokeGroups: readonly number[][] | null;
   /** Loaded hanzi-writer character data, used for direction auto-compute. */
-  characterData: {
-    strokes: ReadonlyArray<{ points?: ReadonlyArray<{ x: number; y: number }> }>;
-  } | null;
+  characterData: HanziCharacterData | null;
   /** Pixel size of the drawable area (size - 2 * padding). */
   drawableSize: number;
   /** Stroke ending strictness in [0, 1]. */
@@ -121,7 +120,7 @@ export function computeEndingJudgment(
     const lastDataIdx = group ? group[group.length - 1] : dataStrokeNum;
     const medianPoints = characterData?.strokes[lastDataIdx]?.points;
     const autoDir = medianPoints
-      ? computeDirectionFromMedian(medianPoints as Array<{ x: number; y: number }>)
+      ? computeDirectionFromMedian(medianPoints)
       : null;
     if (autoDir) {
       resolvedExpected = { ...expected, direction: autoDir };
@@ -133,7 +132,7 @@ export function computeEndingJudgment(
     `judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${drawnPoints.length}`,
   );
 
-  const judgment = judge(drawnPoints, resolvedExpected, {
+  const judgment = judge(drawnPoints as Array<Pt>, resolvedExpected, {
     drawableSize,
     strictness,
     timing,

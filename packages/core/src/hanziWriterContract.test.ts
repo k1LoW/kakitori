@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import HanziWriter from "hanzi-writer";
+import type { HanziQuiz } from "./hanziWriterInternals.js";
+import type { CharDataLoaderFn } from "./charOptions.js";
 
 // HanziWriter contract tests: char.ts monkey-patches hanzi-writer's internal
 // `_quiz` instance to inject stroke ending judgment between the success
@@ -19,10 +21,7 @@ const mockCharData = {
   ],
 };
 
-const mockCharDataLoader = (
-  _char: string,
-  onLoad: (data: { strokes: string[]; medians: number[][][] }) => void,
-) => {
+const mockCharDataLoader: CharDataLoaderFn = (_char, onLoad) => {
   onLoad(mockCharData);
 };
 
@@ -37,18 +36,17 @@ const fakeUserStroke = {
   ],
 };
 
-async function createWithQuiz(container: HTMLElement): Promise<any> {
+async function createWithQuiz(container: HTMLElement): Promise<HanziQuiz> {
   const hw = HanziWriter.create(container, "あ", {
     width: 300,
     height: 300,
     padding: 0,
-    charDataLoader: mockCharDataLoader as any,
+    charDataLoader: mockCharDataLoader,
   });
   hw.quiz({});
-  await expect
-    .poll(() => Boolean((hw as any)._quiz), { timeout: 1000 })
-    .toBe(true);
-  return (hw as any)._quiz;
+  const accessQuiz = () => (hw as unknown as { _quiz?: HanziQuiz })._quiz;
+  await expect.poll(() => Boolean(accessQuiz()), { timeout: 1000 }).toBe(true);
+  return accessQuiz()!;
 }
 
 describe("hanzi-writer _quiz contract", () => {
