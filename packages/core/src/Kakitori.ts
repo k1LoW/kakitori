@@ -274,6 +274,9 @@ export class Kakitori {
       gridSvg.classList.add("kakitori-grid");
       gridSvg.setAttribute("width", String(size));
       gridSvg.setAttribute("height", String(size));
+      // Decorative; hide from assistive technologies so the writer surfaces a
+      // single accessible graphic rather than two.
+      gridSvg.setAttribute("aria-hidden", "true");
       gridSvg.style.position = "absolute";
       gridSvg.style.top = "0";
       gridSvg.style.left = "0";

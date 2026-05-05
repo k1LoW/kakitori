@@ -558,6 +558,17 @@ describe("Kakitori", () => {
       expect(lastLineIdx).toBeLessThan(firstGroupIdx);
     });
 
+    it("marks the grid SVG as aria-hidden so it is not exposed as a separate accessible graphic", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement;
+      expect(gridSvg.getAttribute("aria-hidden")).toBe("true");
+    });
+
     it("keeps pointer-events:none on the grid SVG and its lines so it never blocks hit-testing", () => {
       Kakitori.create(container, "あ", {
         size: 300,
