@@ -767,7 +767,11 @@ export class Kakitori {
     };
   }
 
-  /** Play stroke-order animation. Uses animCJK-style overlay when strokeGroups are configured. */
+  /**
+   * Play stroke-order animation. Always uses the animCJK-style overlay so
+   * each stroke's duration is proportional to its median length; defaults to
+   * one-stroke-per-group when strokeGroups is not configured.
+   */
   animate(): void {
     this.assertNotDestroyed();
     this.configReady.then(() => {
@@ -779,11 +783,15 @@ export class Kakitori {
   }
 
   private startAnimation(): void {
-    if (!this.strokeGroups) {
-      this.hw.animateCharacter();
-      return;
-    }
-    this.animateWithGroups();
+    // Always go through animateWithGroups: the overlay-based animation
+    // derives per-stroke duration from the median length, while
+    // hanzi-writer's built-in animateCharacter uses (length + 600) / 3 ms,
+    // whose +600 baseline flattens long strokes against short ones.
+    // animateWithGroups is async; swallow any rejection (e.g. getCharacterData
+    // failure) into the logger so it does not surface as an unhandled rejection.
+    this.animateWithGroups().catch((err: unknown) => {
+      this.log?.(`animate failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
   }
 
   /**
@@ -793,9 +801,6 @@ export class Kakitori {
    * then shows HanziWriter's character and removes the overlay.
    */
   private async animateWithGroups(): Promise<void> {
-    if (!this.strokeGroups) {
-      return;
-    }
     const rawSpeed = this.options.strokeAnimationSpeed ?? 1;
     const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
     if (speed !== rawSpeed) {
@@ -807,6 +812,13 @@ export class Kakitori {
 
     const character = await this.hw.getCharacterData();
     const dataStrokes = character.strokes;
+
+    // Default to identity grouping (one logical stroke per data stroke) so the
+    // length-proportional duration applies even when no kakitori-data config
+    // has set explicit strokeGroups. Named distinctly from `this.strokeGroups`
+    // so later edits cannot accidentally read the stale instance field.
+    const resolvedStrokeGroups = this.strokeGroups
+      ?? Array.from({ length: dataStrokes.length }, (_, i) => [i]);
 
     const hwSvg = this.hwSvg;
     if (!hwSvg) {
@@ -833,13 +845,13 @@ export class Kakitori {
     // just like animCJK does for sub-strokes (e.g. --d:3s for both 3a and 3b).
     const strokeDelays: number[] = Array.from({ length: dataStrokes.length }, () => 0);
     let currentDelay = 0;
-    for (let gi = 0; gi < this.strokeGroups.length; gi++) {
+    for (let gi = 0; gi < resolvedStrokeGroups.length; gi++) {
       if (gi > 0) {
         currentDelay += delayBetweenStrokes / 1000;
       }
       const groupDelay = currentDelay;
       let groupMaxDuration = 0;
-      for (const dataIdx of this.strokeGroups[gi]) {
+      for (const dataIdx of resolvedStrokeGroups[gi]) {
         if (dataIdx < 0 || dataIdx >= dataStrokes.length) {
           continue;
         }
@@ -956,7 +968,7 @@ export class Kakitori {
       hwSvg.style.visibility = "hidden";
       this.layerEl.appendChild(overlaySvg);
 
-      this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
+      this.log?.(`animate: ${resolvedStrokeGroups.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
       await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));
     } finally {
