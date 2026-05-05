@@ -839,7 +839,7 @@ describe("Kakitori", () => {
         const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
         expect(overlay).not.toBeNull();
         expect(hw).not.toBeNull();
-        expect(hw!.style.display).toBe("none");
+        expect(hw!.style.visibility).toBe("hidden");
 
         // Advance to fake-T≈250ms: run #1's timer (T≈210) fires; run #2's
         // (T≈310) is still pending. Run #1's finally must observe that
@@ -848,12 +848,12 @@ describe("Kakitori", () => {
         await vi.advanceTimersByTimeAsync(150);
 
         expect(container.querySelector("svg.kakitori-anim")).toBe(overlay);
-        expect(hw!.style.display).toBe("none");
+        expect(hw!.style.visibility).toBe("hidden");
 
         // Drain run #2's timer: the final state should be clean.
         await vi.runAllTimersAsync();
         expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
-        expect(hw!.style.display).toBe("");
+        expect(hw!.style.visibility).toBe("");
       } finally {
         vi.useRealTimers();
       }
