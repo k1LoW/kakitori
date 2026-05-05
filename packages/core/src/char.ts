@@ -145,6 +145,13 @@ export interface Char {
   /** Change the displayed character. Resets stroke endings and mistake count. */
   setCharacter(c: string): Promise<void>;
   /**
+   * Return to a clean rest state: cancel any in-flight animate() overlay,
+   * cancel any active quiz (drops pointer listeners and per-run counters),
+   * and restore stroke colors set via {@link setStrokeColor}. The current
+   * character and configured strokeEndings / strokeGroups stay in place.
+   */
+  reset(): void;
+  /**
    * Clean up event listeners, remove the rendered SVG, and mark the instance as destroyed.
    * After destroy, calling any other public method throws. destroy() itself is idempotent.
    */
@@ -700,8 +707,39 @@ function createImpl(
     strokeEndings = next;
   }
 
+  /**
+   * Tear down any in-flight animate() overlay and restore the hanzi-writer
+   * SVG so the next interactive surface (quiz, click highlight, etc.) is
+   * usable immediately. The pending animateWithGroups() promise still
+   * resolves, but its `finally` block sees `activeOverlay !== overlaySvg`
+   * and skips a second cleanup pass.
+   */
+  function cancelActiveAnimation(): void {
+    if (activeOverlay) {
+      activeOverlay.remove();
+      activeOverlay = null;
+    }
+    if (hwSvg) {
+      hwSvg.style.visibility = "";
+    }
+  }
+
+  /**
+   * Tear down any in-flight quiz so an animate() request lands on a clean
+   * surface. Forwards to hanzi-writer's cancelQuiz, drops our pointer
+   * timing listeners, and clears per-run counters; the next start() rebuilds
+   * everything from scratch.
+   */
+  function cancelActiveQuiz(): void {
+    hw.cancelQuiz();
+    stopTimingTracking();
+    strokeEndingMistakes = 0;
+    pendingEndingJudgment = null;
+  }
+
   function start(): void {
     assertNotDestroyed();
+    cancelActiveAnimation();
     configReady.then(() => {
       if (destroyed) {
         return;
@@ -712,6 +750,7 @@ function createImpl(
 
   function animate(): void {
     assertNotDestroyed();
+    cancelActiveQuiz();
     configReady.then(() => {
       if (destroyed) {
         return;
@@ -835,6 +874,13 @@ function createImpl(
       return strokeGroups.length;
     }
     return getStrokePaths().length;
+  }
+
+  function reset(): void {
+    assertNotDestroyed();
+    cancelActiveAnimation();
+    cancelActiveQuiz();
+    resetStrokeColors();
   }
 
   async function setCharacter(c: string): Promise<void> {
@@ -1022,6 +1068,7 @@ function createImpl(
     resetStrokeColors,
     getLogicalStrokeCount,
     setCharacter,
+    reset,
     destroy,
   };
 }

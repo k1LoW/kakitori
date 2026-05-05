@@ -393,6 +393,7 @@ describe("char", () => {
       expect(() => k.resetStrokeColor(0)).toThrow(expectedMessage);
       expect(() => k.resetStrokeColors()).toThrow(expectedMessage);
       expect(() => k.getLogicalStrokeCount()).toThrow(expectedMessage);
+      expect(() => k.reset()).toThrow(expectedMessage);
       // setCharacter is async; synchronous throw becomes a rejected promise.
       await expect(k.setCharacter("い")).rejects.toThrow(expectedMessage);
     });
@@ -487,6 +488,71 @@ describe("char", () => {
       expect(paths[1].style.stroke).toBe("#555");
       expect(paths[0].dataset.kakitoriOriginalStroke).toBeUndefined();
       expect(paths[1].dataset.kakitoriOriginalStroke).toBeUndefined();
+    });
+  });
+
+  describe("reset()", () => {
+    it("clears stroke colors", () => {
+      const k = char.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const hwSvg = container.querySelector("svg") as SVGSVGElement;
+      const ns = "http://www.w3.org/2000/svg";
+      const outerG = document.createElementNS(ns, "g") as SVGGElement;
+      hwSvg.appendChild(outerG);
+      const groupPaths: SVGPathElement[][] = [];
+      for (let gIdx = 0; gIdx < 3; gIdx++) {
+        const g = document.createElementNS(ns, "g") as SVGGElement;
+        outerG.appendChild(g);
+        const paths: SVGPathElement[] = [];
+        for (let i = 0; i < 2; i++) {
+          const path = document.createElementNS(ns, "path") as SVGPathElement;
+          path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
+          path.style.stroke = "#555";
+          g.appendChild(path);
+          paths.push(path);
+        }
+        groupPaths.push(paths);
+      }
+      const mainPaths = groupPaths[1];
+
+      k.setStrokeColor(0, "#c00");
+      expect(mainPaths[0].style.stroke).toBe("#c00");
+
+      k.reset();
+      expect(mainPaths[0].style.stroke).toBe("#555");
+    });
+
+    it("tears down an in-flight animate() overlay", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = char.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        const hwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement;
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+        expect(hwSvg.style.visibility).toBe("hidden");
+
+        k.reset();
+        expect(container.querySelector("svg.kakitori-anim")).toBeNull();
+        expect(hwSvg.style.visibility).toBe("");
+
+        await vi.runAllTimersAsync();
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -630,6 +696,83 @@ describe("char", () => {
   //     groups, fallback to hanzi-writer's count, etc.
 
   describe("animate() rapid succession", () => {
+    it("animate() cancels an in-flight quiz so the user starts over after お手本", async () => {
+      vi.useFakeTimers();
+      try {
+        const onCorrectStroke = vi.fn();
+        const k = char.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+          onCorrectStroke,
+        });
+        await k.ready();
+
+        // Start a quiz, then trigger animate() while it's still active.
+        k.start();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        // Sanity: pointer listeners are wired up by the quiz.
+        const before = container.querySelectorAll("svg").length;
+        expect(before).toBeGreaterThan(0);
+
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+
+        // Quiz teardown must remove the patched _quiz from hanzi-writer; the
+        // animate overlay should be on top.
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+
+        await vi.runAllTimersAsync();
+        expect(onCorrectStroke).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("start() cancels an in-flight animate() so the quiz surface is visible immediately", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = char.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        // Kick off animate; let it claim the overlay and hide hwSvg.
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        const hwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement;
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+        expect(hwSvg.style.visibility).toBe("hidden");
+
+        // Mid-animation start(): overlay must be torn down and hwSvg
+        // visibility restored before the quiz takes over.
+        k.start();
+        expect(container.querySelector("svg.kakitori-anim")).toBeNull();
+        expect(hwSvg.style.visibility).toBe("");
+
+        // Drain animate's pending cleanup timer so it doesn't leak.
+        await vi.runAllTimersAsync();
+        // Even after the timer fires, hwSvg must remain visible — animate's
+        // finally block sees activeOverlay !== overlaySvg and skips.
+        expect(hwSvg.style.visibility).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("uses the overlay path even when strokeGroups was never configured", async () => {
       vi.useFakeTimers();
       try {
