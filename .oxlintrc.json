@@ -17,7 +17,8 @@
     "no-await-in-loop": "off",
     "eslint-plugin-unicorn/consistent-function-scoping": "off",
     "eslint-plugin-promise/always-return": "off",
-    "curly": ["error", "all"]
+    "curly": ["error", "all"],
+    "typescript/no-explicit-any": "error"
   },
   "ignorePatterns": [
     "**/dist/**"

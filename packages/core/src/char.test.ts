@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { char, type Char, computeMedianPathLength } from "./char.js";
+import { char, computeMedianPathLength } from "./char.js";
 import type { CharDataLoaderFn } from "./charOptions.js";
 
 const mockCharData = {
