@@ -257,10 +257,11 @@ export class Kakitori {
 
     const hwSvg = this.layerEl.querySelector("svg") as SVGSVGElement | null;
     if (hwSvg) {
-      // Promote hanzi-writer's SVG into its own stacking context above the
-      // grid so the grid sits behind the character outline, the user's drawn
-      // strokes, and the animate() overlay (overlay is appended last and
-      // stacks above hwSvg even without an explicit z-index).
+      // Stacking inside layerEl uses explicit z-index values:
+      //   gridSvg  (auto, default)  -> background
+      //   hwSvg    (z-index: 1)     -> character outline + user-drawn strokes
+      //   overlaySvg (z-index: 2)   -> animate() animation, on top of hwSvg
+      // hwSvg needs position: relative so the z-index actually applies.
       hwSvg.style.position = "relative";
       hwSvg.style.zIndex = "1";
       this.hwSvg = hwSvg;
@@ -860,12 +861,14 @@ export class Kakitori {
     overlaySvg.classList.add("kakitori-anim");
     overlaySvg.setAttribute("width", width);
     overlaySvg.setAttribute("height", height);
-    // Layer the overlay above the (visibility-hidden) hanzi-writer SVG so it
-    // covers the same area. The grid SVG sits as a separate sibling behind
-    // both, so it stays visible through the overlay's transparent regions.
+    // Layer the overlay above hanzi-writer's SVG (z-index: 1) so the
+    // animation paints on top even if hwSvg's visibility is briefly toggled
+    // back. The grid SVG sits as a separate sibling behind both and stays
+    // visible through the overlay's transparent regions.
     overlaySvg.style.position = "absolute";
     overlaySvg.style.top = "0";
     overlaySvg.style.left = "0";
+    overlaySvg.style.zIndex = "2";
     overlaySvg.style.pointerEvents = "none";
 
     // Copy HanziWriter's exact coordinate transform (includes padding, scale, and Y-flip)
