@@ -13,7 +13,9 @@ export function defaultCharDataLoader(
 ): void {
   fetch(`${DEFAULT_CHAR_DATA_URL}/${encodeURIComponent(char)}.json`)
     .then((res) => {
-      if (!res.ok) {throw new Error(`Failed to load data for "${char}"`);}
+      if (!res.ok) {
+        throw new Error(`Failed to load data for "${char}"`);
+      }
       return res.json();
     })
     .then(onLoad)

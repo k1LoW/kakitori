@@ -38,7 +38,9 @@ function typeToLabel(types: StrokeEndingType[]): string {
 
 function formatStrokeEnding(ending: StrokeEnding): string {
   const types = ending.types ?? [];
-  if (types.length === 0) {return "{}";}
+  if (types.length === 0) {
+    return "{}";
+  }
   const dir = ending.direction
     ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
     : "";
