@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { Kakitori, computeMedianPathLength } from "./Kakitori.js";
-import type { CharDataLoaderFn } from "./KakitoriOptions.js";
+import { char, computeMedianPathLength } from "./char.js";
+import type { CharDataLoaderFn } from "./charOptions.js";
 
 const mockCharData = {
   strokes: [
@@ -17,7 +17,7 @@ const mockCharDataLoader: CharDataLoaderFn = (_char, onLoad) => {
   onLoad(mockCharData);
 };
 
-describe("Kakitori", () => {
+describe("char", () => {
   let container: HTMLElement;
 
   beforeEach(() => {
@@ -30,16 +30,17 @@ describe("Kakitori", () => {
   });
 
   describe("create", () => {
-    it("creates a Kakitori instance", () => {
-      const k = Kakitori.create(container, "あ", {
+    it("creates a Char instance", () => {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
-      expect(k).toBeInstanceOf(Kakitori);
+      expect(typeof k.start).toBe("function");
+      expect(typeof k.destroy).toBe("function");
     });
 
     it("creates SVG inside the container", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -48,7 +49,7 @@ describe("Kakitori", () => {
     });
 
     it("respects size option", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 200,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
@@ -60,7 +61,7 @@ describe("Kakitori", () => {
 
     it("throws when size is NaN", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           size: Number.NaN,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -70,7 +71,7 @@ describe("Kakitori", () => {
 
     it("throws when padding is Infinity", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           padding: Number.POSITIVE_INFINITY,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -80,7 +81,7 @@ describe("Kakitori", () => {
 
     it("throws when padding is negative", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           padding: -1,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -90,7 +91,7 @@ describe("Kakitori", () => {
 
     it("throws when size is zero", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           size: 0,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -100,7 +101,7 @@ describe("Kakitori", () => {
 
     it("throws when size is negative", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           size: -10,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -110,7 +111,7 @@ describe("Kakitori", () => {
 
     it("throws when padding >= size/2", () => {
       expect(() => {
-        Kakitori.create(container, "あ", {
+        char.create(container, "あ", {
           size: 100,
           padding: 50,
           charDataLoader: mockCharDataLoader,
@@ -122,7 +123,7 @@ describe("Kakitori", () => {
 
   describe("render", () => {
     it("renders SVG paths for character strokes", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         charDataLoader: mockCharDataLoader,
       });
       const svg = container.querySelector("svg");
@@ -132,7 +133,7 @@ describe("Kakitori", () => {
     });
 
     it("respects size and padding options", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         size: 100,
         padding: 10,
         charDataLoader: mockCharDataLoader,
@@ -144,7 +145,7 @@ describe("Kakitori", () => {
 
     it("throws when size is NaN", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           size: Number.NaN,
           charDataLoader: mockCharDataLoader,
         });
@@ -153,7 +154,7 @@ describe("Kakitori", () => {
 
     it("throws when padding is Infinity", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           padding: Number.POSITIVE_INFINITY,
           charDataLoader: mockCharDataLoader,
         });
@@ -162,7 +163,7 @@ describe("Kakitori", () => {
 
     it("throws when padding is negative", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           padding: -1,
           charDataLoader: mockCharDataLoader,
         });
@@ -171,7 +172,7 @@ describe("Kakitori", () => {
 
     it("throws when size is zero", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           size: 0,
           charDataLoader: mockCharDataLoader,
         });
@@ -180,7 +181,7 @@ describe("Kakitori", () => {
 
     it("throws when size is negative", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           size: -10,
           charDataLoader: mockCharDataLoader,
         });
@@ -189,7 +190,7 @@ describe("Kakitori", () => {
 
     it("throws when padding >= size/2", () => {
       expect(() => {
-        Kakitori.render(container, "あ", {
+        char.render(container, "あ", {
           size: 100,
           padding: 50,
           charDataLoader: mockCharDataLoader,
@@ -198,7 +199,7 @@ describe("Kakitori", () => {
     });
 
     it("applies strokeColor to paths", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         strokeColor: "#f00",
         charDataLoader: mockCharDataLoader,
       });
@@ -210,7 +211,7 @@ describe("Kakitori", () => {
 
     it("adds click listener when onClick is provided", () => {
       const onClick = vi.fn();
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         charDataLoader: mockCharDataLoader,
         onClick,
       });
@@ -221,7 +222,7 @@ describe("Kakitori", () => {
     });
 
     it("does not add click listener when onClick is not provided", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         charDataLoader: mockCharDataLoader,
       });
       const svg = container.querySelector("svg")!;
@@ -230,7 +231,7 @@ describe("Kakitori", () => {
 
     it("throws when target selector does not match", () => {
       expect(() => {
-        Kakitori.render("#nonexistent", "あ", {
+        char.render("#nonexistent", "あ", {
           charDataLoader: mockCharDataLoader,
         });
       }).toThrow("did not match any element");
@@ -241,7 +242,7 @@ describe("Kakitori", () => {
       const failLoader: CharDataLoaderFn = (_char, _onLoad, onError) => {
         onError(new Error("load failed"));
       };
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         charDataLoader: failLoader,
       });
       expect(consoleSpy).toHaveBeenCalledWith(
@@ -252,7 +253,7 @@ describe("Kakitori", () => {
     });
 
     it("applies correct SVG transform for coordinate system", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         size: 300,
         padding: 20,
         charDataLoader: mockCharDataLoader,
@@ -266,7 +267,7 @@ describe("Kakitori", () => {
 
   describe("ready", () => {
     it("resolves when configLoader is null", async () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -274,7 +275,7 @@ describe("Kakitori", () => {
     });
 
     it("resolves after config loads", async () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: async () => ({
           character: "あ",
@@ -289,7 +290,7 @@ describe("Kakitori", () => {
 
   describe("getStrokeEndings / getStrokeGroups", () => {
     it("returns null when no config loaded", () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -298,7 +299,7 @@ describe("Kakitori", () => {
     });
 
     it("returns config values after loading", async () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: async () => ({
           character: "あ",
@@ -317,7 +318,7 @@ describe("Kakitori", () => {
 
   describe("setStrokeEndings / setStrokeGroups", () => {
     it("overrides stroke endings", () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -326,7 +327,7 @@ describe("Kakitori", () => {
     });
 
     it("overrides stroke groups", () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -338,7 +339,7 @@ describe("Kakitori", () => {
   describe("destroy", () => {
     it("removes click listener", () => {
       const onClick = vi.fn();
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         onClick,
@@ -350,7 +351,7 @@ describe("Kakitori", () => {
     });
 
     it("clears the rendered SVG from targetEl", () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -361,7 +362,7 @@ describe("Kakitori", () => {
     });
 
     it("can be called multiple times safely", () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -370,12 +371,12 @@ describe("Kakitori", () => {
     });
 
     it("throws when public methods are called after destroy", async () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       k.destroy();
-      const expectedMessage = "Kakitori: instance has been destroyed";
+      const expectedMessage = "char: instance has been destroyed";
       expect(() => k.start()).toThrow(expectedMessage);
       expect(() => k.animate()).toThrow(expectedMessage);
       expect(() => k.ready()).toThrow(expectedMessage);
@@ -400,7 +401,7 @@ describe("Kakitori", () => {
   describe("onClick option", () => {
     it("fires onClick with character and strokeIndex null when no stroke hit", () => {
       const onClick = vi.fn();
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         onClick,
@@ -414,30 +415,54 @@ describe("Kakitori", () => {
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
-    function createWithStubPaths() {
-      const k = Kakitori.create(container, "あ", {
+    // Construct the SVG layering that hanzi-writer's getStrokePaths walks:
+    //   <svg> > <g> > <g outline>(path[clip-path] x 2)
+    //                   <g main>(path[clip-path] x 2)   ← what we manipulate
+    //                   <g highlight>(path[clip-path] x 2)
+    // Real getStrokePaths picks groupsWithPaths[1] (main) and returns its
+    // paths in order. By writing this DOM ourselves, the production path
+    // lookup runs unchanged and tests don't need to reach into char's
+    // closure to swap implementations.
+    function createWithStrokePaths() {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
+      const hwSvg = container.querySelector("svg") as SVGSVGElement;
       const ns = "http://www.w3.org/2000/svg";
-      const paths = [
-        document.createElementNS(ns, "path") as unknown as SVGPathElement,
-        document.createElementNS(ns, "path") as unknown as SVGPathElement,
-      ];
-      paths[0].style.stroke = "#555";
-      paths[1].style.stroke = "#555";
-      vi.spyOn(k as any, "getStrokePaths").mockReturnValue(paths);
-      return { k, paths };
+      let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
+      if (!outerG) {
+        outerG = document.createElementNS(ns, "g") as SVGGElement;
+        hwSvg.appendChild(outerG);
+      }
+      outerG.innerHTML = "";
+      const groupPaths: SVGPathElement[][] = [];
+      for (let gIdx = 0; gIdx < 3; gIdx++) {
+        const g = document.createElementNS(ns, "g") as SVGGElement;
+        outerG.appendChild(g);
+        const paths: SVGPathElement[] = [];
+        for (let i = 0; i < 2; i++) {
+          const path = document.createElementNS(ns, "path") as SVGPathElement;
+          path.setAttribute("clip-path", `url(#mask-${gIdx}-${i})`);
+          path.style.stroke = "#555";
+          g.appendChild(path);
+          paths.push(path);
+        }
+        groupPaths.push(paths);
+      }
+      // The main group is index 1 in groupsWithPaths; setStrokeColor will
+      // mutate these.
+      return { k, paths: groupPaths[1] };
     }
 
     it("setStrokeColor sets stroke color", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       expect(paths[0].style.stroke).toBe("#c00");
     });
 
     it("setStrokeColor preserves original on repeated calls", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       expect(paths[0].dataset.kakitoriOriginalStroke).toBe("#555");
       k.setStrokeColor(0, "#00f");
@@ -446,7 +471,7 @@ describe("Kakitori", () => {
     });
 
     it("resetStrokeColor restores a single stroke", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       k.resetStrokeColor(0);
       expect(paths[0].style.stroke).toBe("#555");
@@ -454,7 +479,7 @@ describe("Kakitori", () => {
     });
 
     it("resetStrokeColors restores all strokes", () => {
-      const { k, paths } = createWithStubPaths();
+      const { k, paths } = createWithStrokePaths();
       k.setStrokeColor(0, "#c00");
       k.setStrokeColor(1, "#0c0");
       k.resetStrokeColors();
@@ -467,7 +492,7 @@ describe("Kakitori", () => {
 
   describe("showGrid option", () => {
     it("does not draw grid lines when showGrid is omitted", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
@@ -477,7 +502,7 @@ describe("Kakitori", () => {
     });
 
     it("draws cross-hair grid lines when showGrid is true (create)", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -497,7 +522,7 @@ describe("Kakitori", () => {
     });
 
     it("applies custom GridOptions", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         showGrid: { color: "#aaf", dashArray: "8,4", width: 0.5 },
         charDataLoader: mockCharDataLoader,
@@ -513,7 +538,7 @@ describe("Kakitori", () => {
     });
 
     it("sets pointer-events=none on grid lines (does not block hit-test)", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -526,7 +551,7 @@ describe("Kakitori", () => {
     });
 
     it("draws grid lines in render() when showGrid is true", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -536,15 +561,15 @@ describe("Kakitori", () => {
     });
 
     it("renders the grid lines before the strokes group in render()", () => {
-      Kakitori.render(container, "あ", {
+      char.render(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
       });
       // SVG paint order is document order, so for the grid to sit *behind*
       // the character strokes, the <line> elements must appear before the
-      // strokes <g>. Locking that order here keeps Kakitori.create() and
-      // Kakitori.render() consistent against future refactors.
+      // strokes <g>. Locking that order here keeps char.create() and
+      // char.render() consistent against future refactors.
       const svg = container.querySelector("svg") as SVGSVGElement;
       const children = Array.from(svg.children);
       const lastLineIdx = children.findLastIndex(
@@ -559,7 +584,7 @@ describe("Kakitori", () => {
     });
 
     it("marks the grid SVG as aria-hidden so it is not exposed as a separate accessible graphic", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -570,7 +595,7 @@ describe("Kakitori", () => {
     });
 
     it("keeps pointer-events:none on the grid SVG and its lines so it never blocks hit-testing", () => {
-      Kakitori.create(container, "あ", {
+      char.create(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -593,246 +618,22 @@ describe("Kakitori", () => {
     });
   });
 
-  describe("hanzi-writer integration (monkey patch survival)", () => {
-    async function startAndWaitForPatch(
-      k: Kakitori,
-      timeoutMs = 1000,
-    ): Promise<any> {
-      k.start();
-      await expect
-        .poll(() => (k as any).hw._quiz?.__kakitoriPatched === true, {
-          timeout: timeoutMs,
-        })
-        .toBe(true);
-      return (k as any).hw._quiz;
-    }
-
-    function fakeUserStroke() {
-      return {
-        points: [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
-        ],
-        externalPoints: [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
-        ],
-      };
-    }
-
-    it("Quiz instance exposes the private API the patch depends on", async () => {
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-      });
-      await k.ready();
-      const quiz = await startAndWaitForPatch(k);
-
-      expect(typeof quiz._handleSuccess).toBe("function");
-      expect(typeof quiz._handleFailure).toBe("function");
-      expect(typeof quiz._getStrokeData).toBe("function");
-      expect(typeof quiz._currentStrokeIndex).toBe("number");
-      expect(quiz.__kakitoriPatched).toBe(true);
-    });
-
-    it("skips ending judgment when strokeEndings is not set", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onMistake = vi.fn();
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        strokeEndingAsMiss: true,
-        onStrokeEndingMistake,
-        onMistake,
-      });
-      await k.ready();
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-      const initialMistakes = quiz._totalMistakes;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      // Judgment skipped → original success path → stroke advances, no mistakes
-      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
-      expect(quiz._totalMistakes).toBe(initialMistakes);
-      expect(onStrokeEndingMistake).not.toHaveBeenCalled();
-      expect(onMistake).not.toHaveBeenCalled();
-    });
-
-    it("rejects stroke and does not advance when ending fails with strokeEndingAsMiss=true", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        strokeEndingAsMiss: true,
-        onStrokeEndingMistake,
-        onMistake,
-        onCorrectStroke,
-      });
-      await k.ready();
-      // Force a failing judgment: expect harai, but the fake stroke has no
-      // timing data so the judge falls back to "tome" → mismatch.
-      // No setStrokeGroups: judgment must apply to every stroke when groups
-      // are unset (regression for the strokeGroups-required bug).
-      k.setStrokeEndings([
-        { types: ["harai"], direction: [0, -1] },
-        { types: ["harai"], direction: [0, -1] },
-      ]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(quiz._currentStrokeIndex).toBe(initialIndex);
-      expect(quiz._totalMistakes).toBeGreaterThan(0);
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).not.toHaveBeenCalled();
-    });
-
-    it("advances stroke when ending fails with strokeEndingAsMiss=false (default)", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const onMistake = vi.fn();
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onStrokeEndingMistake,
-        onCorrectStroke,
-        onMistake,
-      });
-      await k.ready();
-      // No setStrokeGroups: judgment must apply to every stroke when groups
-      // are unset (regression for the strokeGroups-required bug).
-      k.setStrokeEndings([
-        { types: ["harai"], direction: [0, -1] },
-        { types: ["harai"], direction: [0, -1] },
-      ]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      const initialIndex = quiz._currentStrokeIndex;
-
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(quiz._currentStrokeIndex).toBe(initialIndex + 1);
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      expect(onMistake).not.toHaveBeenCalled();
-    });
-
-    it("reports consistent strokesRemaining between onStrokeEndingMistake and onCorrectStroke when group auto-skips", async () => {
-      const onStrokeEndingMistake = vi.fn();
-      const onCorrectStroke = vi.fn();
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onStrokeEndingMistake,
-        onCorrectStroke,
-      });
-      await k.ready();
-      // 2 data strokes collapsed into a single logical stroke: drawing data
-      // stroke 0 auto-skips data stroke 1.
-      k.setStrokeGroups([[0, 1]]);
-      k.setStrokeEndings([{ types: ["harai"], direction: [0, -1] }]);
-      const quiz = await startAndWaitForPatch(k);
-
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleSuccess({ isStrokeBackwards: false });
-
-      expect(onStrokeEndingMistake).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      const mistakeRemaining =
-        onStrokeEndingMistake.mock.calls[0][0].strokesRemaining;
-      const correctRemaining =
-        onCorrectStroke.mock.calls[0][0].strokesRemaining;
-      expect(mistakeRemaining).toBe(correctRemaining);
-    });
-
-    it("reports strokesRemaining in logical-stroke units across multiple groups", async () => {
-      const fourStrokeCharData = {
-        strokes: [
-          "M 0 0 L 100 100",
-          "M 100 100 L 200 200",
-          "M 200 200 L 300 300",
-          "M 300 300 L 400 400",
-        ],
-        medians: [
-          [[0, 0], [100, 100]],
-          [[100, 100], [200, 200]],
-          [[200, 200], [300, 300]],
-          [[300, 300], [400, 400]],
-        ],
-      };
-      const fourStrokeLoader: CharDataLoaderFn = (_char, onLoad) => {
-        onLoad(fourStrokeCharData);
-      };
-      const onCorrectStroke = vi.fn();
-      const onMistake = vi.fn();
-      const k = Kakitori.create(container, "X", {
-        charDataLoader: fourStrokeLoader,
-        configLoader: null,
-        onCorrectStroke,
-        onMistake,
-      });
-      await k.ready();
-      // 2 logical strokes, each spanning 2 data strokes.
-      k.setStrokeGroups([[0, 1], [2, 3]]);
-      const quiz = await startAndWaitForPatch(k);
-
-      // Drawing data stroke 0 (first of group [0, 1]): logical stroke 0 done
-      // → 1 logical stroke remaining (group [2, 3]).
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleSuccess({ isStrokeBackwards: false });
-      expect(onCorrectStroke).toHaveBeenCalledTimes(1);
-      expect(onCorrectStroke.mock.calls[0][0].strokesRemaining).toBe(1);
-
-      // Mistake on data stroke 2 (first of group [2, 3]): logical stroke 1
-      // is the current pending one → 1 logical stroke remaining (current).
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleFailure({ isStrokeBackwards: false });
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
-    });
-
-    it("falls back to hanzi-writer's strokesRemaining when strokeGroups is incomplete", async () => {
-      const onMistake = vi.fn();
-      const k = Kakitori.create(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        onMistake,
-      });
-      await k.ready();
-      // Only stroke 0 is mapped; stroke 1 is unmapped (incomplete groups).
-      k.setStrokeGroups([[0]]);
-      const quiz = await startAndWaitForPatch(k);
-
-      // Drive a mistake on the unmapped data stroke 1.
-      quiz._currentStrokeIndex = 1;
-      quiz._userStroke = fakeUserStroke();
-      quiz._handleFailure({ isStrokeBackwards: false });
-
-      expect(onMistake).toHaveBeenCalledTimes(1);
-      // Without the fallback the formula would yield `strokeGroups.length -
-      // dataStrokeNum - 0 = 1 - 1 - 0 = 0`. With the fallback, callbacks
-      // receive hanzi-writer's raw value: `strokes.length - currentIndex - 0
-      // = 2 - 1 - 0 = 1`. Asserting the exact value catches a regression of
-      // the fallback (and underflow for larger unmapped indices in general).
-      expect(onMistake.mock.calls[0][0].strokesRemaining).toBe(1);
-    });
-  });
+  // The previous "monkey patch survival" tests poked hanzi-writer's private
+  // _quiz directly via (k as any).hw to verify the patch behavior. Those
+  // tests have been split across pure-function suites and a contract test:
+  //   - hanziWriterContract.test.ts pins the hanzi-writer private API.
+  //   - endingJudgment.test.ts covers computeEndingJudgment routing
+  //     (skipped when no config, mid-group skip, etc.).
+  //   - patchEndingJudgment.test.ts covers attachEndingJudgmentPatch routing
+  //     (advance vs reject based on judgment + strokeEndingAsMiss).
+  //   - strokeGroups.test.ts covers logicalStrokesRemaining behavior across
+  //     groups, fallback to hanzi-writer's count, etc.
 
   describe("animate() rapid succession", () => {
     it("uses the overlay path even when strokeGroups was never configured", async () => {
       vi.useFakeTimers();
       try {
-        const k = Kakitori.create(container, "あ", {
+        const k = char.create(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -859,7 +660,7 @@ describe("Kakitori", () => {
     it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
       vi.useFakeTimers();
       try {
-        const k = Kakitori.create(container, "あ", {
+        const k = char.create(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
         });
@@ -891,7 +692,7 @@ describe("Kakitori", () => {
     it("keeps the showGrid grid visible while animate() is running", async () => {
       vi.useFakeTimers();
       try {
-        const k = Kakitori.create(container, "あ", {
+        const k = char.create(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           showGrid: true,
@@ -940,7 +741,7 @@ describe("Kakitori", () => {
         // 1000 + 200ms) fires within ~210ms of fake time. Without this, the
         // setTimeout fires >1.2s after scheduling and the assertions below
         // can't isolate run #1's timer from run #2's.
-        const k = Kakitori.create(container, "あ", {
+        const k = char.create(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -989,7 +790,7 @@ describe("Kakitori", () => {
     });
 
     it("DOM-dependent APIs still work after setCharacter()", async () => {
-      const k = Kakitori.create(container, "あ", {
+      const k = char.create(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });

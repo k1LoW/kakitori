@@ -1,17 +1,17 @@
-import { Kakitori, defaultCharDataLoader, charSets } from "@k1low/kakitori";
-import type { KakitoriStrokeData, CharDataLoaderFn } from "@k1low/kakitori";
+import { char, defaultCharDataLoader, charSets } from "@k1low/kakitori";
+import type { Char, CharStrokeData, CharDataLoaderFn } from "@k1low/kakitori";
 
 // Pre-fetch character data cache
 const charDataCache = new Map<string, { strokes: string[]; medians: number[][][] }>();
 
-const cachedCharDataLoader: CharDataLoaderFn = (char, onLoad, onError) => {
-  const cached = charDataCache.get(char);
+const cachedCharDataLoader: CharDataLoaderFn = (c, onLoad, onError) => {
+  const cached = charDataCache.get(c);
   if (cached) {
     onLoad(cached);
     return;
   }
-  defaultCharDataLoader(char, (data) => {
-    charDataCache.set(char, data);
+  defaultCharDataLoader(c, (data) => {
+    charDataCache.set(c, data);
     onLoad(data);
   }, onError);
 };
@@ -24,10 +24,10 @@ const PREFETCH_BATCH = 5;
 function prefetchBatch() {
   const end = Math.min(prefetchIdx + PREFETCH_BATCH, allChars.length);
   for (let i = prefetchIdx; i < end; i++) {
-    const char = allChars[i];
-    if (!charDataCache.has(char)) {
-      defaultCharDataLoader(char, (data) => {
-        charDataCache.set(char, data);
+    const c = allChars[i];
+    if (!charDataCache.has(c)) {
+      defaultCharDataLoader(c, (data) => {
+        charDataCache.set(c, data);
       }, () => {});
     }
   }
@@ -50,7 +50,7 @@ const strokeSlotsEl = document.getElementById("stroke-slots")!;
 const summaryEl = document.getElementById("summary")!;
 const logEl = document.getElementById("log")!;
 
-let kakitori: Kakitori | null = null;
+let kakitori: Char | null = null;
 let strokeSlotEls: HTMLElement[] = [];
 let highlightIdx = -1;
 
@@ -96,12 +96,12 @@ for (const [key, chars] of Object.entries(charSets)) {
 }
 
 function renderSection(grid: HTMLElement, chars: string[]) {
-  for (const char of chars) {
+  for (const c of chars) {
     const cell = document.createElement("div");
     cell.className = "char-cell";
     grid.appendChild(cell);
 
-    Kakitori.render(cell, char, {
+    char.render(cell, c, {
       size: 60,
       padding: 5,
       charDataLoader: cachedCharDataLoader,
@@ -119,7 +119,7 @@ function log(msg: string) {
   logEl.scrollTop = logEl.scrollHeight;
 }
 
-function formatStrokeData(data: KakitoriStrokeData): string {
+function formatStrokeData(data: CharStrokeData): string {
   const { drawnPath, ...rest } = data;
   return JSON.stringify({ ...rest, drawnPath: { pathString: drawnPath.pathString } });
 }
@@ -145,10 +145,10 @@ function buildSlots(strokeCount: number, endings: readonly { types?: string[] }[
   summaryEl.textContent = "Mistakes: 0, Stroke ending mistakes: 0";
 }
 
-function openPractice(char: string) {
+function openPractice(c: string) {
   kakitori?.destroy();
   practiceEl.style.display = "block";
-  practiceCharEl.textContent = char;
+  practiceCharEl.textContent = c;
 
   writerEl.innerHTML = "";
   clearResult();
@@ -162,13 +162,13 @@ function openPractice(char: string) {
     summaryEl.textContent = `Mistakes: ${mistakes}, Stroke ending mistakes: ${strokeEndingMistakes}`;
   }
 
-  kakitori = Kakitori.create(writerEl, char, {
+  kakitori = char.create(writerEl, c, {
     size: 300,
     drawingWidth: 12,
     showGrid: true,
     charDataLoader: cachedCharDataLoader,
     logger: log,
-    onCorrectStroke: (data: KakitoriStrokeData) => {
+    onCorrectStroke: (data: CharStrokeData) => {
       log(`onCorrectStroke ${formatStrokeData(data)}`);
       const slot = strokeSlotEls[data.strokeNum];
       if (slot && data.strokeEnding) {
@@ -180,12 +180,12 @@ function openPractice(char: string) {
         slot.className = "stroke-slot ok";
       }
     },
-    onMistake: (data: KakitoriStrokeData) => {
+    onMistake: (data: CharStrokeData) => {
       log(`onMistake ${formatStrokeData(data)}`);
       mistakes++;
       updateSummary();
     },
-    onStrokeEndingMistake: (data: KakitoriStrokeData) => {
+    onStrokeEndingMistake: (data: CharStrokeData) => {
       log(`onStrokeEndingMistake ${formatStrokeData(data)}`);
       strokeEndingMistakes++;
       updateSummary();

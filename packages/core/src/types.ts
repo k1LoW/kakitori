@@ -29,7 +29,7 @@ export interface StrokeEndingJudgment {
 }
 
 /** Per-stroke callback payload. Fired on onCorrectStroke / onMistake / onStrokeEndingMistake. */
-export interface KakitoriStrokeData {
+export interface CharStrokeData {
   /** The character being practiced. */
   character: string;
   /**
