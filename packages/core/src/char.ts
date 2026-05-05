@@ -147,8 +147,9 @@ export interface Char {
   /**
    * Return to a clean rest state: cancel any in-flight animate() overlay,
    * cancel any active quiz (drops pointer listeners and per-run counters),
-   * and restore stroke colors set via {@link setStrokeColor}. The current
-   * character and configured strokeEndings / strokeGroups stay in place.
+   * and clear any custom stroke colors applied via {@link setStrokeColor}
+   * back to their original values. The current character and configured
+   * strokeEndings / strokeGroups stay in place.
    */
   reset(): void;
   /**
