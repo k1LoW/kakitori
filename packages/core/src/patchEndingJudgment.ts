@@ -43,11 +43,13 @@ export interface EndingPatchOptions {
 
 /**
  * Wraps a hanzi-writer quiz instance so its `_handleSuccess` consults
- * `runJudgment` before letting the stroke advance. Idempotent: a second
- * call on the same quiz is a no-op.
+ * `runJudgment` before letting the stroke advance. Mutates the passed
+ * `quiz` (sets `__kakitoriPatched`, replaces `_handleSuccess`).
+ * Idempotent: a second call on the same quiz is a no-op.
  *
- * Pure function: takes a quiz-shaped object plus injected callbacks, so it
- * can be unit-tested with a fake quiz.
+ * Carries no closure-bound state of its own — every dependency is supplied
+ * through `options`, so a fake quiz plus inline callbacks is enough to
+ * unit-test the routing.
  */
 export function attachEndingJudgmentPatch(
   quiz: HanziQuiz,
