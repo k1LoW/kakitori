@@ -111,10 +111,11 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
-  // Monotonic counter to identify the current animateWithGroups run; lets a
-  // newer run supersede an older one's pending cleanup when animate() is
-  // called repeatedly in quick succession.
-  private animateRunId = 0;
+  // Reference to the overlay SVG currently displayed by an animateWithGroups()
+  // run, or null when no animation is in flight. A run's cleanup only fires if
+  // its overlay is still the active one, which lets a newer run supersede an
+  // older one without coordinating on a separate identifier.
+  private activeOverlay: SVGSVGElement | null = null;
 
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   private pendingEndingJudgment: StrokeEndingJudgment | null = null;
@@ -690,11 +691,6 @@ export class Kakitori {
   private async animateWithGroups(): Promise<void> {
     if (!this.strokeGroups) return;
 
-    // Each call gets a unique run id. Older runs detect they were superseded
-    // when their cleanup timer fires and short-circuit so the new run's
-    // overlay is not yanked out from under it.
-    const myRun = ++this.animateRunId;
-
     const rawSpeed = this.options.strokeAnimationSpeed ?? 1;
     const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
     if (speed !== rawSpeed) {
@@ -704,19 +700,11 @@ export class Kakitori {
     const strokeColor = this.options.strokeColor ?? "#555";
     const outlineColor = this.options.outlineColor ?? "#DDD";
 
-    let character;
-    try {
-      character = await this.hw.getCharacterData();
-    } catch (err) {
-      // Recover any DOM left in a hidden state by a superseded run that we
-      // are now abandoning. Only the current run is responsible for cleanup.
-      if (myRun === this.animateRunId) this.cleanupAnimationOverlays();
-      throw err;
-    }
-    if (myRun !== this.animateRunId) return;
+    const character = await this.hw.getCharacterData();
     const dataStrokes = character.strokes;
 
-    const hwSvg = this.targetEl.querySelector("svg") as SVGSVGElement | null;
+    // Ignore overlay SVGs from in-flight superseded runs so we get HanziWriter's.
+    const hwSvg = this.targetEl.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
     if (!hwSvg) return;
 
     const width = hwSvg.getAttribute("width") || "300";
@@ -836,12 +824,11 @@ export class Kakitori {
     overlaySvg.appendChild(flipGroup);
 
     try {
-      // Atomic swap: drop any leftover overlay from a superseded run, hide
-      // the underlying SVG, and append the new overlay synchronously so the
-      // user never sees a blank frame.
-      this.targetEl
-        .querySelectorAll("svg.kakitori-anim")
-        .forEach((el) => el.remove());
+      // Atomic swap: drop any prior overlay from a still-running superseded
+      // run, claim ownership, hide HanziWriter, and append our overlay
+      // synchronously so the user never sees a blank frame.
+      this.activeOverlay?.remove();
+      this.activeOverlay = overlaySvg;
       hwSvg.style.display = "none";
       this.targetEl.appendChild(overlaySvg);
 
@@ -849,22 +836,16 @@ export class Kakitori {
 
       await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));
     } finally {
-      // Only the current run cleans up; a superseded run leaves the new
-      // overlay alone and lets the new run handle restoration.
-      if (myRun === this.animateRunId) {
+      // Only clean up if we are still the active overlay; a superseded run
+      // leaves the new overlay alone. Note that if getCharacterData() rejects
+      // before the swap above, activeOverlay was never set to ours, so this
+      // branch is skipped and any prior run's cleanup proceeds normally.
+      if (this.activeOverlay === overlaySvg) {
         overlaySvg.remove();
+        this.activeOverlay = null;
         hwSvg.style.display = "";
       }
     }
-  }
-
-  /** Remove any leftover animation overlays and unhide the HanziWriter SVG. */
-  private cleanupAnimationOverlays(): void {
-    this.targetEl
-      .querySelectorAll("svg.kakitori-anim")
-      .forEach((el) => el.remove());
-    const hw = this.targetEl.querySelector("svg") as SVGSVGElement | null;
-    if (hw) hw.style.display = "";
   }
 
   /** Hide the character strokes. */
