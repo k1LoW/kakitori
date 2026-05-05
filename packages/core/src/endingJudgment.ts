@@ -2,6 +2,7 @@ import type { StrokeEnding, StrokeEndingJudgment } from "./types.js";
 import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
+import { findDataStroke, type StrokeGroups } from "./strokeGroups.js";
 
 export function computeDirectionFromMedian(
   points: ReadonlyArray<Pt>,
@@ -23,24 +24,6 @@ export function computeDirectionFromMedian(
   ];
 }
 
-/** Position of a data-stroke index within its strokeGroup, or null if unmapped. */
-function findGroupPosition(
-  strokeGroups: number[][] | null,
-  dataStrokeNum: number,
-): { logical: number; pos: number; group: number[] } | null {
-  if (!strokeGroups) {
-    return null;
-  }
-  for (let logical = 0; logical < strokeGroups.length; logical++) {
-    const group = strokeGroups[logical];
-    const pos = group.indexOf(dataStrokeNum);
-    if (pos >= 0) {
-      return { logical, pos, group };
-    }
-  }
-  return null;
-}
-
 export interface EndingJudgmentInput {
   /** Data-stroke index (hanzi-writer's perspective). */
   dataStrokeNum: number;
@@ -51,7 +34,7 @@ export interface EndingJudgmentInput {
   /** Configured stroke endings (logical-stroke indexed). */
   strokeEndings: readonly StrokeEnding[] | null;
   /** Logical→data stroke grouping. Null = identity (1:1). */
-  strokeGroups: readonly number[][] | null;
+  strokeGroups: StrokeGroups | null;
   /** Loaded hanzi-writer character data, used for direction auto-compute. */
   characterData: HanziCharacterData | null;
   /** Pixel size of the drawable area (size - 2 * padding). */
@@ -94,7 +77,7 @@ export function computeEndingJudgment(
   let logicalStrokeNum: number;
   let group: readonly number[] | null = null;
   if (strokeGroups) {
-    const found = findGroupPosition(strokeGroups as number[][], dataStrokeNum);
+    const found = findDataStroke(strokeGroups, dataStrokeNum);
     if (!found || found.pos !== 0) {
       return null;
     }
