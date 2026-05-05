@@ -772,6 +772,92 @@ describe("Kakitori", () => {
     });
   });
 
+  describe("animate() rapid succession", () => {
+    it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        k.animate();
+        k.animate();
+        k.animate();
+        k.animate();
+
+        // Drain microtasks so each queued animateWithGroups() resumes from
+        // its getCharacterData() await and synchronously runs the swap that
+        // claims activeOverlay; only the last run's overlay should remain.
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        const overlays = container.querySelectorAll("svg.kakitori-anim");
+        expect(overlays.length).toBeLessThanOrEqual(1);
+
+        // Drain the surviving run's pending cleanup timer so we don't leak
+        // a real setTimeout into the next test.
+        await vi.runAllTimersAsync();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("a stale cleanup timer from a superseded run cannot unhide HanziWriter or remove the new overlay", async () => {
+      vi.useFakeTimers();
+      try {
+        // Tight animation parameters so each run's cleanup timer (totalTime *
+        // 1000 + 200ms) fires within ~210ms of fake time. Without this, the
+        // setTimeout fires >1.2s after scheduling and the assertions below
+        // can't isolate run #1's timer from run #2's.
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        // Run #1 schedules its cleanup timer at fake-T=0 → fires near T≈210ms.
+        k.animate();
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        // Advance fake time before run #2 so run #2's timer is scheduled
+        // strictly later than run #1's, leaving a window where only run #1's
+        // timer has fired.
+        await vi.advanceTimersByTimeAsync(100);
+
+        // Run #2 schedules its cleanup timer at fake-T=100 → fires near T≈310ms.
+        k.animate();
+        for (let i = 0; i < 20; i++) await Promise.resolve();
+
+        const overlay = container.querySelector("svg.kakitori-anim");
+        const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+        expect(overlay).not.toBeNull();
+        expect(hw).not.toBeNull();
+        expect(hw!.style.display).toBe("none");
+
+        // Advance to fake-T≈250ms: run #1's timer (T≈210) fires; run #2's
+        // (T≈310) is still pending. Run #1's finally must observe that
+        // activeOverlay is no longer its overlaySvg and leave run #2's state
+        // alone.
+        await vi.advanceTimersByTimeAsync(150);
+
+        expect(container.querySelector("svg.kakitori-anim")).toBe(overlay);
+        expect(hw!.style.display).toBe("none");
+
+        // Drain run #2's timer: the final state should be clean.
+        await vi.runAllTimersAsync();
+        expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
+        expect(hw!.style.display).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe("computeMedianPathLength", () => {
     it("returns 0 for empty or single-point arrays", () => {
       expect(computeMedianPathLength([])).toBe(0);

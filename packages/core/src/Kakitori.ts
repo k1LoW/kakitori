@@ -111,6 +111,11 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
+  // Reference to the overlay SVG currently displayed by an animateWithGroups()
+  // run, or null when no animation is in flight. A run's cleanup only fires if
+  // its overlay is still the active one, which lets a newer run supersede an
+  // older one without coordinating on a separate identifier.
+  private activeOverlay: SVGSVGElement | null = null;
 
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   private pendingEndingJudgment: StrokeEndingJudgment | null = null;
@@ -698,7 +703,8 @@ export class Kakitori {
     const character = await this.hw.getCharacterData();
     const dataStrokes = character.strokes;
 
-    const hwSvg = this.targetEl.querySelector("svg");
+    // Ignore overlay SVGs from in-flight superseded runs so we get HanziWriter's.
+    const hwSvg = this.targetEl.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
     if (!hwSvg) return;
 
     const width = hwSvg.getAttribute("width") || "300";
@@ -817,16 +823,29 @@ export class Kakitori {
     overlaySvg.appendChild(defs);
     overlaySvg.appendChild(flipGroup);
 
-    // Hide HanziWriter's SVG, show overlay
-    hwSvg.style.display = "none";
-    this.targetEl.appendChild(overlaySvg);
+    try {
+      // Atomic swap: drop any prior overlay from a still-running superseded
+      // run, claim ownership, hide HanziWriter, and append our overlay
+      // synchronously so the user never sees a blank frame.
+      this.activeOverlay?.remove();
+      this.activeOverlay = overlaySvg;
+      hwSvg.style.display = "none";
+      this.targetEl.appendChild(overlaySvg);
 
-    this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
+      this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
-    // Wait for animation, then clean up
-    await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));
-    overlaySvg.remove();
-    hwSvg.style.display = "";
+      await new Promise((r) => setTimeout(r, totalTime * 1000 + 200));
+    } finally {
+      // Only clean up if we are still the active overlay; a superseded run
+      // leaves the new overlay alone. Note that if getCharacterData() rejects
+      // before the swap above, activeOverlay was never set to ours, so this
+      // branch is skipped and any prior run's cleanup proceeds normally.
+      if (this.activeOverlay === overlaySvg) {
+        overlaySvg.remove();
+        this.activeOverlay = null;
+        hwSvg.style.display = "";
+      }
+    }
   }
 
   /** Hide the character strokes. */
