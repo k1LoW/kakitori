@@ -726,7 +726,7 @@ export class Kakitori {
     // Calculate delay for each data stroke based on groups.
     // Strokes within the same group get the SAME delay (start simultaneously),
     // just like animCJK does for sub-strokes (e.g. --d:3s for both 3a and 3b).
-    const strokeDelays: number[] = new Array(dataStrokes.length).fill(0);
+    const strokeDelays: number[] = Array.from({ length: dataStrokes.length }, () => 0);
     let currentDelay = 0;
     for (let gi = 0; gi < this.strokeGroups.length; gi++) {
       if (gi > 0) currentDelay += delayBetweenStrokes / 1000;

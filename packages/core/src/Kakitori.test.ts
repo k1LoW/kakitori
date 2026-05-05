@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { Kakitori, computeMedianPathLength } from "./Kakitori.js";
-import type { RenderOptions } from "./KakitoriOptions.js";
 import type { CharDataLoaderFn } from "./KakitoriOptions.js";
 
 const mockCharData = {
