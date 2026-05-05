@@ -535,30 +535,50 @@ describe("Kakitori", () => {
       expect(lines).toHaveLength(2);
     });
 
-    it("does not block clicks from reaching onClick when showGrid is true", () => {
-      const onClick = vi.fn();
+    it("renders the grid lines before the strokes group in render()", () => {
+      Kakitori.render(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+      });
+      // SVG paint order is document order, so for the grid to sit *behind*
+      // the character strokes, the <line> elements must appear before the
+      // strokes <g>. Locking that order here keeps Kakitori.create() and
+      // Kakitori.render() consistent against future refactors.
+      const svg = container.querySelector("svg") as SVGSVGElement;
+      const children = Array.from(svg.children);
+      const lastLineIdx = children.findLastIndex(
+        (c) => c.tagName.toLowerCase() === "line",
+      );
+      const firstGroupIdx = children.findIndex(
+        (c) => c.tagName.toLowerCase() === "g",
+      );
+      expect(lastLineIdx).toBeGreaterThanOrEqual(0);
+      expect(firstGroupIdx).toBeGreaterThanOrEqual(0);
+      expect(lastLineIdx).toBeLessThan(firstGroupIdx);
+    });
+
+    it("keeps pointer-events:none on the grid SVG and its lines so it never blocks hit-testing", () => {
       Kakitori.create(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        onClick,
       });
 
-      // The grid sits on top of hanzi-writer's SVG, so clicks must pass
-      // through it. pointer-events:none on the SVG itself and on each <line>
-      // is what guarantees that contract.
+      // The grid sits behind hanzi-writer's SVG today (z-index auto vs hwSvg
+      // z-index 1), but pointer-events:none on the SVG itself and on every
+      // <line> is the defense-in-depth contract that future re-stacking
+      // refactors must keep — otherwise the grid could start intercepting
+      // pointer events and break onClick / getStrokeIndexAtPoint.
+      // (jsdom can't fully simulate elementFromPoint hit-testing, so we
+      // assert the configuration directly instead of triggering a real
+      // through-the-grid click.)
       const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement;
       expect(gridSvg.style.pointerEvents).toBe("none");
       for (const line of gridSvg.querySelectorAll("line")) {
         expect(line.getAttribute("pointer-events")).toBe("none");
       }
-
-      container.click();
-      expect(onClick).toHaveBeenCalledWith({
-        character: "あ",
-        strokeIndex: null,
-      });
     });
   });
 
@@ -955,6 +975,15 @@ describe("Kakitori", () => {
         // If the cached hwSvg had gone stale, animate would short-circuit at
         // its `if (!hwSvg) return` and the overlay would never appear.
         expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+        // Stronger check: the *live* hanzi-writer SVG in the DOM must be the
+        // one being hidden during animation. If the cached reference had been
+        // detached by a hypothetical setCharacter() that swaps out the root
+        // <svg>, animate() would set visibility on the orphan and the live
+        // SVG would stay visible — this assertion would fail.
+        const liveHwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement;
+        expect(liveHwSvg.style.visibility).toBe("hidden");
         await vi.runAllTimersAsync();
       } finally {
         vi.useRealTimers();
