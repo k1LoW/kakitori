@@ -124,7 +124,7 @@ export interface Char {
   getStrokeEndings(): readonly StrokeEnding[] | null;
   /** Return the stroke groups loaded from config, or null if not loaded. */
   getStrokeGroups(): readonly number[][] | null;
-  /** Override stroke groups. Rebuilds internal group maps. */
+  /** Override stroke groups. */
   setStrokeGroups(strokeGroups: number[][]): void;
   /** Override stroke endings. */
   setStrokeEndings(strokeEndings: StrokeEnding[]): void;
