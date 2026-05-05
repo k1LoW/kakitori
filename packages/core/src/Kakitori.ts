@@ -86,13 +86,17 @@ export function computeMedianPathLength(
 function computeDirectionFromMedian(
   points: Array<{ x: number; y: number }>,
 ): [number, number] | null {
-  if (points.length < 2) return null;
+  if (points.length < 2) {
+    return null;
+  }
   const last = points[points.length - 1];
   const prev = points[points.length - 2];
   const dx = last.x - prev.x;
   const dy = last.y - prev.y;
   const mag = Math.sqrt(dx * dx + dy * dy);
-  if (mag === 0) return null;
+  if (mag === 0) {
+    return null;
+  }
   return [
     Math.round((dx / mag) * 100) / 100,
     Math.round((dy / mag) * 100) / 100,
@@ -158,8 +162,12 @@ export class Kakitori {
       this.configReady = Promise.resolve()
         .then(() => loader(character))
         .then((config) => {
-          if (this.destroyed) return;
-          if (!config) return;
+          if (this.destroyed) {
+            return;
+          }
+          if (!config) {
+            return;
+          }
           this.log?.(`config loaded: ${JSON.stringify(config)}`);
           // Preserve any stroke groups already set on the instance
           if (this.strokeGroups == null && config.strokeGroups) {
@@ -171,7 +179,9 @@ export class Kakitori {
           }
         })
         .catch((error) => {
-          if (this.destroyed) return;
+          if (this.destroyed) {
+            return;
+          }
           this.log?.(
             `config load failed: ${error instanceof Error ? error.message : String(error)}`,
           );
@@ -196,16 +206,33 @@ export class Kakitori {
       charDataLoader: options.charDataLoader ?? defaultCharDataLoader,
     };
 
-    if (options.strokeColor != null) hwOptions.strokeColor = options.strokeColor;
-    if (options.outlineColor != null) hwOptions.outlineColor = options.outlineColor;
-    if (options.drawingColor != null) hwOptions.drawingColor = options.drawingColor;
-    if (options.drawingWidth != null) hwOptions.drawingWidth = options.drawingWidth;
-    if (options.highlightColor != null) hwOptions.highlightColor = options.highlightColor;
-    if (options.showOutline != null) hwOptions.showOutline = options.showOutline;
-    if (options.showCharacter != null) hwOptions.showCharacter = options.showCharacter;
-    if (options.strokeAnimationSpeed != null) hwOptions.strokeAnimationSpeed = options.strokeAnimationSpeed;
-    if (options.delayBetweenStrokes != null) hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
-
+    if (options.strokeColor != null) {
+      hwOptions.strokeColor = options.strokeColor;
+    }
+    if (options.outlineColor != null) {
+      hwOptions.outlineColor = options.outlineColor;
+    }
+    if (options.drawingColor != null) {
+      hwOptions.drawingColor = options.drawingColor;
+    }
+    if (options.drawingWidth != null) {
+      hwOptions.drawingWidth = options.drawingWidth;
+    }
+    if (options.highlightColor != null) {
+      hwOptions.highlightColor = options.highlightColor;
+    }
+    if (options.showOutline != null) {
+      hwOptions.showOutline = options.showOutline;
+    }
+    if (options.showCharacter != null) {
+      hwOptions.showCharacter = options.showCharacter;
+    }
+    if (options.strokeAnimationSpeed != null) {
+      hwOptions.strokeAnimationSpeed = options.strokeAnimationSpeed;
+    }
+    if (options.delayBetweenStrokes != null) {
+      hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
+    }
     this.hw = HanziWriter.create(this.targetEl, character, hwOptions as any);
 
     if (options.showGrid) {
@@ -234,8 +261,9 @@ export class Kakitori {
     this.dataToLogical.clear();
     this.dataToGroupPos.clear();
     this.dataToGroup.clear();
-    if (!this.strokeGroups) return;
-
+    if (!this.strokeGroups) {
+      return;
+    }
     for (let logical = 0; logical < this.strokeGroups.length; logical++) {
       const group = this.strokeGroups[logical];
       for (let pos = 0; pos < group.length; pos++) {
@@ -252,7 +280,9 @@ export class Kakitori {
 
   private isLastInGroup(dataStrokeNum: number): boolean {
     const group = this.dataToGroup.get(dataStrokeNum);
-    if (!group) return true;
+    if (!group) {
+      return true;
+    }
     return this.dataToGroupPos.get(dataStrokeNum) === group.length - 1;
   }
 
@@ -262,7 +292,9 @@ export class Kakitori {
 
   private getRemainingSkipsInGroup(dataStrokeNum: number): number {
     const group = this.dataToGroup.get(dataStrokeNum);
-    if (!group) return 0;
+    if (!group) {
+      return 0;
+    }
     const pos = this.dataToGroupPos.get(dataStrokeNum) ?? 0;
     return group.length - 1 - pos;
   }
@@ -280,8 +312,12 @@ export class Kakitori {
     hwStrokesRemaining: number,
     isCorrect: boolean,
   ): number {
-    if (!this.strokeGroups) return hwStrokesRemaining;
-    if (!this.dataToLogical.has(dataStrokeNum)) return hwStrokesRemaining;
+    if (!this.strokeGroups) {
+      return hwStrokesRemaining;
+    }
+    if (!this.dataToLogical.has(dataStrokeNum)) {
+      return hwStrokesRemaining;
+    }
     const totalLogical = this.strokeGroups.length;
     const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
     return totalLogical - logicalStrokeNum - (isCorrect ? 1 : 0);
@@ -408,7 +444,9 @@ export class Kakitori {
       this.log?.(`pointerdown  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}`);
     };
     this.boundOnPointerMove = (e: PointerEvent) => {
-      if (!this.isPointerDown) return;
+      if (!this.isPointerDown) {
+        return;
+      }
       const now = performance.now();
       const dt = (now - this.lastMoveTime).toFixed(0);
       this.lastMoveTime = now;
@@ -416,7 +454,9 @@ export class Kakitori {
       this.log?.(`pointermove  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  dt=${dt}ms`);
     };
     this.boundOnPointerUp = (e: PointerEvent) => {
-      if (!this.isPointerDown) return;
+      if (!this.isPointerDown) {
+        return;
+      }
       this.isPointerDown = false;
       this.releaseTime = performance.now();
       const pause = (this.releaseTime - this.lastMoveTime).toFixed(0);
@@ -458,7 +498,9 @@ export class Kakitori {
   start(): void {
     this.assertNotDestroyed();
     this.configReady.then(() => {
-      if (this.destroyed) return;
+      if (this.destroyed) {
+        return;
+      }
       this.startQuiz();
     });
   }
@@ -469,7 +511,9 @@ export class Kakitori {
 
     // Pre-load character data for direction auto-computation
     this.hw.getCharacterData().then((c) => {
-      if (this.destroyed) return;
+      if (this.destroyed) {
+        return;
+      }
       this.characterData = c;
     });
 
@@ -548,7 +592,9 @@ export class Kakitori {
     // we can intercept the success-then-advance flow with stroke ending
     // judgment and optionally redirect to the failure path.
     Promise.resolve(quizPromise).then(() => {
-      if (this.destroyed) return;
+      if (this.destroyed) {
+        return;
+      }
       this.patchQuizForEnding();
     });
   }
@@ -563,16 +609,20 @@ export class Kakitori {
     dataStrokeNum: number,
     meta: any,
   ): StrokeEndingJudgment | null {
-    if (!this.strokeEndings) return null;
+    if (!this.strokeEndings) {
+      return null;
+    }
     // When no strokeGroups are configured, every stroke is its own logical
     // stroke (1:1 mapping), so judgment applies to all strokes. Only gate on
     // isFirstInGroup when groups are explicitly defined.
-    if (this.strokeGroups && !this.isFirstInGroup(dataStrokeNum)) return null;
-
+    if (this.strokeGroups && !this.isFirstInGroup(dataStrokeNum)) {
+      return null;
+    }
     const logicalStrokeNum = this.getLogicalStrokeNum(dataStrokeNum);
     const expected = this.strokeEndings[logicalStrokeNum];
-    if (!expected?.types || expected.types.length === 0) return null;
-
+    if (!expected?.types || expected.types.length === 0) {
+      return null;
+    }
     let resolvedExpected = expected;
     const needsDirection = expected.types.includes("hane") || expected.types.includes("harai");
     if (expected.direction == null && needsDirection) {
@@ -617,8 +667,12 @@ export class Kakitori {
    */
   private patchQuizForEnding(): void {
     const quiz: any = (this.hw as any)._quiz;
-    if (!quiz) return;
-    if (quiz.__kakitoriPatched) return;
+    if (!quiz) {
+      return;
+    }
+    if (quiz.__kakitoriPatched) {
+      return;
+    }
     quiz.__kakitoriPatched = true;
 
     const originalHandleSuccess = quiz._handleSuccess.bind(quiz);
@@ -669,7 +723,9 @@ export class Kakitori {
   animate(): void {
     this.assertNotDestroyed();
     this.configReady.then(() => {
-      if (this.destroyed) return;
+      if (this.destroyed) {
+        return;
+      }
       this.startAnimation();
     });
   }
@@ -689,8 +745,9 @@ export class Kakitori {
    * then shows HanziWriter's character and removes the overlay.
    */
   private async animateWithGroups(): Promise<void> {
-    if (!this.strokeGroups) return;
-
+    if (!this.strokeGroups) {
+      return;
+    }
     const rawSpeed = this.options.strokeAnimationSpeed ?? 1;
     const speed = Number.isFinite(rawSpeed) && rawSpeed > 0 ? rawSpeed : 1;
     if (speed !== rawSpeed) {
@@ -705,8 +762,9 @@ export class Kakitori {
 
     // Ignore overlay SVGs from in-flight superseded runs so we get HanziWriter's.
     const hwSvg = this.targetEl.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
-    if (!hwSvg) return;
-
+    if (!hwSvg) {
+      return;
+    }
     const width = hwSvg.getAttribute("width") || "300";
     const height = hwSvg.getAttribute("height") || "300";
 
@@ -729,11 +787,15 @@ export class Kakitori {
     const strokeDelays: number[] = Array.from({ length: dataStrokes.length }, () => 0);
     let currentDelay = 0;
     for (let gi = 0; gi < this.strokeGroups.length; gi++) {
-      if (gi > 0) currentDelay += delayBetweenStrokes / 1000;
+      if (gi > 0) {
+        currentDelay += delayBetweenStrokes / 1000;
+      }
       const groupDelay = currentDelay;
       let groupMaxDuration = 0;
       for (const dataIdx of this.strokeGroups[gi]) {
-        if (dataIdx < 0 || dataIdx >= dataStrokes.length) continue;
+        if (dataIdx < 0 || dataIdx >= dataStrokes.length) {
+          continue;
+        }
         strokeDelays[dataIdx] = groupDelay;
         if (strokeDurations[dataIdx] > groupMaxDuration) {
           groupMaxDuration = strokeDurations[dataIdx];
@@ -745,7 +807,9 @@ export class Kakitori {
     let totalTime = 0;
     for (let i = 0; i < dataStrokes.length; i++) {
       const end = strokeDelays[i] + strokeDurations[i];
-      if (end > totalTime) totalTime = end;
+      if (end > totalTime) {
+        totalTime = end;
+      }
     }
 
     // Build overlay SVG (exact animCJK structure)
@@ -766,7 +830,9 @@ export class Kakitori {
     const styleEl = document.createElementNS(ns, "style");
     styleEl.textContent = `
       @keyframes kakitori-zk {
-        to { stroke-dashoffset: 0; }
+        to {
+          stroke-dashoffset: 0;
+        }
       }
       svg.kakitori-anim path[clip-path] {
         animation: kakitori-zk var(--t) linear forwards var(--d);
@@ -880,7 +946,9 @@ export class Kakitori {
    */
   private getStrokePaths(): SVGPathElement[] {
     const svg = this.targetEl.querySelector("svg");
-    if (!svg) return [];
+    if (!svg) {
+      return [];
+    }
     const allGroups = svg.querySelectorAll(":scope > g > g");
     const groupsWithPaths: Element[] = [];
     for (const g of allGroups) {
@@ -890,7 +958,9 @@ export class Kakitori {
     }
     // Main character group is the second group (index 1): outline=0, main=1, highlight=2
     const mainGroup = groupsWithPaths[1];
-    if (!mainGroup) return [];
+    if (!mainGroup) {
+      return [];
+    }
     return Array.from(mainGroup.querySelectorAll("path[clip-path]")) as SVGPathElement[];
   }
 
@@ -903,20 +973,25 @@ export class Kakitori {
   getStrokeIndexAtPoint(clientX: number, clientY: number): number | null {
     this.assertNotDestroyed();
     const svg = this.targetEl.querySelector("svg");
-    if (!svg) return null;
-
+    if (!svg) {
+      return null;
+    }
     const el = document.elementFromPoint(clientX, clientY);
-    if (!el || !(el instanceof SVGPathElement)) return null;
-
+    if (!el || !(el instanceof SVGPathElement)) {
+      return null;
+    }
     // The clicked element could be from any group (outline, main, highlight).
     // All groups have the same stroke order. Find which clip-path it uses,
     // then determine the data stroke index from the clip-path id.
     const clipAttr = el.getAttribute("clip-path");
-    if (!clipAttr) return null;
-
+    if (!clipAttr) {
+      return null;
+    }
     // Extract mask id: url("...#mask-25") -> mask-25
     const match = clipAttr.match(/#([^")\s]+)/);
-    if (!match) return null;
+    if (!match) {
+      return null;
+    }
     const maskId = match[1];
 
     // Find all clip-paths in defs and determine the stroke index
@@ -990,7 +1065,9 @@ export class Kakitori {
    */
   getLogicalStrokeCount(): number {
     this.assertNotDestroyed();
-    if (this.strokeGroups) return this.strokeGroups.length;
+    if (this.strokeGroups) {
+      return this.strokeGroups.length;
+    }
     return this.getStrokePaths().length;
   }
 
@@ -1009,7 +1086,9 @@ export class Kakitori {
    * After destroy, calling any other public method throws. destroy() itself is idempotent.
    */
   destroy(): void {
-    if (this.destroyed) return;
+    if (this.destroyed) {
+      return;
+    }
     this.destroyed = true;
     this.stopTimingTracking();
     if (this.boundOnClick) {

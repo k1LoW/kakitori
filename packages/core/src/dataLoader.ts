@@ -13,7 +13,7 @@ export function defaultCharDataLoader(
 ): void {
   fetch(`${DEFAULT_CHAR_DATA_URL}/${encodeURIComponent(char)}.json`)
     .then((res) => {
-      if (!res.ok) throw new Error(`Failed to load data for "${char}"`);
+      if (!res.ok) {throw new Error(`Failed to load data for "${char}"`);}
       return res.json();
     })
     .then(onLoad)
@@ -40,7 +40,9 @@ export function defaultConfigLoader(
     signal: controller.signal,
   })
     .then((res) => {
-      if (res.status === 404) return null;
+      if (res.status === 404) {
+        return null;
+      }
       if (!res.ok) {
         throw new Error(
           `Failed to load config for "${char}" (HTTP ${res.status})`,

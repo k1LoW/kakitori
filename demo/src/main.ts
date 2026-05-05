@@ -203,7 +203,9 @@ function openPractice(char: string) {
 openPractice("あ");
 
 quizBtn.addEventListener("click", async () => {
-  if (!kakitori) return;
+  if (!kakitori) {
+    return;
+  }
   await kakitori.ready();
 
   const endings = kakitori.getStrokeEndings();
@@ -219,7 +221,9 @@ quizBtn.addEventListener("click", async () => {
 });
 
 animateBtn.addEventListener("click", async () => {
-  if (!kakitori) return;
+  if (!kakitori) {
+    return;
+  }
   await kakitori.ready();
   kakitori.resetStrokeColors();
   highlightIdx = -1;
@@ -227,7 +231,9 @@ animateBtn.addEventListener("click", async () => {
 });
 
 writerEl.addEventListener("click", (e) => {
-  if (!kakitori) return;
+  if (!kakitori) {
+    return;
+  }
   const idx = kakitori.getStrokeIndexAtPoint(e.clientX, e.clientY);
   if (idx !== null) {
     kakitori.resetStrokeColors();
@@ -238,9 +244,13 @@ writerEl.addEventListener("click", (e) => {
 });
 
 highlightBtn.addEventListener("click", () => {
-  if (!kakitori) return;
+  if (!kakitori) {
+    return;
+  }
   const count = kakitori.getLogicalStrokeCount();
-  if (count === 0) return;
+  if (count === 0) {
+    return;
+  }
   kakitori.resetStrokeColors();
   highlightIdx = (highlightIdx + 1) % count;
   kakitori.setStrokeColor(highlightIdx, "#c00");

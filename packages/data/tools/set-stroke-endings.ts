@@ -17,7 +17,9 @@ function loadCharData(char: string): { strokes: string[]; medians: number[][][] 
 
 function loadExisting(char: string): KakitoriCharacterConfig | null {
   const filePath = resolve(dataDir, `${char}.json`);
-  if (!existsSync(filePath)) return null;
+  if (!existsSync(filePath)) {
+    return null;
+  }
   return JSON.parse(readFileSync(filePath, "utf-8"));
 }
 
@@ -36,7 +38,7 @@ function typeToLabel(types: StrokeEndingType[]): string {
 
 function formatStrokeEnding(ending: StrokeEnding): string {
   const types = ending.types ?? [];
-  if (types.length === 0) return "{}";
+  if (types.length === 0) {return "{}";}
   const dir = ending.direction
     ? ` dir=[${ending.direction[0]}, ${ending.direction[1]}]`
     : "";
@@ -147,9 +149,15 @@ async function annotateChar(
     } else {
       const parts = input.split("+").map((s) => s.trim());
       const parsed = parts.map((p) => {
-        if (p === "t") return "tome" as const;
-        if (p === "h") return "hane" as const;
-        if (p === "r") return "harai" as const;
+        if (p === "t") {
+          return "tome" as const;
+        }
+        if (p === "h") {
+          return "hane" as const;
+        }
+        if (p === "r") {
+          return "harai" as const;
+        }
         return null;
       });
       const valid = parsed.filter((p) => p !== null);

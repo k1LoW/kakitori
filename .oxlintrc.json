@@ -16,7 +16,8 @@
     "no-underscore-dangle": "off",
     "no-await-in-loop": "off",
     "eslint-plugin-unicorn/consistent-function-scoping": "off",
-    "eslint-plugin-promise/always-return": "off"
+    "eslint-plugin-promise/always-return": "off",
+    "curly": ["error", "all"]
   },
   "ignorePatterns": [
     "**/dist/**"

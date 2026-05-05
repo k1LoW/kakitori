@@ -7,7 +7,9 @@ interface SuggestionResult {
 
 function normalize(v: [number, number]): [number, number] {
   const mag = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
-  if (mag === 0) return [0, 0];
+  if (mag === 0) {
+    return [0, 0];
+  }
   return [
     Math.round((v[0] / mag) * 100) / 100,
     Math.round((v[1] / mag) * 100) / 100,

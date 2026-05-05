@@ -11,7 +11,9 @@ interface Point {
 
 function normalize(dx: number, dy: number): [number, number] {
   const mag = Math.sqrt(dx * dx + dy * dy);
-  if (mag === 0) return [0, 0];
+  if (mag === 0) {
+    return [0, 0];
+  }
   return [dx / mag, dy / mag];
 }
 
@@ -29,7 +31,9 @@ export interface StrokeTimingData {
 }
 
 function getEndDirection(points: Point[]): [number, number] | null {
-  if (points.length < 2) return null;
+  if (points.length < 2) {
+    return null;
+  }
   const last = points[points.length - 1];
   const prev = points[points.length - 2];
   return normalize(last.x - prev.x, last.y - prev.y);
@@ -56,8 +60,9 @@ function analyzeTailFromTimedPoints(
 ): TailAnalysis {
   const empty: TailAnalysis = { directionChange: 0, bodySpeed: 0, tipSpeed: 0 };
   const n = timedPoints.length;
-  if (n < 6) return empty;
-
+  if (n < 6) {
+    return empty;
+  }
   const bodyStart = Math.floor(n * 0.4);
   const bodyEnd = Math.floor(n * 0.7);
   const tipStart = Math.floor(n * 0.85);
