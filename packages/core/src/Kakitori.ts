@@ -115,6 +115,17 @@ export class Kakitori {
   private strokeEndingMistakes = 0;
   private targetEl: HTMLElement;
   private log: KakitoriLogger | null;
+  // Wrapper element inserted into targetEl; owns the positioning context for
+  // hanzi-writer's SVG, the optional grid SVG, and the animate() overlay.
+  // Appended in the constructor and dropped via destroy() (which clears
+  // targetEl.innerHTML), so the host element's styles are never mutated even
+  // though its child list is.
+  private layerEl!: HTMLElement;
+  // hanzi-writer's main SVG, captured right after HanziWriter.create().
+  private hwSvg: SVGSVGElement | null = null;
+  // Optional grid SVG layered behind hanzi-writer's SVG so it stays visible
+  // while hanzi-writer is hidden during animate(). Null when showGrid is off.
+  private gridSvg: SVGSVGElement | null = null;
   // Reference to the overlay SVG currently displayed by an animateWithGroups()
   // run, or null when no animation is in flight. A run's cleanup only fires if
   // its overlay is still the active one, which lets a newer run supersede an
@@ -233,13 +244,48 @@ export class Kakitori {
     if (options.delayBetweenStrokes != null) {
       hwOptions.delayBetweenStrokes = options.delayBetweenStrokes;
     }
-    this.hw = HanziWriter.create(this.targetEl, character, hwOptions as any);
+    // Wrap hanzi-writer's SVG in a positioned layer container so the optional
+    // grid SVG and the animate() overlay can layer onto it without mutating
+    // the user-supplied targetEl. destroy() clears targetEl.innerHTML, which
+    // also drops this wrapper, so no host-element style is ever left behind.
+    this.layerEl = document.createElement("div");
+    this.layerEl.style.position = "relative";
+    this.layerEl.style.display = "inline-block";
+    this.layerEl.style.lineHeight = "0";
+    this.targetEl.appendChild(this.layerEl);
+
+    this.hw = HanziWriter.create(this.layerEl, character, hwOptions as any);
+
+    const hwSvg = this.layerEl.querySelector("svg") as SVGSVGElement | null;
+    if (hwSvg) {
+      // Stacking inside layerEl uses explicit z-index values:
+      //   gridSvg  (auto, default)  -> background
+      //   hwSvg    (z-index: 1)     -> character outline + user-drawn strokes
+      //   overlaySvg (z-index: 2)   -> animate() animation, on top of hwSvg
+      // hwSvg needs position: relative so the z-index actually applies.
+      hwSvg.style.position = "relative";
+      hwSvg.style.zIndex = "1";
+      this.hwSvg = hwSvg;
+    }
 
     if (options.showGrid) {
-      const hwSvg = this.targetEl.querySelector("svg");
-      if (hwSvg) {
-        drawCrossGrid(hwSvg as SVGSVGElement, size, options.showGrid);
-      }
+      const ns = "http://www.w3.org/2000/svg";
+      const gridSvg = document.createElementNS(ns, "svg");
+      gridSvg.classList.add("kakitori-grid");
+      gridSvg.setAttribute("width", String(size));
+      gridSvg.setAttribute("height", String(size));
+      // Decorative; hide from assistive technologies so the writer surfaces a
+      // single accessible graphic rather than two.
+      gridSvg.setAttribute("aria-hidden", "true");
+      gridSvg.style.position = "absolute";
+      gridSvg.style.top = "0";
+      gridSvg.style.left = "0";
+      gridSvg.style.pointerEvents = "none";
+      drawCrossGrid(gridSvg, size, options.showGrid);
+      // Insert before hwSvg so grid is the first child; since hwSvg is the
+      // only z-indexed sibling, the grid implicitly stacks behind it.
+      this.layerEl.insertBefore(gridSvg, this.layerEl.firstChild);
+      this.gridSvg = gridSvg;
     }
 
     if (options.onClick) {
@@ -370,6 +416,12 @@ export class Kakitori {
         svg.setAttribute("width", String(size));
         svg.setAttribute("height", String(size));
 
+        // Draw the grid first so it sits behind the character strokes,
+        // matching the layering used by Kakitori.create().
+        if (options.showGrid) {
+          drawCrossGrid(svg, size, options.showGrid);
+        }
+
         const g = document.createElementNS(ns, "g");
         g.setAttribute(
           "transform",
@@ -384,10 +436,6 @@ export class Kakitori {
         }
 
         svg.appendChild(g);
-
-        if (options.showGrid) {
-          drawCrossGrid(svg, size, options.showGrid);
-        }
 
         el.appendChild(svg);
 
@@ -760,8 +808,7 @@ export class Kakitori {
     const character = await this.hw.getCharacterData();
     const dataStrokes = character.strokes;
 
-    // Ignore overlay SVGs from in-flight superseded runs so we get HanziWriter's.
-    const hwSvg = this.targetEl.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+    const hwSvg = this.hwSvg;
     if (!hwSvg) {
       return;
     }
@@ -818,6 +865,15 @@ export class Kakitori {
     overlaySvg.classList.add("kakitori-anim");
     overlaySvg.setAttribute("width", width);
     overlaySvg.setAttribute("height", height);
+    // Layer the overlay above hanzi-writer's SVG (z-index: 1) so the
+    // animation paints on top even if hwSvg's visibility is briefly toggled
+    // back. The grid SVG sits as a separate sibling behind both and stays
+    // visible through the overlay's transparent regions.
+    overlaySvg.style.position = "absolute";
+    overlaySvg.style.top = "0";
+    overlaySvg.style.left = "0";
+    overlaySvg.style.zIndex = "2";
+    overlaySvg.style.pointerEvents = "none";
 
     // Copy HanziWriter's exact coordinate transform (includes padding, scale, and Y-flip)
     const hwGroup = hwSvg.querySelector(":scope > g");
@@ -895,8 +951,10 @@ export class Kakitori {
       // synchronously so the user never sees a blank frame.
       this.activeOverlay?.remove();
       this.activeOverlay = overlaySvg;
-      hwSvg.style.display = "none";
-      this.targetEl.appendChild(overlaySvg);
+      // Use visibility (not display) so hanzi-writer's SVG keeps occupying
+      // layout space; the grid SVG (a separate sibling) stays visible.
+      hwSvg.style.visibility = "hidden";
+      this.layerEl.appendChild(overlaySvg);
 
       this.log?.(`animate: ${this.strokeGroups!.length} strokes (${dataStrokes.length} data strokes), totalTime=${totalTime.toFixed(1)}s`);
 
@@ -909,7 +967,7 @@ export class Kakitori {
       if (this.activeOverlay === overlaySvg) {
         overlaySvg.remove();
         this.activeOverlay = null;
-        hwSvg.style.display = "";
+        hwSvg.style.visibility = "";
       }
     }
   }
@@ -945,7 +1003,7 @@ export class Kakitori {
    * Returns paths in data stroke order.
    */
   private getStrokePaths(): SVGPathElement[] {
-    const svg = this.targetEl.querySelector("svg");
+    const svg = this.hwSvg;
     if (!svg) {
       return [];
     }
@@ -972,7 +1030,7 @@ export class Kakitori {
    */
   getStrokeIndexAtPoint(clientX: number, clientY: number): number | null {
     this.assertNotDestroyed();
-    const svg = this.targetEl.querySelector("svg");
+    const svg = this.hwSvg;
     if (!svg) {
       return null;
     }

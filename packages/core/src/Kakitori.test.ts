@@ -534,6 +534,63 @@ describe("Kakitori", () => {
       const lines = container.querySelectorAll("svg > line");
       expect(lines).toHaveLength(2);
     });
+
+    it("renders the grid lines before the strokes group in render()", () => {
+      Kakitori.render(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+      });
+      // SVG paint order is document order, so for the grid to sit *behind*
+      // the character strokes, the <line> elements must appear before the
+      // strokes <g>. Locking that order here keeps Kakitori.create() and
+      // Kakitori.render() consistent against future refactors.
+      const svg = container.querySelector("svg") as SVGSVGElement;
+      const children = Array.from(svg.children);
+      const lastLineIdx = children.findLastIndex(
+        (c) => c.tagName.toLowerCase() === "line",
+      );
+      const firstGroupIdx = children.findIndex(
+        (c) => c.tagName.toLowerCase() === "g",
+      );
+      expect(lastLineIdx).toBeGreaterThanOrEqual(0);
+      expect(firstGroupIdx).toBeGreaterThanOrEqual(0);
+      expect(lastLineIdx).toBeLessThan(firstGroupIdx);
+    });
+
+    it("marks the grid SVG as aria-hidden so it is not exposed as a separate accessible graphic", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement;
+      expect(gridSvg.getAttribute("aria-hidden")).toBe("true");
+    });
+
+    it("keeps pointer-events:none on the grid SVG and its lines so it never blocks hit-testing", () => {
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+
+      // The grid sits behind hanzi-writer's SVG today (z-index auto vs hwSvg
+      // z-index 1), but pointer-events:none on the SVG itself and on every
+      // <line> is the defense-in-depth contract that future re-stacking
+      // refactors must keep — otherwise the grid could start intercepting
+      // pointer events and break onClick / getStrokeIndexAtPoint.
+      // (jsdom can't fully simulate elementFromPoint hit-testing, so we
+      // assert the configuration directly instead of triggering a real
+      // through-the-grid click.)
+      const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement;
+      expect(gridSvg.style.pointerEvents).toBe("none");
+      for (const line of gridSvg.querySelectorAll("line")) {
+        expect(line.getAttribute("pointer-events")).toBe("none");
+      }
+    });
   });
 
   describe("hanzi-writer integration (monkey patch survival)", () => {
@@ -804,6 +861,51 @@ describe("Kakitori", () => {
       }
     });
 
+    it("keeps the showGrid grid visible while animate() is running", async () => {
+      vi.useFakeTimers();
+      try {
+        const k = Kakitori.create(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          showGrid: true,
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+        });
+        await k.ready();
+        k.setStrokeGroups([[0], [1]]);
+
+        const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement | null;
+        const hwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement | null;
+        expect(gridSvg).not.toBeNull();
+        expect(hwSvg).not.toBeNull();
+        expect(gridSvg!.style.visibility).not.toBe("hidden");
+
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+
+        // Mid-animation: hanzi-writer's SVG hides itself but the grid SVG
+        // (a separate sibling) must stay visible — that's the whole point of
+        // the structural separation.
+        expect(hwSvg!.style.visibility).toBe("hidden");
+        expect(gridSvg!.isConnected).toBe(true);
+        expect(gridSvg!.style.visibility).not.toBe("hidden");
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+
+        await vi.runAllTimersAsync();
+
+        // After cleanup the grid is still in place and hwSvg is back.
+        expect(hwSvg!.style.visibility).toBe("");
+        expect(gridSvg!.isConnected).toBe(true);
+        expect(container.querySelector("svg.kakitori-anim")).toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("a stale cleanup timer from a superseded run cannot unhide HanziWriter or remove the new overlay", async () => {
       vi.useFakeTimers();
       try {
@@ -839,7 +941,7 @@ describe("Kakitori", () => {
         const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
         expect(overlay).not.toBeNull();
         expect(hw).not.toBeNull();
-        expect(hw!.style.display).toBe("none");
+        expect(hw!.style.visibility).toBe("hidden");
 
         // Advance to fake-T≈250ms: run #1's timer (T≈210) fires; run #2's
         // (T≈310) is still pending. Run #1's finally must observe that
@@ -848,12 +950,52 @@ describe("Kakitori", () => {
         await vi.advanceTimersByTimeAsync(150);
 
         expect(container.querySelector("svg.kakitori-anim")).toBe(overlay);
-        expect(hw!.style.display).toBe("none");
+        expect(hw!.style.visibility).toBe("hidden");
 
         // Drain run #2's timer: the final state should be clean.
         await vi.runAllTimersAsync();
         expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
-        expect(hw!.style.display).toBe("");
+        expect(hw!.style.visibility).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("DOM-dependent APIs still work after setCharacter()", async () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+
+      // Switch the character; the cached hwSvg reference must remain valid
+      // for the DOM-dependent APIs that reuse it (animate, getStrokePaths,
+      // getStrokeIndexAtPoint).
+      await k.setCharacter("い");
+
+      expect(() => k.getStrokeIndexAtPoint(0, 0)).not.toThrow();
+      expect(k.getLogicalStrokeCount()).toBeGreaterThan(0);
+
+      vi.useFakeTimers();
+      try {
+        k.setStrokeGroups([[0], [1]]);
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        // If the cached hwSvg had gone stale, animate would short-circuit at
+        // its `if (!hwSvg) return` and the overlay would never appear.
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+        // Stronger check: the *live* hanzi-writer SVG in the DOM must be the
+        // one being hidden during animation. If the cached reference had been
+        // detached by a hypothetical setCharacter() that swaps out the root
+        // <svg>, animate() would set visibility on the orphan and the live
+        // SVG would stay visible — this assertion would fail.
+        const liveHwSvg = container.querySelector(
+          "svg:not(.kakitori-anim):not(.kakitori-grid)",
+        ) as SVGSVGElement;
+        expect(liveHwSvg.style.visibility).toBe("hidden");
+        await vi.runAllTimersAsync();
       } finally {
         vi.useRealTimers();
       }
