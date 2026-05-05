@@ -788,8 +788,9 @@ describe("Kakitori", () => {
         k.animate();
         k.animate();
 
-        // Drain microtasks so each queued animateWithGroups() reaches its
-        // post-await runId check; superseded runs return without touching DOM.
+        // Drain microtasks so each queued animateWithGroups() resumes from
+        // its getCharacterData() await and synchronously runs the swap that
+        // claims activeOverlay; only the last run's overlay should remain.
         for (let i = 0; i < 20; i++) await Promise.resolve();
 
         const overlays = container.querySelectorAll("svg.kakitori-anim");
@@ -839,8 +840,9 @@ describe("Kakitori", () => {
         expect(hw!.style.display).toBe("none");
 
         // Advance to fake-T≈250ms: run #1's timer (T≈210) fires; run #2's
-        // (T≈310) is still pending. Run #1's finally must short-circuit on
-        // runId mismatch and leave run #2's state alone.
+        // (T≈310) is still pending. Run #1's finally must observe that
+        // activeOverlay is no longer its overlaySvg and leave run #2's state
+        // alone.
         await vi.advanceTimersByTimeAsync(150);
 
         expect(container.querySelector("svg.kakitori-anim")).toBe(overlay);
