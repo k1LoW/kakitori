@@ -534,6 +534,32 @@ describe("Kakitori", () => {
       const lines = container.querySelectorAll("svg > line");
       expect(lines).toHaveLength(2);
     });
+
+    it("does not block clicks from reaching onClick when showGrid is true", () => {
+      const onClick = vi.fn();
+      Kakitori.create(container, "あ", {
+        size: 300,
+        showGrid: true,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onClick,
+      });
+
+      // The grid sits on top of hanzi-writer's SVG, so clicks must pass
+      // through it. pointer-events:none on the SVG itself and on each <line>
+      // is what guarantees that contract.
+      const gridSvg = container.querySelector("svg.kakitori-grid") as SVGSVGElement;
+      expect(gridSvg.style.pointerEvents).toBe("none");
+      for (const line of gridSvg.querySelectorAll("line")) {
+        expect(line.getAttribute("pointer-events")).toBe("none");
+      }
+
+      container.click();
+      expect(onClick).toHaveBeenCalledWith({
+        character: "あ",
+        strokeIndex: null,
+      });
+    });
   });
 
   describe("hanzi-writer integration (monkey patch survival)", () => {
@@ -899,6 +925,37 @@ describe("Kakitori", () => {
         await vi.runAllTimersAsync();
         expect(container.querySelectorAll("svg.kakitori-anim").length).toBe(0);
         expect(hw!.style.visibility).toBe("");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("DOM-dependent APIs still work after setCharacter()", async () => {
+      const k = Kakitori.create(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+
+      // Switch the character; the cached hwSvg reference must remain valid
+      // for the DOM-dependent APIs that reuse it (animate, getStrokePaths,
+      // getStrokeIndexAtPoint).
+      await k.setCharacter("い");
+
+      expect(() => k.getStrokeIndexAtPoint(0, 0)).not.toThrow();
+      expect(k.getLogicalStrokeCount()).toBeGreaterThan(0);
+
+      vi.useFakeTimers();
+      try {
+        k.setStrokeGroups([[0], [1]]);
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        // If the cached hwSvg had gone stale, animate would short-circuit at
+        // its `if (!hwSvg) return` and the overlay would never appear.
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+        await vi.runAllTimersAsync();
       } finally {
         vi.useRealTimers();
       }

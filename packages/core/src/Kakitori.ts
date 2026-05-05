@@ -117,8 +117,9 @@ export class Kakitori {
   private log: KakitoriLogger | null;
   // Wrapper element inserted into targetEl; owns the positioning context for
   // hanzi-writer's SVG, the optional grid SVG, and the animate() overlay.
-  // Always cleaned up via destroy() (which clears targetEl.innerHTML), so
-  // targetEl itself is never mutated.
+  // Appended in the constructor and dropped via destroy() (which clears
+  // targetEl.innerHTML), so the host element's styles are never mutated even
+  // though its child list is.
   private layerEl!: HTMLElement;
   // hanzi-writer's main SVG, captured right after HanziWriter.create().
   private hwSvg: SVGSVGElement | null = null;
