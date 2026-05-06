@@ -223,6 +223,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
   const cellStates: PerCellState[] = [];
   const annotationStates: PerAnnotationState[] = [];
+  // Set by destroy() so deferred callbacks (await ready().then(start),
+  // queueMicrotask) can no-op instead of touching DOM / Char instances
+  // that have already been torn down.
+  let destroyed = false;
 
   // Mount each cell.
   for (let i = 0; i < cells.length; i++) {
@@ -320,7 +324,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       c.mount(cellEl, mountOpts);
       // Kick off the quiz once ready.
       void c.ready().then(() => {
-        if (!state.charInstance) {
+        if (destroyed || !state.charInstance) {
           return;
         }
         c.start();
@@ -330,7 +334,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       c.mount(cellEl, mountOpts);
       // Show mode is informational; report a synthetic matched=true so the
       // block can still tell when "everything writable is done".
-      queueMicrotask(() => commitGuidedResult(state, true));
+      queueMicrotask(() => {
+        if (destroyed) {
+          return;
+        }
+        commitGuidedResult(state, true);
+      });
     }
     return state;
   }
@@ -518,6 +527,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   return {
     el: wrapper,
     reset(): void {
+      if (destroyed) {
+        return;
+      }
       for (const state of cellStates) {
         state.result = null;
         state.mistakes = 0;
@@ -525,16 +537,32 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         if (state.cell.kind === "guided" && state.charInstance && state.charCellEl) {
           state.charInstance.reset();
           if (state.cell.mode === "write") {
-            void state.charInstance.ready().then(() => state.charInstance!.start());
+            const inst = state.charInstance;
+            void inst.ready().then(() => {
+              if (destroyed) {
+                return;
+              }
+              inst.start();
+            });
           } else {
-            queueMicrotask(() => commitGuidedResult(state, true));
+            queueMicrotask(() => {
+              if (destroyed) {
+                return;
+              }
+              commitGuidedResult(state, true);
+            });
           }
         } else if (state.freeHandle) {
           state.freeHandle.reset();
         } else if (state.cell.kind === "free" && state.cell.mode === "show") {
           // mode='show' free cell — re-emit the synthetic matched result.
           const expected = state.cell.expected;
-          queueMicrotask(() => commitFreeShowResult(state, "cell", expected));
+          queueMicrotask(() => {
+            if (destroyed) {
+              return;
+            }
+            commitFreeShowResult(state, "cell", expected);
+          });
         }
       }
       for (const state of annotationStates) {
@@ -543,11 +571,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           state.freeHandle.reset();
         } else {
           // mode='show' annotation — re-emit the synthetic result.
-          queueMicrotask(() => commitAnnotationShowResult(state));
+          queueMicrotask(() => {
+            if (destroyed) {
+              return;
+            }
+            commitAnnotationShowResult(state);
+          });
         }
       }
     },
     destroy(): void {
+      destroyed = true;
       for (const state of cellStates) {
         if (state.charInstance) {
           state.charInstance.destroy();
