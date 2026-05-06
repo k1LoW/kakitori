@@ -772,12 +772,28 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // Off-screen container so hanzi-writer's renderer can mount and the
     // matcher (which runs through endUserStroke -> renderState) does not
     // throw on missing layout.
+    //
+    // Hiding strategy avoids any user-visible side effects:
+    // - `position: fixed` keeps the box out of the document flow without
+    //   risking a horizontal scrollbar (which `left: -9999px` can cause
+    //   when the host page lacks `overflow-x: hidden`).
+    // - `visibility: hidden` removes it from rendering and hit-testing.
+    // - `pointer-events: none` belt-and-braces guard against stray events.
+    // - `aria-hidden="true"` keeps the offscreen mount out of the a11y
+    //   tree so screen readers do not see two copies of the character.
+    // - `contain: strict` confines layout / paint to the box, so even
+    //   the briefly-visible ancestors during hanzi-writer's render path
+    //   cannot perturb the host page.
     const container = document.createElement("div");
-    container.style.position = "absolute";
-    container.style.left = "-9999px";
+    container.setAttribute("aria-hidden", "true");
+    container.style.position = "fixed";
     container.style.top = "0";
+    container.style.left = "0";
     container.style.width = `${HANZI_COORD_SIZE}px`;
     container.style.height = `${HANZI_COORD_SIZE}px`;
+    container.style.visibility = "hidden";
+    container.style.pointerEvents = "none";
+    container.style.contain = "strict";
     document.body.appendChild(container);
 
     const hw = HanziWriter.create(container, currentCharacter, {
