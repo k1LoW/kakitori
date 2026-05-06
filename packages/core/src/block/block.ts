@@ -23,6 +23,7 @@ import type {
 
 const DEFAULT_CELL_SIZE = 120;
 const DEFAULT_ANNOTATION_RATIO = 0.4;
+const DEFAULT_CELL_BORDER = "1px solid #ddd";
 /**
  * Block-wide stroke width default in **display pixels**. Tuned for a
  * ~120-150px cell (about 3% of the cell's longer side); guided / free /
@@ -58,6 +59,11 @@ export interface BlockCreateOptions {
    * color / dash / width. Per-cell overrides via `GuidedCell.overrides` win.
    */
   showGrid?: boolean | GridOptions;
+  /**
+   * CSS `border` shorthand applied to every cell and annotation wrapper.
+   * Defaults to `'1px solid #ddd'`. Pass `'none'` to disable.
+   */
+  cellBorder?: string;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -142,6 +148,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const writingMode = opts.writingMode ?? "vertical-rl";
   const annotations = opts.spec.annotations ?? [];
   const resolvedDrawingWidth = opts.drawingWidth ?? DEFAULT_BLOCK_DRAWING_WIDTH;
+  const resolvedCellBorder = opts.cellBorder ?? DEFAULT_CELL_BORDER;
 
   // Compute the annotation strip thickness (max sizeRatio across annotations).
   const annotationThickness = annotations.length === 0
@@ -244,7 +251,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cellEl.style.width = `${rect.w}px`;
     cellEl.style.height = `${rect.h}px`;
     cellEl.style.boxSizing = "border-box";
-    cellEl.style.border = "1px solid #ddd";
+    cellEl.style.border = resolvedCellBorder;
     parentEl.appendChild(cellEl);
 
     const overrides = cell.overrides ?? {};
@@ -345,7 +352,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.width = `${rect.w}px`;
     wrapperEl.style.height = `${rect.h}px`;
     wrapperEl.style.boxSizing = "border-box";
-    wrapperEl.style.border = "1px solid #ddd";
+    wrapperEl.style.border = resolvedCellBorder;
     parentEl.appendChild(wrapperEl);
 
     const handle = createFreeCell(wrapperEl, {
@@ -390,7 +397,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.width = `${rect.w}px`;
     wrapperEl.style.height = `${rect.h}px`;
     wrapperEl.style.boxSizing = "border-box";
-    wrapperEl.style.border = "1px dashed #ccc";
+    wrapperEl.style.border = resolvedCellBorder;
     parentEl.appendChild(wrapperEl);
 
     const state: PerAnnotationState = {
