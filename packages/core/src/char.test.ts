@@ -1289,8 +1289,8 @@ describe("char", () => {
       });
       await k.ready();
       await k.judge(0, [
-        { x: 0, y: 0 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ]);
       expect(() => k.mount(container)).toThrow("after judge");
     });
@@ -1304,8 +1304,8 @@ describe("char", () => {
       // Kick off judge but do not await yet — judger is still null at this
       // point but judgerInit has been assigned.
       const inFlight = k.judge(0, [
-        { x: 0, y: 0 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ]);
       expect(() => k.mount(container)).toThrow("after judge");
       // Drain the in-flight judge so it resolves before the test exits.
@@ -1320,8 +1320,8 @@ describe("char", () => {
       k.mount(container);
       await expect(
         k.judge(0, [
-          { x: 0, y: 0 },
-          { x: 100, y: 100 },
+          { x: 0, y: 0, t: 0 },
+          { x: 100, y: 100, t: 0 },
         ]),
       ).rejects.toThrow("not supported on a mounted instance");
     });
@@ -1337,11 +1337,11 @@ describe("char", () => {
       // mockCharData stroke 0 median: [[0,0], [100,100]]; trace it densely
       // enough to satisfy hanzi-writer's matcher.
       const trace = [
-        { x: 0, y: 0 },
-        { x: 25, y: 25 },
-        { x: 50, y: 50 },
-        { x: 75, y: 75 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 25, y: 25, t: 0 },
+        { x: 50, y: 50, t: 0 },
+        { x: 75, y: 75, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ];
       const r = await k.judge(0, trace);
       expect(r.matched).toBe(true);
@@ -1356,8 +1356,8 @@ describe("char", () => {
       });
       await k.ready();
       const r = await k.judge(0, [
-        { x: 0, y: 0 },
-        { x: -500, y: -500 },
+        { x: 0, y: 0, t: 0 },
+        { x: -500, y: -500, t: 0 },
       ]);
       expect(r.matched).toBe(false);
     });
@@ -1369,8 +1369,8 @@ describe("char", () => {
       });
       await k.ready();
       const r = await k.judge(0, [
-        { x: 9999, y: 9999 },
-        { x: 10000, y: 10000 },
+        { x: 9999, y: 9999, t: 0 },
+        { x: 10000, y: 10000, t: 0 },
       ]);
       expect(r.similarity).toBe(0);
     });
@@ -1382,14 +1382,14 @@ describe("char", () => {
       });
       await k.ready();
       const goodTrace0 = [
-        { x: 0, y: 0 },
-        { x: 50, y: 50 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ];
       const goodTrace1 = [
-        { x: 200, y: 200 },
-        { x: 250, y: 250 },
-        { x: 300, y: 300 },
+        { x: 200, y: 200, t: 0 },
+        { x: 250, y: 250, t: 0 },
+        { x: 300, y: 300, t: 0 },
       ];
       await k.judge(0, goodTrace0);
       await k.judge(1, goodTrace1);
@@ -1424,8 +1424,8 @@ describe("char", () => {
       });
       await k.ready();
       await k.judge(2, [
-        { x: 0, y: 0 },
-        { x: 50, y: 50 },
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
       ]);
       const res = k.result();
       expect(res.perStroke).toHaveLength(3);
@@ -1442,13 +1442,13 @@ describe("char", () => {
       });
       await k.ready();
       await k.judge(0, [
-        { x: 0, y: 0 },
-        { x: 50, y: 50 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ]);
       await k.judge(1, [
-        { x: -999, y: -999 },
-        { x: -888, y: -888 },
+        { x: -999, y: -999, t: 0 },
+        { x: -888, y: -888, t: 0 },
       ]);
       const res = k.result();
       expect(res.matched).toBe(false);
@@ -1473,8 +1473,8 @@ describe("char", () => {
       await k.ready();
       await expect(
         k.judge(2, [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
+          { x: 0, y: 0, t: 0 },
+          { x: 50, y: 50, t: 0 },
         ]),
       ).rejects.toThrow("out of range");
     });
@@ -1491,8 +1491,8 @@ describe("char", () => {
       await k.ready();
       await expect(
         k.judge(1, [
-          { x: 0, y: 0 },
-          { x: 50, y: 50 },
+          { x: 0, y: 0, t: 0 },
+          { x: 50, y: 50, t: 0 },
         ]),
       ).rejects.toThrow("strokeGroups configures 1 logical stroke");
     });
@@ -1507,8 +1507,8 @@ describe("char", () => {
       });
       await k.ready();
       const inFlight = k.judge(0, [
-        { x: 0, y: 0 },
-        { x: 50, y: 50 },
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
       ]);
       // Synchronously destroy before the judger init resolves. ensureJudger
       // re-checks `destroyed` after its polling await and the catch path
@@ -1537,8 +1537,8 @@ describe("char", () => {
       // hanging on the polling timeout) when the underlying loader fails.
       await expect(
         k.judge(0, [
-          { x: 0, y: 0 },
-          { x: 1, y: 1 },
+          { x: 0, y: 0, t: 0 },
+          { x: 1, y: 1, t: 0 },
         ]),
       ).rejects.toThrow();
     });
@@ -1553,9 +1553,9 @@ describe("char", () => {
       });
       await k.ready();
       const trace = [
-        { x: 0, y: 0 },
-        { x: 50, y: 50 },
-        { x: 100, y: 100 },
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
+        { x: 100, y: 100, t: 0 },
       ];
       // Without memoization, each Promise.all entry would race ensureJudger
       // and append its own offscreen container before any awaited step
@@ -1586,11 +1586,11 @@ describe("char", () => {
       await k.ready();
       const sourceBox = { x: 0, y: 0, size: 900 };
       const trace = [
-        { x: 0, y: 900 },
-        { x: 25, y: 875 },
-        { x: 50, y: 850 },
-        { x: 75, y: 825 },
-        { x: 100, y: 800 },
+        { x: 0, y: 900, t: 0 },
+        { x: 25, y: 875, t: 0 },
+        { x: 50, y: 850, t: 0 },
+        { x: 75, y: 825, t: 0 },
+        { x: 100, y: 800, t: 0 },
       ];
       const r = await k.judge(0, trace, { sourceBox });
       expect(r.matched).toBe(true);
@@ -1609,14 +1609,14 @@ describe("char", () => {
       await k.ready();
       const sourceBox = { x: 0, y: 0, size: 900 };
       const stroke0 = [
-        { x: 0, y: 900 },
-        { x: 50, y: 850 },
-        { x: 100, y: 800 },
+        { x: 0, y: 900, t: 0 },
+        { x: 50, y: 850, t: 0 },
+        { x: 100, y: 800, t: 0 },
       ];
       const stroke1 = [
-        { x: 200, y: 700 },
-        { x: 250, y: 650 },
-        { x: 300, y: 600 },
+        { x: 200, y: 700, t: 0 },
+        { x: 250, y: 650, t: 0 },
+        { x: 300, y: 600, t: 0 },
       ];
       const r0 = await k.judge(0, stroke0, { sourceBox });
       const r1 = await k.judge(1, stroke1, { sourceBox });
@@ -1632,14 +1632,14 @@ describe("char", () => {
       await k.ready();
       await expect(
         k.judge(0, [
-          { x: 0, y: 0 },
-          { x: 1, y: 1 },
+          { x: 0, y: 0, t: 0 },
+          { x: 1, y: 1, t: 0 },
         ], { sourceBox: { x: 0, y: 0, size: 0 } }),
       ).rejects.toThrow("sourceBox.size must be a positive finite number");
       await expect(
         k.judge(0, [
-          { x: 0, y: 0 },
-          { x: 1, y: 1 },
+          { x: 0, y: 0, t: 0 },
+          { x: 1, y: 1, t: 0 },
         ], { sourceBox: { x: 0, y: 0, size: Number.POSITIVE_INFINITY } }),
       ).rejects.toThrow("sourceBox.size must be a positive finite number");
     });

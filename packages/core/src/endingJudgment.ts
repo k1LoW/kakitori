@@ -1,5 +1,9 @@
-import type { StrokeEnding, StrokeEndingJudgment } from "./types.js";
-import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
+import type {
+  StrokeEnding,
+  StrokeEndingJudgment,
+  TimedPoint,
+} from "./types.js";
+import { judge } from "./StrokeEndingJudge.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
 import { findDataStroke, type StrokeGroups } from "./strokeGroups.js";
@@ -27,10 +31,8 @@ export function computeDirectionFromMedian(
 export interface EndingJudgmentInput {
   /** Data-stroke index (hanzi-writer's perspective). */
   dataStrokeNum: number;
-  /** Points the user actually drew, in hanzi-writer coord space. */
-  drawnPoints: ReadonlyArray<Pt>;
-  /** Pointer-derived timing for the same stroke. */
-  timing: StrokeTimingData;
+  /** Points the user actually drew, in hanzi-writer coord space, with timestamps. */
+  points: ReadonlyArray<TimedPoint>;
   /** Configured stroke endings (logical-stroke indexed). */
   strokeEndings: readonly StrokeEnding[] | null;
   /** Logical→data stroke grouping. Null = identity (1:1). */
@@ -57,8 +59,7 @@ export function computeEndingJudgment(
 ): StrokeEndingJudgment | null {
   const {
     dataStrokeNum,
-    drawnPoints,
-    timing,
+    points,
     strokeEndings,
     strokeGroups,
     characterData,
@@ -111,14 +112,17 @@ export function computeEndingJudgment(
     }
   }
 
+  const pauseBeforeRelease =
+    points.length >= 2
+      ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+      : 0;
   log?.(
-    `judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${drawnPoints.length}`,
+    `judge input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
   );
 
-  const judgment = judge(drawnPoints as Array<Pt>, resolvedExpected, {
+  const judgment = judge(points, resolvedExpected, {
     drawableSize,
     strictness,
-    timing,
   });
 
   log?.(

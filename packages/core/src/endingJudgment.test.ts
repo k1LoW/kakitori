@@ -1,15 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { computeEndingJudgment, type EndingJudgmentInput } from "./endingJudgment.js";
+import type { TimedPoint } from "./types.js";
 
-const downStroke: Array<{ x: number; y: number }> = [
-  { x: 0, y: 0 },
-  { x: 0, y: 100 },
+const downStroke: TimedPoint[] = [
+  { x: 0, y: 0, t: 0 },
+  { x: 0, y: 100, t: 50 },
 ];
 
 const baseInput: EndingJudgmentInput = {
   dataStrokeNum: 0,
-  drawnPoints: downStroke,
-  timing: { pauseBeforeRelease: 0, timedPoints: [] },
+  points: downStroke,
   strokeEndings: null,
   strokeGroups: null,
   characterData: null,

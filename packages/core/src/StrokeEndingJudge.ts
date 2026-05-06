@@ -2,6 +2,7 @@ import type {
   StrokeEnding,
   StrokeEndingJudgment,
   StrokeEndingType,
+  TimedPoint,
 } from "./types.js";
 
 interface Point {
@@ -23,11 +24,6 @@ function dotProduct(a: [number, number], b: [number, number]): number {
 
 function distance(a: Point, b: Point): number {
   return Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
-}
-
-export interface StrokeTimingData {
-  pauseBeforeRelease: number;
-  timedPoints: Array<{ x: number; y: number; t: number }>;
 }
 
 function getEndDirection(points: Point[]): [number, number] | null {
@@ -54,7 +50,7 @@ interface TailAnalysis {
  * Speeds are normalized by scale so thresholds stay invariant across drawable sizes.
  */
 function analyzeTailFromTimedPoints(
-  timedPoints: Array<{ x: number; y: number; t: number }>,
+  timedPoints: ReadonlyArray<TimedPoint>,
   minSegmentDist: number,
   scale: number,
 ): TailAnalysis {
@@ -100,15 +96,14 @@ const BASE_SIZE = 300;
 export interface JudgeOptions {
   drawableSize: number;
   strictness?: number;
-  timing?: StrokeTimingData;
 }
 
 export function judge(
-  drawnPoints: Point[],
+  points: ReadonlyArray<TimedPoint>,
   expected: StrokeEnding,
   options: JudgeOptions,
 ): StrokeEndingJudgment {
-  const { drawableSize, strictness = 0.7, timing } = options;
+  const { drawableSize, strictness = 0.7 } = options;
   if (!Number.isFinite(drawableSize)) {
     throw new Error(`judge(): drawableSize must be finite, got ${drawableSize}`);
   }
@@ -117,18 +112,24 @@ export function judge(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  const tailSize = Math.max(3, Math.floor(drawnPoints.length * 0.2));
-  const drawnTail = drawnPoints.slice(-tailSize);
+  const tailSize = Math.max(3, Math.floor(points.length * 0.2));
+  const drawnTail = points.slice(-tailSize);
   const actualEndDirection = getEndDirection(drawnTail);
 
-  const pauseMs = timing?.pauseBeforeRelease ?? 0;
+  // The convention: the final element of `points` is the moment of pointerup
+  // (its position usually coincides with the previous sample). The gap
+  // between the last and second-to-last samples is the user's pause before
+  // releasing. With fewer than 2 samples there is nothing to compare, so we
+  // treat that as "no pause" rather than tome.
+  const pauseMs =
+    points.length >= 2
+      ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+      : 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
   const minSegmentDist = 3 * scale;
-  const tail = timing?.timedPoints
-    ? analyzeTailFromTimedPoints(timing.timedPoints, minSegmentDist, scale)
-    : { directionChange: 0, bodySpeed: 0, tipSpeed: 0 };
+  const tail = analyzeTailFromTimedPoints(points, minSegmentDist, scale);
 
   let velocityProfile: "decelerating" | "constant" | "accelerating" = "constant";
   let detectedType: StrokeEndingType;

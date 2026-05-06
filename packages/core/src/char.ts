@@ -13,6 +13,7 @@ import type {
   CharStrokeData,
   StrokeEnding,
   StrokeEndingJudgment,
+  TimedPoint,
 } from "./types.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 import { DEFAULT_SIZE, DEFAULT_PADDING, HANZI_COORD_SIZE } from "./constants.js";
@@ -40,6 +41,17 @@ const DEFAULT_GRID_WIDTH = 2;
 // We mirror them here to derive a similarity score from
 // `Stroke.getAverageDistance` without re-running the matcher.
 const HW_AVERAGE_DISTANCE_THRESHOLD = 350;
+
+/** Convert hanzi-writer's per-stroke average distance into a similarity in [0, 1]. */
+function computeSimilarity(
+  stroke: { getAverageDistance(points: Pt[]): number } | undefined,
+  points: Pt[],
+  leniency: number | undefined,
+): number {
+  const avgDist = stroke ? stroke.getAverageDistance(points) : Infinity;
+  const threshold = HW_AVERAGE_DISTANCE_THRESHOLD * (leniency ?? 1);
+  return threshold > 0 ? Math.max(0, Math.min(1, 1 - avgDist / threshold)) : 0;
+}
 
 function drawCrossGrid(
   svg: SVGSVGElement,
@@ -118,9 +130,9 @@ export function computeMedianPathLength(
  * flipped during projection.
  */
 function projectToInternal(
-  points: ReadonlyArray<Pt>,
+  points: ReadonlyArray<TimedPoint>,
   sourceBox: { x: number; y: number; size: number },
-): Pt[] {
+): TimedPoint[] {
   if (sourceBox.size <= 0 || !Number.isFinite(sourceBox.size)) {
     throw new Error(
       `char.judge(): sourceBox.size must be a positive finite number, got ${sourceBox.size}`,
@@ -130,6 +142,7 @@ function projectToInternal(
   return points.map((p) => ({
     x: (p.x - sourceBox.x) * scale,
     y: HANZI_COORD_SIZE - (p.y - sourceBox.y) * scale,
+    t: p.t,
   }));
 }
 
@@ -151,15 +164,17 @@ export interface Char {
    * `strokeNum` is the logical stroke index (respects `strokeGroups` when
    * configured). Resolves with the per-stroke result.
    *
-   * `points` must be in hanzi-writer's internal coord space
-   * (`[0, HANZI_COORD_SIZE]`, Y-up) unless `opts.sourceBox` is provided —
-   * in that case judge() projects from the source square (Y-down /
-   * browser convention) into internal coords. Pass the SAME `sourceBox`
-   * for every stroke of one character so the spatial relationship between
-   * strokes is preserved.
+   * `points` are sampled positions along the drawn trajectory with timestamps
+   * (`{ x, y, t }`). `x` and `y` must be in hanzi-writer's internal coord
+   * space (`[0, HANZI_COORD_SIZE]`, Y-up) unless `opts.sourceBox` is provided.
+   * Pass the SAME `sourceBox` for every stroke of one character so the
+   * spatial relationship between strokes is preserved. The final element
+   * is treated as the moment of pointerup (its `t` becomes the release time);
+   * the gap from the previous sample is what tome detection treats as the
+   * pause before release.
    *
-   * Pass `opts.timing` to also obtain a tome/hane/harai judgment for the
-   * current stroke.
+   * Tome/hane/harai judgment runs whenever stroke endings are configured for
+   * the logical stroke; it relies on `t` values, so include them.
    *
    * Records the result on the instance so {@link Char.result} returns the
    * cumulative judgment of every stroke judged so far.
@@ -169,7 +184,7 @@ export interface Char {
    */
   judge(
     strokeNum: number,
-    points: Pt[],
+    points: TimedPoint[],
     opts?: CharJudgeStrokeOptions,
   ): Promise<CharJudgeStrokeResult>;
   /**
@@ -383,13 +398,29 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   // ===== timing tracking (mount only) =====
+  function projectClientToInternal(m: MountState, clientX: number, clientY: number): Pt {
+    // The layer element is square (mount enforces width==height==size), so we
+    // can project clientX/Y → hanzi-writer internal coords ([0, HANZI_COORD_SIZE]
+    // with Y-up) by scaling against the layer's bounding rect.
+    const rect = m.layerEl.getBoundingClientRect();
+    const size = rect.width || m.size;
+    const scale = HANZI_COORD_SIZE / size;
+    return {
+      x: (clientX - rect.left) * scale,
+      y: HANZI_COORD_SIZE - (clientY - rect.top) * scale,
+    };
+  }
+
   function startTimingTracking(m: MountState): void {
     stopTimingTracking(m);
     m.boundOnPointerDown = (e: PointerEvent) => {
       m.isPointerDown = true;
       m.timedPoints = [];
-      m.lastMoveTime = performance.now();
+      const now = performance.now();
+      m.lastMoveTime = now;
       m.releaseTime = 0;
+      const p = projectClientToInternal(m, e.clientX, e.clientY);
+      m.timedPoints.push({ x: p.x, y: p.y, t: now });
       log?.(`pointerdown  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}`);
     };
     m.boundOnPointerMove = (e: PointerEvent) => {
@@ -399,7 +430,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const now = performance.now();
       const dt = (now - m.lastMoveTime).toFixed(0);
       m.lastMoveTime = now;
-      m.timedPoints.push({ x: e.clientX, y: e.clientY, t: now });
+      const p = projectClientToInternal(m, e.clientX, e.clientY);
+      m.timedPoints.push({ x: p.x, y: p.y, t: now });
       log?.(`pointermove  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  dt=${dt}ms`);
     };
     m.boundOnPointerUp = (e: PointerEvent) => {
@@ -408,6 +440,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
       m.isPointerDown = false;
       m.releaseTime = performance.now();
+      // Append a synthetic release sample at the same position as the last
+      // pointermove. The pause between the user's last move and this
+      // release sample is what tome detection uses, so encoding it as the
+      // final point's `t` keeps timing within the points array itself.
+      const last = m.timedPoints[m.timedPoints.length - 1];
+      const releasePoint = last
+        ? { x: last.x, y: last.y, t: m.releaseTime }
+        : { ...projectClientToInternal(m, e.clientX, e.clientY), t: m.releaseTime };
+      m.timedPoints.push(releasePoint);
       const pause = (m.releaseTime - m.lastMoveTime).toFixed(0);
       log?.(`pointerup    x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  pause=${pause}ms`);
     };
@@ -432,31 +473,33 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.boundOnPointerUp = null;
     }
   }
-  function getTimingData(m: MountState) {
-    const pauseBeforeRelease =
-      m.releaseTime > 0 && m.lastMoveTime > 0 ? m.releaseTime - m.lastMoveTime : 0;
-    return {
-      pauseBeforeRelease,
-      timedPoints: [...m.timedPoints],
-    };
+  function getCapturedPoints(m: MountState): TimedPoint[] {
+    return m.timedPoints.map((p) => ({ x: p.x, y: p.y, t: p.t }));
+  }
+
+  function getMountStroke(m: MountState, dataStrokeNum: number) {
+    const character = (
+      m.hw as unknown as {
+        _character?: { strokes?: Array<{ getAverageDistance(points: Pt[]): number }> };
+      }
+    )._character;
+    return character?.strokes?.[dataStrokeNum];
   }
 
   // ===== ending judgment adapter (mount only) =====
   function runEndingJudgment(
     m: MountState,
-    quiz: HanziQuiz,
+    _quiz: HanziQuiz,
     dataStrokeNum: number,
-    meta: QuizStrokeMeta,
+    _meta: QuizStrokeMeta,
   ): StrokeEndingJudgment | null {
-    const hwData = quiz._getStrokeData({ isCorrect: true, meta });
     return computeEndingJudgment({
       dataStrokeNum,
-      drawnPoints: hwData.drawnPath.points,
-      timing: getTimingData(m),
+      points: getCapturedPoints(m),
       strokeEndings,
       strokeGroups,
       characterData,
-      drawableSize: m.size - 2 * m.padding,
+      drawableSize: HANZI_COORD_SIZE,
       strictness: strokeEndingStrictness,
       log,
     });
@@ -473,10 +516,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         m.strokeEndingMistakes++;
         const hwData = q._getStrokeData({ isCorrect: willAdvance, meta });
         const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
+        const points = getCapturedPoints(m);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
-          drawnPath: hwData.drawnPath,
+          // hanzi-writer's matcher accepted the stroke (success path),
+          // even though the ending judgment rejected it.
+          matched: true,
+          similarity: computeSimilarity(
+            getMountStroke(m, dataStrokeNum),
+            points,
+            leniency,
+          ),
+          points,
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
@@ -532,10 +584,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           }
         }
 
+        const points = getCapturedPoints(m);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
-          drawnPath: hwData.drawnPath,
+          matched: true,
+          similarity: computeSimilarity(
+            getMountStroke(m, dataStrokeNum),
+            points,
+            leniency,
+          ),
+          points,
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
@@ -554,10 +613,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
       onMistake: (hwData) => {
         const logicalStrokeNum = getLogicalStrokeNum(hwData.strokeNum);
+        const points = getCapturedPoints(m);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
-          drawnPath: hwData.drawnPath,
+          matched: false,
+          similarity: computeSimilarity(
+            getMountStroke(m, hwData.strokeNum),
+            points,
+            leniency,
+          ),
+          points,
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
           totalMistakes: hwData.totalMistakes,
@@ -930,7 +996,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
   async function judge(
     strokeNum: number,
-    points: Pt[],
+    points: TimedPoint[],
     opts: CharJudgeStrokeOptions = {},
   ): Promise<CharJudgeStrokeResult> {
     assertNotDestroyed();
@@ -968,9 +1034,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // If a sourceBox was provided, project each point into hanzi-writer's
     // internal coord space (`[0, HANZI_COORD_SIZE]` with Y-up). Otherwise
     // assume the caller has already done the projection.
-    const internalPoints = opts.sourceBox
+    const internalPoints: TimedPoint[] = opts.sourceBox
       ? projectToInternal(points, opts.sourceBox)
-      : points.map((p) => ({ x: p.x, y: p.y }));
+      : points.map((p) => ({ x: p.x, y: p.y, t: p.t }));
+    const matcherPoints: Pt[] = internalPoints.map((p) => ({ x: p.x, y: p.y }));
 
     // Drive the matcher: position the quiz at the requested stroke, set the
     // user stroke to the projected points, and let endUserStroke run
@@ -978,33 +1045,31 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     quiz._currentStrokeIndex = dataStrokeNum;
     j.capture = null;
     quiz._userStroke = {
-      points: internalPoints,
-      externalPoints: internalPoints,
+      points: matcherPoints,
+      externalPoints: matcherPoints,
     };
     quiz.endUserStroke();
 
     const captured = j.capture ?? { matched: false, isBackwards: false };
 
-    // Similarity is derived from `Stroke.getAverageDistance` (publicly typed
-    // on hanzi-writer). 0 distance → 1.0; clamps to 0 once distance reaches
-    // hanzi-writer's averageDistanceThreshold.
-    const stroke = j.character.strokes[dataStrokeNum];
-    const avgDist = stroke ? stroke.getAverageDistance(internalPoints) : Infinity;
-    const threshold = HW_AVERAGE_DISTANCE_THRESHOLD * (leniency ?? 1);
-    const similarity = threshold > 0 ? Math.max(0, Math.min(1, 1 - avgDist / threshold)) : 0;
+    const similarity = computeSimilarity(
+      j.character.strokes[dataStrokeNum],
+      matcherPoints,
+      leniency,
+    );
 
-    // Stroke ending judgment requires both configured strokeEndings and a
-    // timing record for the current stroke. Lazily fetch character data for
+    // Stroke ending judgment runs whenever stroke endings are configured for
+    // the current logical stroke. Timestamps come from `points` (final
+    // sample's `t` is the release moment). Lazily fetch character data for
     // the direction auto-derivation if it has not been loaded yet.
     let strokeEnding: StrokeEndingJudgment | undefined;
-    if (strokeEndings && opts.timing) {
+    if (strokeEndings) {
       if (!characterData) {
         characterData = (await j.hw.getCharacterData()) as unknown as HanziCharacterData;
       }
       const judgement = computeEndingJudgment({
         dataStrokeNum,
-        drawnPoints: internalPoints,
-        timing: opts.timing,
+        points: internalPoints,
         strokeEndings,
         strokeGroups,
         characterData,

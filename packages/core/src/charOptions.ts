@@ -1,6 +1,5 @@
 import type { CharStrokeData, StrokeEndingJudgment } from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
-import type { StrokeTimingData } from "./StrokeEndingJudge.js";
 
 export type CharLogger = (msg: string) => void;
 export type ConfigLoaderFn = (char: string) => Promise<CharacterConfig | null>;
@@ -113,8 +112,6 @@ export interface CharJudgeStrokeOptions {
    * Omit when `points` are already in hanzi-writer internal coords.
    */
   sourceBox?: { x: number; y: number; size: number };
-  /** Pass timing to enable tome/hane/harai judgment for the current stroke. */
-  timing?: StrokeTimingData;
 }
 
 /**

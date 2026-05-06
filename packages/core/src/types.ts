@@ -1,6 +1,22 @@
 /** Stroke ending type: tome, hane, harai. */
 export type StrokeEndingType = "tome" | "hane" | "harai";
 
+/**
+ * A point sampled along a drawn stroke, with a timestamp. `x` and `y` are in
+ * hanzi-writer's internal coord space ([0, HANZI_COORD_SIZE], Y-up). `t` is
+ * milliseconds (typically `performance.now()`).
+ *
+ * The final element of a stroke array is treated as the moment the user
+ * released the pointer: its `t` is the release time and its position is
+ * usually the same as the previous sample. The gap `last.t - prev.t` is what
+ * tome/hane/harai detection treats as "pause before release".
+ */
+export interface TimedPoint {
+  x: number;
+  y: number;
+  t: number;
+}
+
 /** Stroke ending configuration for a single logical stroke. */
 export interface StrokeEnding {
   /** Acceptable ending types. Empty or omitted disables ending judgment for this stroke. */
@@ -39,13 +55,30 @@ export interface CharStrokeData {
    * rather than a logical index.
    */
   strokeNum: number;
-  /** The path the user actually drew for this stroke. */
-  drawnPath: {
-    /** SVG path string of the drawn trajectory. */
-    pathString: string;
-    /** Sampled points along the drawn trajectory, in HanziWriter coordinate space. */
-    points: Array<{ x: number; y: number }>;
-  };
+  /**
+   * True when hanzi-writer's matcher accepted the drawn stroke.
+   * `onCorrectStroke` and `onStrokeEndingMistake` both set this to `true`
+   * (the matcher accepted the stroke; only the ending may have been wrong);
+   * `onMistake` sets it to `false`.
+   * Mirrors {@link CharJudgeStrokeResult.matched} so the same shape applies
+   * to mount and headless judging.
+   */
+  matched: boolean;
+  /**
+   * Similarity in [0, 1], derived from hanzi-writer's `getAverageDistance`
+   * with the same threshold {@link Char.judge} uses (1 at perfect match,
+   * clamped to 0 once the average distance reaches the leniency-scaled
+   * threshold).
+   * Mirrors {@link CharJudgeStrokeResult.similarity}.
+   */
+  similarity: number;
+  /**
+   * Sampled points the user drew for this stroke, in hanzi-writer internal
+   * coords with timestamps. Suitable as the second argument to
+   * {@link Char.judge} so the same stroke can be replayed against a headless
+   * Char.
+   */
+  points: TimedPoint[];
   /** True if hanzi-writer detected the stroke was drawn in reverse direction. */
   isBackwards: boolean;
   /** Mistakes accumulated on the current stroke before it was accepted. */
