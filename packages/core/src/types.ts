@@ -7,7 +7,9 @@ export type StrokeEndingType = "tome" | "hane" | "harai";
  * `x` and `y` are coord-space-agnostic; the receiving API decides the
  * contract:
  * - Mount callbacks ({@link CharStrokeData.points}) emit values in
- *   hanzi-writer's internal coord space ([0, HANZI_COORD_SIZE], Y-up).
+ *   hanzi-writer's internal coordinate system (nominally 0..HANZI_COORD_SIZE,
+ *   Y-up). Values are NOT clamped: if the user draws past the inner padded
+ *   box, `x`/`y` can fall outside that range.
  * - {@link Char.judge}'s `points` argument expects internal coords by
  *   default, but accepts arbitrary source coords when `opts.sourceBox` is
  *   provided — judge() projects them into internal coords for you.
