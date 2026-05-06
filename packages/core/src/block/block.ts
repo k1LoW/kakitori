@@ -23,7 +23,8 @@ import type {
 
 const DEFAULT_CELL_SIZE = 120;
 const DEFAULT_ANNOTATION_RATIO = 0.4;
-const DEFAULT_CELL_BORDER = "1px solid #ddd";
+const DEFAULT_CELL_BORDER_WIDTH = 1;
+const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 /**
  * Block-wide stroke width default in **display pixels**. Tuned for a
  * ~120-150px cell (about 3% of the cell's longer side); guided / free /
@@ -59,11 +60,13 @@ export interface BlockCreateOptions {
    * color / dash / width. Per-cell overrides via `GuidedCell.overrides` win.
    */
   showGrid?: boolean | GridOptions;
-  /**
-   * CSS `border` shorthand applied to every cell and annotation wrapper.
-   * Defaults to `'1px solid #ddd'`. Pass `'none'` to disable.
-   */
-  cellBorder?: string;
+  /** Border width (in display pixels) for every cell and annotation wrapper.
+   * Also reused as the line width for the cross-grid inside guided cells when
+   * `showGrid` is left as the boolean default. Defaults to `1`. */
+  cellBorderWidth?: number;
+  /** Border color for every cell and annotation wrapper, plus the matching
+   * cross-grid line color inside guided cells. Defaults to `'#ddd'`. */
+  cellBorderColor?: string;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -148,7 +151,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const writingMode = opts.writingMode ?? "vertical-rl";
   const annotations = opts.spec.annotations ?? [];
   const resolvedDrawingWidth = opts.drawingWidth ?? DEFAULT_BLOCK_DRAWING_WIDTH;
-  const resolvedCellBorder = opts.cellBorder ?? DEFAULT_CELL_BORDER;
+  const cellBorderWidth = opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH;
+  const cellBorderColor = opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
+  const resolvedCellBorder = `${cellBorderWidth}px solid ${cellBorderColor}`;
 
   // Compute the annotation strip thickness (max sizeRatio across annotations).
   const annotationThickness = annotations.length === 0
@@ -262,7 +267,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     };
     const c = char.create(cell.char, createOpts);
 
-    const blockShowGrid = opts.showGrid ?? true;
+    // `showGrid: true` (default) means "draw the cross-grid in the cell-border
+    // style". Plumb the cell-border width / color through so the grid lines
+    // inside guided cells visually match the wrapper border. Explicit
+    // `GridOptions` passed by the caller wins.
+    const userShowGrid = opts.showGrid ?? true;
+    const blockShowGrid: NonNullable<MountOptions["showGrid"]> =
+      userShowGrid === true
+        ? { color: cellBorderColor, width: cellBorderWidth }
+        : userShowGrid;
     // hanzi-writer's `drawingWidth` is interpreted in its internal coord
     // system (HANZI_COORD_SIZE). To make guided cells match free cells'
     // display-pixel widths, scale our resolved width up by the same factor
