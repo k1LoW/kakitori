@@ -1394,6 +1394,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       judger.container.remove();
       judger = null;
     }
+    // ensureJudger() re-checks `destroyed` after its polling await and
+    // rejects if it flipped during init; the catch in that block already
+    // removes the offscreen container. Swallow the rejection here so it
+    // does not propagate as unhandled when nobody awaited the in-flight
+    // judge() call.
+    if (judgerInit) {
+      judgerInit.catch(() => {});
+      judgerInit = null;
+    }
     characterData = null;
   }
 

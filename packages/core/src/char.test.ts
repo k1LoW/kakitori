@@ -1399,6 +1399,33 @@ describe("char", () => {
       await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
 
+    it("destroy() while judge() is in flight cleans up the offscreen container", async () => {
+      const offscreenBefore = document.body.querySelectorAll(
+        "div[aria-hidden=\"true\"]",
+      ).length;
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const inFlight = k.judge(0, [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+      ]);
+      // Synchronously destroy before the judger init resolves. ensureJudger
+      // re-checks `destroyed` after its polling await and the catch path
+      // drops the offscreen container; destroy() also absorbs the eventual
+      // rejection so it does not bubble up as unhandled.
+      k.destroy();
+      await expect(inFlight).rejects.toThrow();
+      // Wait one more tick for any pending DOM mutations to settle.
+      await new Promise((r) => setTimeout(r, 20));
+      const offscreenAfter = document.body.querySelectorAll(
+        "div[aria-hidden=\"true\"]",
+      ).length;
+      expect(offscreenAfter).toBe(offscreenBefore);
+    });
+
     it("propagates a charDataLoader failure as a real error from judge()", async () => {
       const failingLoader: CharDataLoaderFn = (_char, _onLoad, onError) => {
         onError(new Error("load failed: 永"));
