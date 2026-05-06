@@ -22,6 +22,14 @@ import type {
 
 const DEFAULT_CELL_SIZE = 120;
 const DEFAULT_ANNOTATION_RATIO = 0.4;
+/**
+ * Block-wide stroke width default. Picking a single value here (instead of
+ * letting hanzi-writer's default and freeCell's default diverge) keeps
+ * guided cells, free cells, and annotations on the same line thickness
+ * out of the box. Callers can override per call via `drawingWidth` (or
+ * per-annotation via `annotationDrawingWidth`).
+ */
+const DEFAULT_BLOCK_DRAWING_WIDTH = 8;
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
 
@@ -134,6 +142,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellSize = opts.spec.size ?? opts.cellSize ?? DEFAULT_CELL_SIZE;
   const writingMode = opts.writingMode ?? "vertical-rl";
   const annotations = opts.spec.annotations ?? [];
+  const resolvedDrawingWidth = opts.drawingWidth ?? DEFAULT_BLOCK_DRAWING_WIDTH;
 
   // Compute the annotation strip thickness (max sizeRatio across annotations).
   const annotationThickness = annotations.length === 0
@@ -251,6 +260,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const mountOpts: MountOptions = {
       size: rect.w,
       showGrid: blockShowGrid,
+      // Apply the block-wide drawingWidth so guided / free / annotation
+      // cells share line thickness by default. Per-cell overrides below
+      // (via `pickMountOpts`) still win.
+      drawingWidth: resolvedDrawingWidth,
       ...pickMountOpts(overrides),
     };
     const state: PerCellState = {
@@ -337,7 +350,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
       ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
-      ...(opts.drawingWidth ? { drawingWidth: opts.drawingWidth } : {}),
+      drawingWidth: resolvedDrawingWidth,
       ...(opts.loaders ? { loaders: opts.loaders } : {}),
       ...(opts.logger ? { logger: opts.logger } : {}),
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
@@ -385,7 +398,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
         ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
-        ...(annotationDrawingWidth(opts, annotation)),
+        drawingWidth: opts.annotationDrawingWidth ?? resolvedDrawingWidth,
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
@@ -453,18 +466,6 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       }
     },
   };
-}
-
-function annotationDrawingWidth(
-  opts: BlockCreateOptions,
-  _annotation: FuriganaAnnotation,
-): { drawingWidth?: number } {
-  // Default: inherit `drawingWidth` (so annotations look the same thickness
-  // as cells unless the caller explicitly opts into a different size).
-  // When neither option is set, omit `drawingWidth` so freeCell falls back
-  // to its own default.
-  const v = opts.annotationDrawingWidth ?? opts.drawingWidth;
-  return v != null ? { drawingWidth: v } : {};
 }
 
 /** How many cell slots a cell occupies along the main axis. */
