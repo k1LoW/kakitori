@@ -1399,6 +1399,21 @@ describe("char", () => {
       await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
 
+    it("rejects strokeNum past the character's stroke count", async () => {
+      // mockCharData has 2 strokes; judge(2, ...) is one past the end.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await expect(
+        k.judge(2, [
+          { x: 0, y: 0 },
+          { x: 50, y: 50 },
+        ]),
+      ).rejects.toThrow("out of range");
+    });
+
     it("destroy() while judge() is in flight cleans up the offscreen container", async () => {
       const offscreenBefore = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",

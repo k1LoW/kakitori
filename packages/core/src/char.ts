@@ -939,6 +939,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     const j = await ensureJudger();
 
     const dataStrokeNum = logicalToFirstDataStroke(strokeNum);
+    if (dataStrokeNum >= j.character.strokes.length) {
+      throw new Error(
+        `char.judge(): strokeNum ${strokeNum} is out of range; the character has ${j.character.strokes.length} data stroke(s).`,
+      );
+    }
     const quiz = (j.hw as unknown as { _quiz?: HanziQuiz })._quiz;
     if (!quiz) {
       throw new Error("char.judge(): hanzi-writer quiz disappeared between calls.");
