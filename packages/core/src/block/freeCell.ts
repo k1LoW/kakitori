@@ -210,15 +210,23 @@ export function createFreeCell(
     poly.setAttribute("stroke-width", String(strokeWidth));
     poly.setAttribute("stroke-linecap", "round");
     poly.setAttribute("stroke-linejoin", "round");
-    poly.setAttribute("points", `${p.x},${p.y}`);
     el.appendChild(poly);
+    appendSvgPoint(poly, p.x, p.y);
     return { points: [p], el: poly };
   }
 
   function appendStrokePoint(s: DrawnStroke, p: { x: number; y: number; t: number }): void {
     s.points.push(p);
-    const existing = s.el.getAttribute("points") ?? "";
-    s.el.setAttribute("points", `${existing} ${p.x},${p.y}`);
+    appendSvgPoint(s.el, p.x, p.y);
+  }
+
+  /** Append a point to a polyline via SVGPointList — O(1) per call instead
+   * of the O(n) read-and-rewrite of the `points` string attribute. */
+  function appendSvgPoint(poly: SVGPolylineElement, x: number, y: number): void {
+    const pt = el.createSVGPoint();
+    pt.x = x;
+    pt.y = y;
+    poly.points.appendItem(pt);
   }
 
   function paintAll(color: string): void {
