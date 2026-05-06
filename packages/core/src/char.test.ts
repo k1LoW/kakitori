@@ -1382,6 +1382,36 @@ describe("char", () => {
       await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
 
+    it("concurrent judge() calls share a single offscreen container", async () => {
+      const offscreenBefore = document.body.querySelectorAll(
+        "div[aria-hidden=\"true\"]",
+      ).length;
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const trace = [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+        { x: 100, y: 100 },
+      ];
+      // Without memoization, each Promise.all entry would race ensureJudger
+      // and append its own offscreen container before any awaited step
+      // resolves; the losers leak. Verify only one new offscreen container
+      // ever lands on document.body.
+      await Promise.all([
+        k.judge(0, trace),
+        k.judge(0, trace),
+        k.judge(0, trace),
+      ]);
+      const offscreenAfter = document.body.querySelectorAll(
+        "div[aria-hidden=\"true\"]",
+      ).length;
+      expect(offscreenAfter - offscreenBefore).toBe(1);
+      k.destroy();
+    });
+
     it("sourceBox projects screen-space points into hanzi-writer internal coords", async () => {
       // mockCharData stroke 0 median is [(0, 0), (100, 100)] in internal
       // coords (Y up). The same shape on a 900x900 source square (Y down,

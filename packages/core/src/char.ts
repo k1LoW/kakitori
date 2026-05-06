@@ -314,6 +314,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   // mount-bound and judger-bound state are populated lazily.
   let mounted: MountState | null = null;
   let judger: JudgerState | null = null;
+  // Shared promise for the in-flight judger initialisation. Set on the
+  // first judge() call, cleared on failure so retries get a fresh chance.
+  // Successful init also sets `judger`; later judge() calls short-circuit
+  // on `judger` before they ever consult `judgerInit`.
+  let judgerInit: Promise<JudgerState> | null = null;
 
   // Monotonic counter bumped on every start() / animate() / reset() call.
   // configReady-deferred work captures the seq at scheduling time and bails
@@ -779,85 +784,103 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (judger) {
       return judger;
     }
-    // Off-screen container so hanzi-writer's renderer can mount and the
-    // matcher (which runs through endUserStroke -> renderState) does not
-    // throw on missing layout.
-    //
-    // Hiding strategy avoids any user-visible side effects:
-    // - `position: fixed` keeps the box out of the document flow without
-    //   risking a horizontal scrollbar (which `left: -9999px` can cause
-    //   when the host page lacks `overflow-x: hidden`).
-    // - `visibility: hidden` removes it from rendering and hit-testing.
-    // - `pointer-events: none` belt-and-braces guard against stray events.
-    // - `aria-hidden="true"` keeps the offscreen mount out of the a11y
-    //   tree so screen readers do not see two copies of the character.
-    // - `contain: strict` confines layout / paint to the box, so even
-    //   the briefly-visible ancestors during hanzi-writer's render path
-    //   cannot perturb the host page.
-    const container = document.createElement("div");
-    container.setAttribute("aria-hidden", "true");
-    container.style.position = "fixed";
-    container.style.top = "0";
-    container.style.left = "0";
-    container.style.width = `${HANZI_COORD_SIZE}px`;
-    container.style.height = `${HANZI_COORD_SIZE}px`;
-    container.style.visibility = "hidden";
-    container.style.pointerEvents = "none";
-    container.style.contain = "strict";
-    document.body.appendChild(container);
+    // Memoize the in-flight init so concurrent judge() calls (e.g.
+    // Promise.all) share a single offscreen container instead of each
+    // racing to create its own and leaking the losers.
+    if (judgerInit) {
+      return judgerInit;
+    }
+    judgerInit = (async (): Promise<JudgerState> => {
+      // Off-screen container so hanzi-writer's renderer can mount and the
+      // matcher (which runs through endUserStroke -> renderState) does not
+      // throw on missing layout.
+      //
+      // Hiding strategy avoids any user-visible side effects:
+      // - `position: fixed` keeps the box out of the document flow without
+      //   risking a horizontal scrollbar (which `left: -9999px` can cause
+      //   when the host page lacks `overflow-x: hidden`).
+      // - `visibility: hidden` removes it from rendering and hit-testing.
+      // - `pointer-events: none` belt-and-braces guard against stray events.
+      // - `aria-hidden="true"` keeps the offscreen mount out of the a11y
+      //   tree so screen readers do not see two copies of the character.
+      // - `contain: strict` confines layout / paint to the box, so even
+      //   the briefly-visible ancestors during hanzi-writer's render path
+      //   cannot perturb the host page.
+      const container = document.createElement("div");
+      container.setAttribute("aria-hidden", "true");
+      container.style.position = "fixed";
+      container.style.top = "0";
+      container.style.left = "0";
+      container.style.width = `${HANZI_COORD_SIZE}px`;
+      container.style.height = `${HANZI_COORD_SIZE}px`;
+      container.style.visibility = "hidden";
+      container.style.pointerEvents = "none";
+      container.style.contain = "strict";
+      document.body.appendChild(container);
 
-    const hw = HanziWriter.create(container, currentCharacter, {
-      width: HANZI_COORD_SIZE,
-      height: HANZI_COORD_SIZE,
-      padding: 0,
-      charDataLoader,
-      // Keep hint/highlight off so the matcher path stays as plain as
-      // possible; tome/hane/harai judgment is layered on top of isMatch.
-      showHintAfterMisses: false,
-      highlightOnComplete: false,
-      ...(leniency != null ? { leniency } : {}),
-    });
-    hw.quiz({});
+      try {
+        const hw = HanziWriter.create(container, currentCharacter, {
+          width: HANZI_COORD_SIZE,
+          height: HANZI_COORD_SIZE,
+          padding: 0,
+          charDataLoader,
+          // Keep hint/highlight off so the matcher path stays as plain as
+          // possible; tome/hane/harai judgment is layered on top of isMatch.
+          showHintAfterMisses: false,
+          highlightOnComplete: false,
+          ...(leniency != null ? { leniency } : {}),
+        });
+        hw.quiz({});
 
-    // Wait for the internal _quiz to be ready (hanzi-writer initialises it
-    // asynchronously after the character data resolves).
-    let quiz: HanziQuiz | undefined;
-    for (let i = 0; i < 200 && !quiz; i++) {
-      quiz = (hw as unknown as { _quiz?: HanziQuiz })._quiz;
-      if (!quiz) {
-        await new Promise((r) => setTimeout(r, 5));
+        // Wait for the internal _quiz to be ready (hanzi-writer initialises
+        // it asynchronously after the character data resolves).
+        let quiz: HanziQuiz | undefined;
+        for (let i = 0; i < 200 && !quiz; i++) {
+          quiz = (hw as unknown as { _quiz?: HanziQuiz })._quiz;
+          if (!quiz) {
+            await new Promise((r) => setTimeout(r, 5));
+          }
+        }
+        if (!quiz) {
+          throw new Error("char.judge(): timed out waiting for hanzi-writer quiz to initialise.");
+        }
+
+        const characterImpl = (hw as unknown as {
+          _character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
+        })._character;
+
+        const j: JudgerState = {
+          container,
+          hw,
+          character: characterImpl,
+          perStroke: [],
+          capture: null,
+        };
+
+        // Patch the success / failure handlers so we capture the matcher's
+        // verdict without letting hanzi-writer's render-state side effects
+        // advance internal stroke counters; the judger drives the index
+        // manually instead.
+        quiz._handleSuccess = (meta) => {
+          j.capture = { matched: true, isBackwards: meta.isStrokeBackwards };
+        };
+        quiz._handleFailure = (meta) => {
+          j.capture = { matched: false, isBackwards: meta.isStrokeBackwards };
+        };
+
+        judger = j;
+        return j;
+      } catch (err) {
+        // Drop the container so a future judge() can retry from scratch
+        // instead of leaving an orphaned hidden node behind.
+        container.remove();
+        // Clear the memo so the next judge() retries instead of always
+        // reusing the failed promise.
+        judgerInit = null;
+        throw err;
       }
-    }
-    if (!quiz) {
-      container.remove();
-      throw new Error("char.judge(): timed out waiting for hanzi-writer quiz to initialise.");
-    }
-
-    const characterImpl = (hw as unknown as {
-      _character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
-    })._character;
-
-    const j: JudgerState = {
-      container,
-      hw,
-      character: characterImpl,
-      perStroke: [],
-      capture: null,
-    };
-
-    // Patch the success / failure handlers so we capture the matcher's
-    // verdict without letting hanzi-writer's render-state side effects
-    // advance internal stroke counters; the judger drives the index
-    // manually instead.
-    quiz._handleSuccess = (meta) => {
-      j.capture = { matched: true, isBackwards: meta.isStrokeBackwards };
-    };
-    quiz._handleFailure = (meta) => {
-      j.capture = { matched: false, isBackwards: meta.isStrokeBackwards };
-    };
-
-    judger = j;
-    return j;
+    })();
+    return judgerInit;
   }
 
   async function judge(
