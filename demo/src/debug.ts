@@ -43,6 +43,10 @@ let eventSeq = 0;
 // drawer can stack recordEvent() runs — serialize their judge calls
 // through a promise chain.
 let judgeQueue: Promise<void> = Promise.resolve();
+// Bumped on every start() so queued tasks from an earlier session can detect
+// they are stale and bail before recreating judgeChar / racing with the new
+// session's replays.
+let sessionId = 0;
 
 interface StrokeEvent {
   seq: number;
@@ -191,13 +195,29 @@ async function recordEvent(
   events.push(ev);
   renderEvents();
 
+  // Capture the session at enqueue time. Each await inside the task
+  // re-checks it so a Reset between awaits drops the stale task instead
+  // of letting it touch a fresh judgeChar.
+  const taskSession = sessionId;
   judgeQueue = judgeQueue.then(async () => {
+    if (taskSession !== sessionId) {
+      return;
+    }
     const headless = ensureJudgeChar();
     try {
       await headless.ready();
+      if (taskSession !== sessionId) {
+        return;
+      }
       ev.judgeResult = await headless.judge(data.strokeNum, data.points);
     } catch (err) {
+      if (taskSession !== sessionId) {
+        return;
+      }
       ev.judgeError = err instanceof Error ? err.message : String(err);
+    }
+    if (taskSession !== sessionId) {
+      return;
     }
     renderEvents();
   });
@@ -205,6 +225,10 @@ async function recordEvent(
 }
 
 async function start() {
+  // Bump first so any task currently sitting on the old judgeQueue (between
+  // its own awaits) sees the new session id and bails before touching the
+  // about-to-be-recreated judgeChar.
+  sessionId++;
   mountChar?.destroy();
   judgeChar?.destroy();
   events.length = 0;
