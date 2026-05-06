@@ -1265,6 +1265,23 @@ describe("char", () => {
       expect(() => k.mount(container)).toThrow("after judge");
     });
 
+    it("mount() throws when judge() is in flight (judgerInit set, judger still null)", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      // Kick off judge but do not await yet — judger is still null at this
+      // point but judgerInit has been assigned.
+      const inFlight = k.judge(0, [
+        { x: 0, y: 0 },
+        { x: 100, y: 100 },
+      ]);
+      expect(() => k.mount(container)).toThrow("after judge");
+      // Drain the in-flight judge so it resolves before the test exits.
+      await inFlight;
+    });
+
     it("judge() throws on a mounted instance", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,

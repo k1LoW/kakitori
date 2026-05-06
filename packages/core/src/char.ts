@@ -319,6 +319,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   // Successful init also sets `judger`; later judge() calls short-circuit
   // on `judger` before they ever consult `judgerInit`.
   let judgerInit: Promise<JudgerState> | null = null;
+  // Flips to true synchronously the moment judge() is called for the
+  // first time. mount() checks this so judging-vs-mounting exclusivity
+  // holds even before judge()'s first await has set `judgerInit`.
+  let judgeStarted = false;
 
   // Monotonic counter bumped on every start() / animate() / reset() call.
   // configReady-deferred work captures the seq at scheduling time and bails
@@ -863,6 +867,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           }
           throw new Error("char.judge(): timed out waiting for hanzi-writer quiz to initialise.");
         }
+        // The await above could have spanned a destroy() or mount() call.
+        // Bail rather than leave a fully-initialised judger lying around
+        // alongside a mounted writer or after teardown.
+        if (destroyed) {
+          throw new Error("char: instance has been destroyed and cannot be used.");
+        }
+        if (mounted) {
+          throw new Error(
+            "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+          );
+        }
 
         const characterImpl = (hw as unknown as {
           _character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
@@ -916,6 +931,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!Number.isInteger(strokeNum) || strokeNum < 0) {
       throw new Error(`char.judge(): strokeNum must be a non-negative integer, got ${strokeNum}`);
     }
+    // Flag synchronously so a mount() called immediately after judge()
+    // (before any await unfreezes ensureJudger) still sees that judging
+    // has started.
+    judgeStarted = true;
     await configReady;
     const j = await ensureJudger();
 
@@ -1001,7 +1020,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   // ===== mount lifecycle =====
   function mount(target: string | HTMLElement, mountOpts: MountOptions = {}): Char {
     assertNotDestroyed();
-    if (judger) {
+    // judgeStarted flips synchronously when judge() is first called, even
+    // before ensureJudger() runs and assigns judgerInit / judger. All
+    // three together cover the windows "before the first await", "during
+    // init" and "after init succeeded", so the documented mount/judge
+    // exclusivity holds end-to-end.
+    if (judger || judgerInit || judgeStarted) {
       throw new Error(
         "char: mount() is not supported after judge() has been called. Create a separate Char for mounting.",
       );
