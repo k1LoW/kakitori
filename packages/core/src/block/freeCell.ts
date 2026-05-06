@@ -595,6 +595,13 @@ function normalizeExpected(expected: Expected): string[] {
     if (expected.length === 0) {
       throw new Error("freeCell: expected must be a non-empty string array");
     }
+    expected.forEach((s, i) => {
+      if (typeof s !== "string" || s.length === 0) {
+        throw new Error(
+          `freeCell: expected[${i}] must be a non-empty string (got ${JSON.stringify(s)})`,
+        );
+      }
+    });
     return [...expected];
   }
   if (expected.length === 0) {

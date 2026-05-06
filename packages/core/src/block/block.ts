@@ -675,7 +675,11 @@ function validateBlockSpec(
   writingMode: WritingMode,
 ): void {
   cells.forEach((cell, i) => {
-    if (cell.kind !== "free" || cell.span == null) {
+    if (cell.kind !== "free") {
+      return;
+    }
+    validateExpected(cell.expected, `cells[${i}].expected`);
+    if (cell.span == null) {
       return;
     }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
@@ -687,6 +691,7 @@ function validateBlockSpec(
     }
   });
   annotations.forEach((a, i) => {
+    validateExpected(a.expected, `annotations[${i}].expected`);
     const [from, to] = a.cellRange;
     if (
       !Number.isInteger(from) ||
@@ -714,6 +719,27 @@ function validateBlockSpec(
       );
     }
   });
+}
+
+function validateExpected(expected: import("./types.js").Expected, location: string): void {
+  if (Array.isArray(expected)) {
+    if (expected.length === 0) {
+      throw new Error(`block.create(): ${location} must be a non-empty string array.`);
+    }
+    expected.forEach((s, i) => {
+      if (typeof s !== "string" || s.length === 0) {
+        throw new Error(
+          `block.create(): ${location}[${i}] must be a non-empty string (got ${JSON.stringify(s)}).`,
+        );
+      }
+    });
+    return;
+  }
+  if (typeof expected !== "string" || expected.length === 0) {
+    throw new Error(
+      `block.create(): ${location} must be a non-empty string (got ${JSON.stringify(expected)}).`,
+    );
+  }
 }
 
 const CREATE_KEYS = new Set<keyof CharCreateOptions>([
