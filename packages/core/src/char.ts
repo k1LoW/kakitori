@@ -1069,7 +1069,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.targetEl.removeEventListener("click", m.boundOnClick);
       m.boundOnClick = null;
     }
-    m.targetEl.innerHTML = "";
+    // Symmetric with mount(), which only appends layerEl. Removing just
+    // layerEl leaves any unrelated DOM the host may already have inside
+    // targetEl untouched; gridSvg / activeOverlay are inside layerEl so
+    // they're dropped together.
+    m.layerEl.remove();
     return api;
   }
 

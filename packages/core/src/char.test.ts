@@ -1118,6 +1118,27 @@ describe("char", () => {
       }
     });
 
+    it("unmount() removes only what mount() added; sibling DOM stays intact", () => {
+      // Hosts often surround the target with their own DOM (labels,
+      // overlays). unmount() must not wipe those — it should drop only
+      // the layer the Char appended.
+      const sibling = document.createElement("p");
+      sibling.textContent = "host content";
+      container.appendChild(sibling);
+
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.mount(container);
+      expect(container.querySelector("svg")).not.toBeNull();
+      expect(container.contains(sibling)).toBe(true);
+
+      k.unmount();
+      expect(container.contains(sibling)).toBe(true);
+      expect(container.querySelector("svg")).toBeNull();
+    });
+
     it("DOM-bound methods throw before mount()", () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
