@@ -138,6 +138,11 @@ export function createFreeCell(
   let judgeQueue: Promise<void> = Promise.resolve();
   let sessionId = 0;
   let segmentBoxEls: Array<SVGRectElement | SVGTextElement> = [];
+  // Highest-similarity attempt seen across every match round in this session.
+  // Used so commitFail() can surface the closest candidate / per-character
+  // judge results instead of empty defaults — useful for callers wanting to
+  // explain why a stroke sequence was rejected.
+  let bestAttempt: CandidateMatch | null = null;
 
   function loadCandidates(): Promise<CandidateInfo[]> {
     if (candidates) {
@@ -335,6 +340,9 @@ export function createFreeCell(
         // exhausts every candidate).
         attempts.sort((a, b) => Number(b.matchedAll) - Number(a.matchedAll) || b.similarity - a.similarity);
         const best = attempts[0];
+        if (!bestAttempt || best.similarity > bestAttempt.similarity) {
+          bestAttempt = best;
+        }
         // Show the bbox the matcher chose for this round so debug overlays
         // reveal what segmentation the matcher saw.
         drawSegmentBoxes(best.segmentBoxes);
@@ -511,14 +519,27 @@ export function createFreeCell(
     }
     status = "failed";
     paintAll(failedColor);
-    log?.(`commit fail (no candidate matched)`);
-    opts.onCellComplete?.({
-      kind: "free",
-      matched: false,
-      candidate: null,
-      similarity: 0,
-      perCharacter: [],
-    });
+    if (bestAttempt) {
+      log?.(
+        `commit fail (best attempt "${bestAttempt.candidateText}" sim=${bestAttempt.similarity.toFixed(2)})`,
+      );
+      opts.onCellComplete?.({
+        kind: "free",
+        matched: false,
+        candidate: bestAttempt.candidateText,
+        similarity: bestAttempt.similarity,
+        perCharacter: bestAttempt.perCharacter,
+      });
+    } else {
+      log?.(`commit fail (no candidate matched)`);
+      opts.onCellComplete?.({
+        kind: "free",
+        matched: false,
+        candidate: null,
+        similarity: 0,
+        perCharacter: [],
+      });
+    }
   }
 
   el.addEventListener("pointerdown", onPointerDown, true);
@@ -535,6 +556,7 @@ export function createFreeCell(
       activeStroke = null;
       strokes = [];
       segmentBoxEls = [];
+      bestAttempt = null;
       // Drop any pending judge tail so a stale match does not flip the new
       // session into matched/failed.
       judgeQueue = Promise.resolve();
