@@ -37,6 +37,12 @@ const statusEl = document.getElementById("status")!;
 let mountChar: Char | null = null;
 let judgeChar: Char | null = null;
 let eventSeq = 0;
+// Char.judge() mutates shared JudgerState (capture slot, quiz._userStroke,
+// quiz._currentStrokeIndex), so concurrent calls on the same instance race
+// and can mislabel results. Mount callbacks are not awaited, so a fast
+// drawer can stack recordEvent() runs — serialize their judge calls
+// through a promise chain.
+let judgeQueue: Promise<void> = Promise.resolve();
 
 interface StrokeEvent {
   seq: number;
@@ -185,15 +191,17 @@ async function recordEvent(
   events.push(ev);
   renderEvents();
 
-  const headless = ensureJudgeChar();
-  try {
-    await headless.ready();
-    const result = await headless.judge(data.strokeNum, data.points);
-    ev.judgeResult = result;
-  } catch (err) {
-    ev.judgeError = err instanceof Error ? err.message : String(err);
-  }
-  renderEvents();
+  judgeQueue = judgeQueue.then(async () => {
+    const headless = ensureJudgeChar();
+    try {
+      await headless.ready();
+      ev.judgeResult = await headless.judge(data.strokeNum, data.points);
+    } catch (err) {
+      ev.judgeError = err instanceof Error ? err.message : String(err);
+    }
+    renderEvents();
+  });
+  await judgeQueue;
 }
 
 async function start() {
@@ -202,6 +210,9 @@ async function start() {
   events.length = 0;
   eventSeq = 0;
   judgeChar = null;
+  // Drop any tail of in-flight judge() work from the previous session so
+  // the new session's events are not serialized behind it.
+  judgeQueue = Promise.resolve();
   writerEl.innerHTML = "";
   renderEvents();
   setStatus("loading…");
