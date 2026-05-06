@@ -1141,6 +1141,40 @@ describe("char", () => {
       expect(container.querySelector("svg")).toBeNull();
     });
 
+    it("unmount() tears down in-flight animate / quiz so callbacks do not leak", async () => {
+      vi.useFakeTimers();
+      try {
+        const onCorrectStroke = vi.fn();
+        const k = char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        k.mount(container, {
+          strokeAnimationSpeed: 100,
+          delayBetweenStrokes: 0,
+          onCorrectStroke,
+        });
+        // Kick off an animate, let it claim the overlay.
+        k.animate();
+        for (let i = 0; i < 20; i++) {
+          await Promise.resolve();
+        }
+        expect(container.querySelector("svg.kakitori-anim")).not.toBeNull();
+
+        // Unmount mid-animation; the overlay must be torn down with the
+        // layer (no leftover offscreen overlay floating around).
+        k.unmount();
+        expect(document.querySelector("svg.kakitori-anim")).toBeNull();
+
+        // A stroke success arriving after unmount (via the still-pending
+        // setTimeout from animate) should not re-emerge as a callback.
+        await vi.runAllTimersAsync();
+        expect(onCorrectStroke).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("unmount() removes only what mount() added; sibling DOM stays intact", () => {
       // Hosts often surround the target with their own DOM (labels,
       // overlays). unmount() must not wipe those — it should drop only

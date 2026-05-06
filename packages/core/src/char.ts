@@ -1084,6 +1084,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       return api;
     }
     const m = mounted;
+    // Tear down any in-flight quiz/animate so hanzi-writer's listeners and
+    // overlay state do not stay alive on the about-to-be-detached SVG.
+    // Invalidate any queued start()/animate() that is still waiting on
+    // configReady so they cannot resurrect after unmount.
+    ++requestSeq;
+    cancelActiveAnimation(m);
+    cancelActiveQuiz(m);
     mounted = null;
     stopTimingTracking(m);
     if (m.boundOnClick) {
