@@ -5,8 +5,6 @@ import type {
   ConfigLoaderFn,
   MountOptions,
 } from "../charOptions.js";
-import type { TimedPoint } from "../types.js";
-
 /** Single string or list of acceptable answers for a free cell or annotation. */
 export type Expected = string | string[];
 
@@ -69,21 +67,6 @@ export interface BlockSpec {
   break?: "before" | "after";
   gap?: number;
   label?: string;
-}
-
-export interface BlockOptions {
-  rollback?: RollbackScope;
-  size?: number;
-  /** Order of guided cell vs its annotation when both are writable. */
-  annotationOrder?: "cell-first" | "annotation-first";
-}
-
-/** Per-stroke event surfaced by free cells (mirrors mount's CharStrokeData). */
-export interface FreeCellStrokeEvent {
-  /** Stroke order index within this cell (0-based). */
-  strokeNum: number;
-  /** Captured points in cell-local pixels with timestamps (release sample appended). */
-  points: TimedPoint[];
 }
 
 /** Result for a `'guided'` cell. */

@@ -3,7 +3,6 @@ export type { FreeCellLogger } from "./freeCell.js";
 export type {
   AnnotationResult,
   BlockLoaders,
-  BlockOptions,
   BlockResult,
   BlockSpec,
   Cell,
@@ -11,7 +10,6 @@ export type {
   Expected,
   FreeCell,
   FreeCellResult,
-  FreeCellStrokeEvent,
   FuriganaAnnotation,
   GuidedCell,
   GuidedCellResult,
