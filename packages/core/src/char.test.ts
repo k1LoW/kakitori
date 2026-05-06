@@ -1382,6 +1382,25 @@ describe("char", () => {
       await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
 
+    it("propagates a charDataLoader failure as a real error from judge()", async () => {
+      const failingLoader: CharDataLoaderFn = (_char, _onLoad, onError) => {
+        onError(new Error("load failed: 永"));
+      };
+      const k = char.create("永", {
+        charDataLoader: failingLoader,
+        configLoader: null,
+      });
+      // The exact error message hanzi-writer surfaces here is not stable
+      // across versions, so just assert that judge() rejects (rather than
+      // hanging on the polling timeout) when the underlying loader fails.
+      await expect(
+        k.judge(0, [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ]),
+      ).rejects.toThrow();
+    });
+
     it("concurrent judge() calls share a single offscreen container", async () => {
       const offscreenBefore = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",

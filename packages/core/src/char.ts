@@ -830,18 +830,37 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           highlightOnComplete: false,
           ...(leniency != null ? { leniency } : {}),
         });
-        hw.quiz({});
+        // hw.quiz() can return a Promise that rejects (e.g. when the
+        // char-data loader fails). Capture the failure so the polling
+        // loop below surfaces the underlying error instead of timing out
+        // with a misleading "quiz did not initialise" message; also
+        // attach a no-op catch so the rejection does not bubble up as an
+        // unhandled rejection while the loop is still running.
+        let quizFailure: unknown = null;
+        Promise.resolve(hw.quiz({})).catch((err: unknown) => {
+          quizFailure = err;
+        });
 
         // Wait for the internal _quiz to be ready (hanzi-writer initialises
         // it asynchronously after the character data resolves).
         let quiz: HanziQuiz | undefined;
         for (let i = 0; i < 200 && !quiz; i++) {
+          if (quizFailure) {
+            throw quizFailure instanceof Error
+              ? quizFailure
+              : new Error(`char.judge(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
+          }
           quiz = (hw as unknown as { _quiz?: HanziQuiz })._quiz;
           if (!quiz) {
             await new Promise((r) => setTimeout(r, 5));
           }
         }
         if (!quiz) {
+          if (quizFailure) {
+            throw quizFailure instanceof Error
+              ? quizFailure
+              : new Error(`char.judge(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
+          }
           throw new Error("char.judge(): timed out waiting for hanzi-writer quiz to initialise.");
         }
 
