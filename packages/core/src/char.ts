@@ -402,16 +402,26 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
   // ===== timing tracking (mount only) =====
   function captureProjection(m: MountState): void {
-    // The layer element is square (mount enforces width==height==size), so
-    // a single rect snapshot lets us project clientX/Y → hanzi-writer
-    // internal coords ([0, HANZI_COORD_SIZE], Y-up) for the rest of the
-    // stroke without re-reading layout.
+    // The layer element is square (mount enforces width==height==size). The
+    // visible character is rendered inside the layer with `padding` margin,
+    // so the inner [padding, size - padding] box is what hanzi-writer maps
+    // to internal [0, HANZI_COORD_SIZE]. Mirror that mapping here so a
+    // pointer landing on the character's left edge becomes internal x=0,
+    // not x=padding-scaled. The CSS scale factor (rect.width / m.size)
+    // applies to padding too, so we scale it before computing the inner
+    // width and origin.
+    //
+    // mount()'s validateSizeAndPadding guarantees padding < size/2, so the
+    // inner width is always positive.
     const rect = m.layerEl.getBoundingClientRect();
-    const size = rect.width || m.size;
+    const displayedSize = rect.width || m.size;
+    const cssScale = displayedSize / m.size;
+    const effectivePadding = m.padding * cssScale;
+    const innerSize = displayedSize - 2 * effectivePadding;
     m.pointerProjection = {
-      originX: rect.left,
-      originY: rect.top,
-      scale: HANZI_COORD_SIZE / size,
+      originX: rect.left + effectivePadding,
+      originY: rect.top + effectivePadding,
+      scale: HANZI_COORD_SIZE / innerSize,
     };
   }
 
