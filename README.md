@@ -29,19 +29,22 @@ Features:
 ```javascript
 import { char, defaultCharDataLoader } from "@k1low/kakitori";
 
-const c = char.create("#target", "永", {
-  size: 300,
-  charDataLoader: defaultCharDataLoader,
-  strokeGroups: [[0], [1], [2, 3]], // optional: merge data strokes
-  onCorrectStroke: (data) => {
-    if (data.strokeEnding) {
-      console.log(data.strokeEnding.correct ? "OK" : "NG");
-    }
-  },
-  onComplete: (data) => {
-    console.log(`Mistakes: ${data.totalMistakes}, Stroke ending: ${data.strokeEndingMistakes}`);
-  },
-});
+const c = char
+  .create("永", {
+    charDataLoader: defaultCharDataLoader,
+    strokeGroups: [[0], [1], [2, 3]], // optional: merge data strokes
+  })
+  .mount("#target", {
+    size: 300,
+    onCorrectStroke: (data) => {
+      if (data.strokeEnding) {
+        console.log(data.strokeEnding.correct ? "OK" : "NG");
+      }
+    },
+    onComplete: (data) => {
+      console.log(`Mistakes: ${data.totalMistakes}, Stroke ending: ${data.strokeEndingMistakes}`);
+    },
+  });
 
 // Set stroke endings (types can be an array for multiple acceptable endings)
 c.setStrokeEndings([

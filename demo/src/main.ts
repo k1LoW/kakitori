@@ -163,12 +163,14 @@ function openPractice(character: string) {
     summaryEl.textContent = `Mistakes: ${mistakes}, Stroke ending mistakes: ${strokeEndingMistakes}`;
   }
 
-  c = char.create(writerEl, character, {
+  c = char.create(character, {
+    charDataLoader: cachedCharDataLoader,
+    logger: log,
+  });
+  c.mount(writerEl, {
     size: 300,
     drawingWidth: 12,
     showGrid: true,
-    charDataLoader: cachedCharDataLoader,
-    logger: log,
     onCorrectStroke: (data: CharStrokeData) => {
       log(`onCorrectStroke ${formatStrokeData(data)}`);
       const slot = strokeSlotEls[data.strokeNum];
