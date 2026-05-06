@@ -120,10 +120,16 @@ export function computeEndingJudgment(
     }
   }
 
-  const pauseBeforeRelease =
-    points.length >= 2
-      ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
-      : 0;
+  // Match StrokeEndingJudge.judge()'s release-marker detection so the log
+  // does not report a misleading "pause" for motion-only sequences (where
+  // the final dt is just the last segment, not a pointerup pause).
+  const lastIsRelease =
+    points.length >= 2 &&
+    points[points.length - 1].x === points[points.length - 2].x &&
+    points[points.length - 1].y === points[points.length - 2].y;
+  const pauseBeforeRelease = lastIsRelease
+    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+    : 0;
   log?.(
     `judge input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
   );
