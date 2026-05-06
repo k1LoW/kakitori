@@ -1277,17 +1277,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed) {
       return;
     }
-    destroyed = true;
+    // Reuse unmount() so destroy() inherits its non-destructive teardown
+    // (only the layer Char appended is removed; sibling DOM the host had
+    // inside targetEl stays in place). Set `destroyed` after so the
+    // `assertNotDestroyed` checks inside unmount-adjacent code paths do
+    // not throw.
     if (mounted) {
-      const m = mounted;
-      mounted = null;
-      stopTimingTracking(m);
-      if (m.boundOnClick) {
-        m.targetEl.removeEventListener("click", m.boundOnClick);
-        m.boundOnClick = null;
-      }
-      m.targetEl.innerHTML = "";
+      unmount();
     }
+    destroyed = true;
     if (judger) {
       judger.container.remove();
       judger = null;

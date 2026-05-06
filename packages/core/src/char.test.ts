@@ -1118,6 +1118,23 @@ describe("char", () => {
       }
     });
 
+    it("destroy() preserves sibling DOM the host added to the target", () => {
+      const sibling = document.createElement("p");
+      sibling.textContent = "host content";
+      container.appendChild(sibling);
+
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.mount(container);
+      expect(container.contains(sibling)).toBe(true);
+
+      k.destroy();
+      expect(container.contains(sibling)).toBe(true);
+      expect(container.querySelector("svg")).toBeNull();
+    });
+
     it("unmount() removes only what mount() added; sibling DOM stays intact", () => {
       // Hosts often surround the target with their own DOM (labels,
       // overlays). unmount() must not wipe those — it should drop only
