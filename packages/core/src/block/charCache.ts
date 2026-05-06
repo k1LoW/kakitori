@@ -37,6 +37,10 @@ export interface JudgeCharEntry {
 }
 
 const cache = new Map<string, JudgeCharEntry>();
+// In-flight creations keyed the same way as `cache`. Concurrent
+// `getJudgeChar` calls for the same key share this promise so they don't
+// race to construct two `Char` instances and then leak the loser.
+const inFlight = new Map<string, Promise<JudgeCharEntry>>();
 
 export interface GetJudgeCharOptions extends BlockLoaders {
   /**
@@ -55,34 +59,47 @@ export interface GetJudgeCharOptions extends BlockLoaders {
  * has been called once, which is too late for free cells deciding when to
  * trigger a match attempt).
  */
-export async function getJudgeChar(
+export function getJudgeChar(
   c: string,
   opts: GetJudgeCharOptions = {},
 ): Promise<JudgeCharEntry> {
   const key = cacheKey(c, opts);
-  let entry = cache.get(key);
-  if (!entry) {
-    const inst = char.create(c, {
-      ...(opts.charDataLoader ? { charDataLoader: opts.charDataLoader } : {}),
-      // Pass through configLoader so kakitori-data's strokeEndings / strokeGroups
-      // are auto-applied; that's what wires tome/hane/harai detection through
-      // free cells without explicit per-character configuration.
-      ...(opts.configLoader !== undefined ? { configLoader: opts.configLoader } : {}),
-      ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
-    });
-    await inst.ready();
-    const meta = await loadCharMeta(c, opts.charDataLoader);
-    const groups = inst.getStrokeGroups();
-    const logicalStrokeCount = groups ? groups.length : meta.dataStrokeCount;
-    entry = {
-      char: inst,
-      dataStrokeCount: meta.dataStrokeCount,
-      logicalStrokeCount,
-      normalizeTarget: meta.normalizeTarget,
-    };
-    cache.set(key, entry);
+  const cached = cache.get(key);
+  if (cached) {
+    return Promise.resolve(cached);
   }
-  return entry;
+  const pending = inFlight.get(key);
+  if (pending) {
+    return pending;
+  }
+  const promise = (async () => {
+    try {
+      const inst = char.create(c, {
+        ...(opts.charDataLoader ? { charDataLoader: opts.charDataLoader } : {}),
+        // Pass through configLoader so kakitori-data's strokeEndings / strokeGroups
+        // are auto-applied; that's what wires tome/hane/harai detection through
+        // free cells without explicit per-character configuration.
+        ...(opts.configLoader !== undefined ? { configLoader: opts.configLoader } : {}),
+        ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
+      });
+      await inst.ready();
+      const meta = await loadCharMeta(c, opts.charDataLoader);
+      const groups = inst.getStrokeGroups();
+      const logicalStrokeCount = groups ? groups.length : meta.dataStrokeCount;
+      const entry: JudgeCharEntry = {
+        char: inst,
+        dataStrokeCount: meta.dataStrokeCount,
+        logicalStrokeCount,
+        normalizeTarget: meta.normalizeTarget,
+      };
+      cache.set(key, entry);
+      return entry;
+    } finally {
+      inFlight.delete(key);
+    }
+  })();
+  inFlight.set(key, promise);
+  return promise;
 }
 
 /**
@@ -191,4 +208,5 @@ export function _clearJudgeCharCacheForTests(): void {
     entry.char.destroy();
   }
   cache.clear();
+  inFlight.clear();
 }
