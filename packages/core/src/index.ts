@@ -3,7 +3,19 @@ export { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
 export { judge as judgeStrokeEnding, type StrokeTimingData, type JudgeOptions } from "./StrokeEndingJudge.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { CharacterConfig } from "./dataLoader.js";
-export type { CharOptions, CharLogger, ConfigLoaderFn, CharDataLoaderFn, RenderOptions, GridOptions } from "./charOptions.js";
+export type {
+  CharCreateOptions,
+  MountOptions,
+  CharJudgeStrokeOptions,
+  CharJudgeStrokeResult,
+  CharJudgeResult,
+  CharLogger,
+  ConfigLoaderFn,
+  CharDataLoaderFn,
+  RenderOptions,
+  GridOptions,
+} from "./charOptions.js";
+export type { Pt } from "./hanziWriterInternals.js";
 export {
   number,
   hiragana,

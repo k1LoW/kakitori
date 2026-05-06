@@ -35,6 +35,7 @@ function createFakeQuiz(): {
     _totalMistakes: 0,
     _handleSuccess: originalSuccess,
     _handleFailure: originalFailure,
+    endUserStroke: vi.fn(),
     _getStrokeData: () => ({
       drawnPath: { pathString: "", points: [] },
       isBackwards: false,

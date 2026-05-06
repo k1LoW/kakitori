@@ -1,6 +1,40 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { char, computeMedianPathLength } from "./char.js";
-import type { CharDataLoaderFn } from "./charOptions.js";
+import type {
+  CharCreateOptions,
+  CharDataLoaderFn,
+  MountOptions,
+} from "./charOptions.js";
+
+// Test helper: previously most tests called `createMounted(container, "あ", opts)`.
+// After the headless-first refactor, create no longer takes a target and
+// options are split into CharCreateOptions (headless) + MountOptions (DOM).
+// This helper preserves the legacy ergonomics by splitting the options bag.
+function createMounted(
+  container: HTMLElement,
+  character: string,
+  opts: CharCreateOptions & MountOptions = {},
+): ReturnType<typeof char.create> {
+  const {
+    logger,
+    configLoader,
+    charDataLoader,
+    strokeGroups,
+    leniency,
+    strokeEndingStrictness,
+    ...mountOpts
+  } = opts;
+  const c = char.create(character, {
+    logger,
+    configLoader,
+    charDataLoader,
+    strokeGroups,
+    leniency,
+    strokeEndingStrictness,
+  });
+  c.mount(container, mountOpts);
+  return c;
+}
 
 const mockCharData = {
   strokes: [
@@ -42,7 +76,7 @@ describe("char", () => {
   // children don't bleed into `:scope > g > g` and shift the main-group
   // index past 1.
   function createWithStrokePaths() {
-    const k = char.create(container, "あ", {
+    const k = createMounted(container, "あ", {
       charDataLoader: mockCharDataLoader,
       configLoader: null,
     });
@@ -75,7 +109,7 @@ describe("char", () => {
 
   describe("create", () => {
     it("creates a Char instance", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -84,7 +118,7 @@ describe("char", () => {
     });
 
     it("creates SVG inside the container", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -93,7 +127,7 @@ describe("char", () => {
     });
 
     it("respects size option", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 200,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
@@ -105,7 +139,7 @@ describe("char", () => {
 
     it("throws when size is NaN", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           size: Number.NaN,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -115,7 +149,7 @@ describe("char", () => {
 
     it("throws when padding is Infinity", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           padding: Number.POSITIVE_INFINITY,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -125,7 +159,7 @@ describe("char", () => {
 
     it("throws when padding is negative", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           padding: -1,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -135,7 +169,7 @@ describe("char", () => {
 
     it("throws when size is zero", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           size: 0,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -145,7 +179,7 @@ describe("char", () => {
 
     it("throws when size is negative", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           size: -10,
           charDataLoader: mockCharDataLoader,
           configLoader: null,
@@ -155,7 +189,7 @@ describe("char", () => {
 
     it("throws when padding >= size/2", () => {
       expect(() => {
-        char.create(container, "あ", {
+        createMounted(container, "あ", {
           size: 100,
           padding: 50,
           charDataLoader: mockCharDataLoader,
@@ -311,7 +345,7 @@ describe("char", () => {
 
   describe("ready", () => {
     it("resolves when configLoader is null", async () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -319,7 +353,7 @@ describe("char", () => {
     });
 
     it("resolves after config loads", async () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: async () => ({
           character: "あ",
@@ -334,7 +368,7 @@ describe("char", () => {
 
   describe("getStrokeEndings / getStrokeGroups", () => {
     it("returns null when no config loaded", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -343,7 +377,7 @@ describe("char", () => {
     });
 
     it("returns config values after loading", async () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: async () => ({
           character: "あ",
@@ -362,7 +396,7 @@ describe("char", () => {
 
   describe("setStrokeEndings / setStrokeGroups", () => {
     it("overrides stroke endings", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -371,7 +405,7 @@ describe("char", () => {
     });
 
     it("overrides stroke groups", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -383,7 +417,7 @@ describe("char", () => {
   describe("destroy", () => {
     it("removes click listener", () => {
       const onClick = vi.fn();
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         onClick,
@@ -395,7 +429,7 @@ describe("char", () => {
     });
 
     it("clears the rendered SVG from targetEl", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -406,7 +440,7 @@ describe("char", () => {
     });
 
     it("can be called multiple times safely", () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -415,7 +449,7 @@ describe("char", () => {
     });
 
     it("throws when public methods are called after destroy", async () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -446,7 +480,7 @@ describe("char", () => {
   describe("onClick option", () => {
     it("fires onClick with character and strokeIndex null when no stroke hit", () => {
       const onClick = vi.fn();
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         onClick,
@@ -508,7 +542,7 @@ describe("char", () => {
     it("tears down an in-flight animate() overlay", async () => {
       vi.useFakeTimers();
       try {
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -547,7 +581,7 @@ describe("char", () => {
         });
       const onCorrectStroke = vi.fn();
       const onMistake = vi.fn();
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader,
         onCorrectStroke,
@@ -579,7 +613,7 @@ describe("char", () => {
 
   describe("showGrid option", () => {
     it("does not draw grid lines when showGrid is omitted", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
@@ -589,7 +623,7 @@ describe("char", () => {
     });
 
     it("draws cross-hair grid lines when showGrid is true (create)", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -609,7 +643,7 @@ describe("char", () => {
     });
 
     it("applies custom GridOptions", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         showGrid: { color: "#aaf", dashArray: "8,4", width: 0.5 },
         charDataLoader: mockCharDataLoader,
@@ -625,7 +659,7 @@ describe("char", () => {
     });
 
     it("sets pointer-events=none on grid lines (does not block hit-test)", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -671,7 +705,7 @@ describe("char", () => {
     });
 
     it("marks the grid SVG as aria-hidden so it is not exposed as a separate accessible graphic", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -682,7 +716,7 @@ describe("char", () => {
     });
 
     it("keeps pointer-events:none on the grid SVG and its lines so it never blocks hit-testing", () => {
-      char.create(container, "あ", {
+      createMounted(container, "あ", {
         size: 300,
         showGrid: true,
         charDataLoader: mockCharDataLoader,
@@ -721,7 +755,7 @@ describe("char", () => {
       vi.useFakeTimers();
       try {
         const onCorrectStroke = vi.fn();
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -758,7 +792,7 @@ describe("char", () => {
     it("start() cancels an in-flight animate() so the quiz surface is visible immediately", async () => {
       vi.useFakeTimers();
       try {
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -797,7 +831,7 @@ describe("char", () => {
     it("uses the overlay path even when strokeGroups was never configured", async () => {
       vi.useFakeTimers();
       try {
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -824,7 +858,7 @@ describe("char", () => {
     it("keeps at most one .kakitori-anim overlay when animate() is called repeatedly", async () => {
       vi.useFakeTimers();
       try {
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
         });
@@ -856,7 +890,7 @@ describe("char", () => {
     it("keeps the showGrid grid visible while animate() is running", async () => {
       vi.useFakeTimers();
       try {
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           showGrid: true,
@@ -905,7 +939,7 @@ describe("char", () => {
         // 1000 + 200ms) fires within ~210ms of fake time. Without this, the
         // setTimeout fires >1.2s after scheduling and the assertions below
         // can't isolate run #1's timer from run #2's.
-        const k = char.create(container, "あ", {
+        const k = createMounted(container, "あ", {
           charDataLoader: mockCharDataLoader,
           configLoader: null,
           strokeAnimationSpeed: 100,
@@ -954,7 +988,7 @@ describe("char", () => {
     });
 
     it("DOM-dependent APIs still work after setCharacter()", async () => {
-      const k = char.create(container, "あ", {
+      const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -1030,6 +1064,227 @@ describe("char", () => {
         { x: 500, y: 0 },
       ]);
       expect(long).toBeGreaterThan(short);
+    });
+  });
+
+  describe("mount lifecycle", () => {
+    it("create() leaves the instance unmounted", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      expect(k.isMounted()).toBe(false);
+      expect(container.querySelector("svg")).toBeNull();
+    });
+
+    it("mount() returns the same Char for chaining", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const chained = k.mount(container);
+      expect(chained).toBe(k);
+      expect(k.isMounted()).toBe(true);
+      expect(container.querySelector("svg")).not.toBeNull();
+    });
+
+    it("unmount() returns the same Char and clears the SVG", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.mount(container);
+      const chained = k.unmount();
+      expect(chained).toBe(k);
+      expect(k.isMounted()).toBe(false);
+      expect(container.innerHTML).toBe("");
+    });
+
+    it("a second mount() unmounts the previous target", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const otherContainer = document.createElement("div");
+      document.body.appendChild(otherContainer);
+      try {
+        k.mount(container);
+        expect(container.querySelector("svg")).not.toBeNull();
+        k.mount(otherContainer);
+        expect(container.innerHTML).toBe("");
+        expect(otherContainer.querySelector("svg")).not.toBeNull();
+      } finally {
+        otherContainer.remove();
+      }
+    });
+
+    it("DOM-bound methods throw before mount()", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const expectedMessage = "char: not mounted";
+      expect(() => k.start()).toThrow(expectedMessage);
+      expect(() => k.animate()).toThrow(expectedMessage);
+      expect(() => k.reset()).toThrow(expectedMessage);
+      expect(() => k.hideCharacter()).toThrow(expectedMessage);
+      expect(() => k.showCharacter()).toThrow(expectedMessage);
+      expect(() => k.hideOutline()).toThrow(expectedMessage);
+      expect(() => k.showOutline()).toThrow(expectedMessage);
+      expect(() => k.setStrokeColor(0, "#000")).toThrow(expectedMessage);
+      expect(() => k.resetStrokeColor(0)).toThrow(expectedMessage);
+      expect(() => k.resetStrokeColors()).toThrow(expectedMessage);
+      expect(() => k.getStrokeIndexAtPoint(0, 0)).toThrow(expectedMessage);
+    });
+
+    it("getLogicalStrokeCount works headless when strokeGroups is configured", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        strokeGroups: [[0], [1]],
+      });
+      expect(k.getLogicalStrokeCount()).toBe(2);
+    });
+
+    it("destroy() unmounts the instance and is idempotent", () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.mount(container);
+      k.destroy();
+      expect(container.innerHTML).toBe("");
+      expect(() => k.destroy()).not.toThrow();
+    });
+
+    it("mount() throws after judge() has been called on the same Char", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await k.judge(0, [
+        { x: 0, y: 0 },
+        { x: 100, y: 100 },
+      ]);
+      expect(() => k.mount(container)).toThrow("after judge");
+    });
+
+    it("judge() throws on a mounted instance", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      k.mount(container);
+      await expect(
+        k.judge(0, [
+          { x: 0, y: 0 },
+          { x: 100, y: 100 },
+        ]),
+      ).rejects.toThrow("not supported on a mounted instance");
+    });
+  });
+
+  describe("judge() / result()", () => {
+    it("returns matched=true for a stroke that traces hanzi-writer's median", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      // mockCharData stroke 0 median: [[0,0], [100,100]]; trace it densely
+      // enough to satisfy hanzi-writer's matcher.
+      const trace = [
+        { x: 0, y: 0 },
+        { x: 25, y: 25 },
+        { x: 50, y: 50 },
+        { x: 75, y: 75 },
+        { x: 100, y: 100 },
+      ];
+      const r = await k.judge(0, trace);
+      expect(r.matched).toBe(true);
+      expect(r.similarity).toBeGreaterThan(0);
+      expect(r.similarity).toBeLessThanOrEqual(1);
+    });
+
+    it("returns matched=false for a stroke far from the expected median", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const r = await k.judge(0, [
+        { x: 0, y: 0 },
+        { x: -500, y: -500 },
+      ]);
+      expect(r.matched).toBe(false);
+    });
+
+    it("similarity is 0 once the average distance exceeds the matcher threshold", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const r = await k.judge(0, [
+        { x: 9999, y: 9999 },
+        { x: 10000, y: 10000 },
+      ]);
+      expect(r.similarity).toBe(0);
+    });
+
+    it("result() exposes the cumulative per-stroke matches", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const goodTrace0 = [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+        { x: 100, y: 100 },
+      ];
+      const goodTrace1 = [
+        { x: 200, y: 200 },
+        { x: 250, y: 250 },
+        { x: 300, y: 300 },
+      ];
+      await k.judge(0, goodTrace0);
+      await k.judge(1, goodTrace1);
+      const res = k.result();
+      expect(res.perStroke).toHaveLength(2);
+      expect(res.perStroke[0].matched).toBe(true);
+      expect(res.perStroke[1].matched).toBe(true);
+      expect(res.matched).toBe(true);
+    });
+
+    it("result() reports matched=false when at least one judged stroke missed", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await k.judge(0, [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+        { x: 100, y: 100 },
+      ]);
+      await k.judge(1, [
+        { x: -999, y: -999 },
+        { x: -888, y: -888 },
+      ]);
+      const res = k.result();
+      expect(res.matched).toBe(false);
+    });
+
+    it("rejects negative or non-integer strokeNum", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await expect(k.judge(-1, [])).rejects.toThrow("non-negative integer");
+      await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
   });
 });

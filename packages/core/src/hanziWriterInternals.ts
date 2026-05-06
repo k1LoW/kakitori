@@ -40,6 +40,13 @@ export interface HanziQuiz {
   _handleFailure: (meta: QuizStrokeMeta) => void;
   _getStrokeData: (args: { isCorrect: boolean; meta: QuizStrokeMeta }) => DrawnStrokeData;
   _userStroke?: { points: Pt[]; externalPoints?: Pt[] };
+  /**
+   * Public method on hanzi-writer's Quiz that runs the stroke matcher and
+   * dispatches to `_handleSuccess` / `_handleFailure`. char.judge sets
+   * `_userStroke` and `_currentStrokeIndex`, then calls this to obtain the
+   * verdict via patched handlers.
+   */
+  endUserStroke(): void;
   __kakitoriPatched?: boolean;
 }
 
