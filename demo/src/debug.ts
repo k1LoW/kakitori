@@ -164,8 +164,7 @@ function renderEvents() {
       <div${endingDiffers ? ' class="diff-cell"' : ""}>${mountEnding}</div>
       <div${endingDiffers ? ' class="diff-cell"' : ""}>${judgeEnding}</div>
       <div class="label">points</div>
-      <div>${ev.mount.points.length}</div>
-      <div>${ev.mount.points.length}</div>
+      <div class="span2">${ev.mount.points.length} (shared input — judge() ran on the same TimedPoint[])</div>
     `;
     card.appendChild(compare);
     strokeResultsEl.appendChild(card);
