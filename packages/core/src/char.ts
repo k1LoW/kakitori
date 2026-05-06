@@ -1079,6 +1079,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   function unmount(): Char {
+    assertNotDestroyed();
     if (!mounted) {
       return api;
     }
@@ -1098,6 +1099,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   function isMounted(): boolean {
+    assertNotDestroyed();
     return mounted !== null;
   }
 

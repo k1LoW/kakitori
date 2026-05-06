@@ -472,8 +472,14 @@ describe("char", () => {
       expect(() => k.resetStrokeColors()).toThrow(expectedMessage);
       expect(() => k.getLogicalStrokeCount()).toThrow(expectedMessage);
       expect(() => k.reset()).toThrow(expectedMessage);
-      // setCharacter is async; synchronous throw becomes a rejected promise.
+      expect(() => k.unmount()).toThrow(expectedMessage);
+      expect(() => k.isMounted()).toThrow(expectedMessage);
+      expect(() => k.mount(container)).toThrow(expectedMessage);
+      expect(() => k.result()).toThrow(expectedMessage);
+      // setCharacter and judge are async; synchronous throw becomes a
+      // rejected promise.
       await expect(k.setCharacter("い")).rejects.toThrow(expectedMessage);
+      await expect(k.judge(0, [])).rejects.toThrow(expectedMessage);
     });
   });
 
