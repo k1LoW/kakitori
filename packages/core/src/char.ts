@@ -478,12 +478,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   function getMountStroke(m: MountState, dataStrokeNum: number) {
-    const character = (
+    const characterImpl = (
       m.hw as unknown as {
         _character?: { strokes?: Array<{ getAverageDistance(points: Pt[]): number }> };
       }
     )._character;
-    return character?.strokes?.[dataStrokeNum];
+    return characterImpl?.strokes?.[dataStrokeNum];
   }
 
   // ===== ending judgment adapter (mount only) =====

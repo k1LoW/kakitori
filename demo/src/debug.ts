@@ -62,7 +62,9 @@ function ensureJudgeChar(): Char {
 }
 
 function fmtNum(n: number, digits = 3): string {
-  if (!Number.isFinite(n)) return String(n);
+  if (!Number.isFinite(n)) {
+    return String(n);
+  }
   return n.toFixed(digits);
 }
 
@@ -71,17 +73,27 @@ function endingSummary(
     | CharStrokeData["strokeEnding"]
     | CharJudgeStrokeResult["strokeEnding"],
 ): string {
-  if (!e) return "—";
+  if (!e) {
+    return "—";
+  }
   return `correct=${e.correct} types=${e.expected ?? "-"} velocity=${e.velocityProfile} conf=${fmtNum(e.confidence, 2)}`;
 }
 
 function diverged(ev: StrokeEvent): boolean {
-  if (!ev.judgeResult) return false;
-  if (ev.judgeResult.matched !== ev.mount.matched) return true;
+  if (!ev.judgeResult) {
+    return false;
+  }
+  if (ev.judgeResult.matched !== ev.mount.matched) {
+    return true;
+  }
   const me = ev.mount.strokeEnding;
   const je = ev.judgeResult.strokeEnding;
-  if (!!me !== !!je) return true;
-  if (me && je && me.correct !== je.correct) return true;
+  if (!!me !== !!je) {
+    return true;
+  }
+  if (me && je && me.correct !== je.correct) {
+    return true;
+  }
   return false;
 }
 
