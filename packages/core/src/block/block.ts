@@ -289,6 +289,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       // cells share line thickness by default. Per-cell overrides below
       // (via `pickMountOpts`) still win.
       drawingWidth: guidedDrawingWidth,
+      // In write mode the quiz starts asynchronously after `await ready()`.
+      // hanzi-writer's mount default would render the character visibly
+      // during that gap — flash the answer to the user. Hide it from the
+      // start so the cell is blank until quiz reveals strokes one by one.
+      ...(cell.mode === "write" ? { showCharacter: false } : {}),
       ...pickMountOpts(overrides),
     };
     const state: PerCellState = {
