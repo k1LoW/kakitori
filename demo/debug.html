@@ -173,9 +173,10 @@
           <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem;">Mount ↔ Judge convergence</h2>
           <p class="desc">
             Practice <b>あ</b> with <code>start()</code>. Each completed stroke is replayed
-            against a fresh headless Char via <code>judge(strokeNum, points)</code>.
-            Mount-side and judge-side results are listed below; rows in red mean the
-            two paths disagreed.
+            through <code>judge(strokeNum, points)</code> on a shared offscreen headless Char
+            (per-stroke results are independent because <code>perStroke[strokeNum]</code>
+            isolates them). Mount-side and judge-side results are listed below; rows in
+            red mean the two paths disagreed.
           </p>
           <div class="convergence-controls">
             <button id="reset-btn">Reset</button>
