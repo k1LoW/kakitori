@@ -150,6 +150,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellSize = opts.spec.size ?? opts.cellSize ?? DEFAULT_CELL_SIZE;
   const writingMode = opts.writingMode ?? "vertical-rl";
   const annotations = opts.spec.annotations ?? [];
+  const cells = opts.spec.cells;
+  validateBlockSpec(cells, annotations, writingMode);
   const resolvedDrawingWidth = opts.drawingWidth ?? DEFAULT_BLOCK_DRAWING_WIDTH;
   const cellBorderWidth = opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH;
   const cellBorderColor = opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
@@ -162,7 +164,6 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
       );
 
-  const cells = opts.spec.cells;
   const cellsExtent = cells.reduce((acc, c) => acc + cellSlotSpan(c) * cellSize, 0);
 
   // Container is a positioned wrapper so children can be absolutely placed.
@@ -196,28 +197,28 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     runningOffset += span * cellSize;
   }
 
-  // Layout annotation rects: by default annotations sit above (horizontal-tb)
-  // or to the right (vertical-rl) of the covered cell range.
+  // Layout annotation rects. v1 only supports `top` (horizontal-tb) and
+  // `right` (vertical-rl); `validateBlockSpec` rejects others up front.
   function annotationRect(a: FuriganaAnnotation): { x: number; y: number; w: number; h: number } {
     const [from, to] = a.cellRange;
     const start = cellRects[from];
     const end = cellRects[to];
     const ratio = a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO;
     if (writingMode === "horizontal-tb") {
-      const x = start.x;
-      const w = end.x + end.w - start.x;
-      const placement = a.placement ?? "top";
       const h = cellSize * ratio;
-      const y = placement === "bottom" ? cellSize + annotationThickness : annotationThickness - h;
-      return { x, y, w, h };
+      return {
+        x: start.x,
+        y: annotationThickness - h,
+        w: end.x + end.w - start.x,
+        h,
+      };
     }
-    // vertical-rl
-    const y = start.y;
-    const h = end.y + end.h - start.y;
-    const placement = a.placement ?? "right";
-    const w = cellSize * ratio;
-    const x = placement === "left" ? cellSize + annotationThickness - w : cellSize;
-    return { x, y, w, h };
+    return {
+      x: cellSize,
+      y: start.y,
+      w: cellSize * ratio,
+      h: end.y + end.h - start.y,
+    };
   }
 
   const cellStates: PerCellState[] = [];
@@ -569,6 +570,53 @@ function cellSlotSpan(cell: Cell): number {
     return Math.max(...candidates.map((c) => Array.from(c).length));
   }
   return 1;
+}
+
+function validateBlockSpec(
+  cells: ReadonlyArray<Cell>,
+  annotations: ReadonlyArray<FuriganaAnnotation>,
+  writingMode: WritingMode,
+): void {
+  cells.forEach((cell, i) => {
+    if (cell.kind !== "free" || cell.span == null) {
+      return;
+    }
+    const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
+    const longest = Math.max(...candidates.map((c) => Array.from(c).length));
+    if (cell.span < longest) {
+      throw new Error(
+        `block.create(): cells[${i}].span (${cell.span}) is smaller than the longest expected candidate length (${longest}).`,
+      );
+    }
+  });
+  annotations.forEach((a, i) => {
+    const [from, to] = a.cellRange;
+    if (
+      !Number.isInteger(from) ||
+      !Number.isInteger(to) ||
+      from < 0 ||
+      to < from ||
+      to >= cells.length
+    ) {
+      throw new Error(
+        `block.create(): annotations[${i}].cellRange [${from}, ${to}] is out of range for ${cells.length} cell(s).`,
+      );
+    }
+    // Only top (horizontal-tb) and right (vertical-rl) are positioned correctly
+    // by the layout — cells are offset by `annotationThickness` to leave room
+    // for those placements only. Other placements would render outside the
+    // wrapper so we reject them up front instead of silently mispositioning.
+    if (writingMode === "horizontal-tb" && a.placement != null && a.placement !== "top") {
+      throw new Error(
+        `block.create(): annotations[${i}].placement="${a.placement}" is not supported for writingMode="horizontal-tb" (only "top" is supported in v1).`,
+      );
+    }
+    if (writingMode === "vertical-rl" && a.placement != null && a.placement !== "right") {
+      throw new Error(
+        `block.create(): annotations[${i}].placement="${a.placement}" is not supported for writingMode="vertical-rl" (only "right" is supported in v1).`,
+      );
+    }
+  });
 }
 
 const CREATE_KEYS = new Set<keyof CharCreateOptions>([
