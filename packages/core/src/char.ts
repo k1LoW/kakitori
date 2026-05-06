@@ -294,6 +294,9 @@ interface MountState {
   isPointerDown: boolean;
   lastMoveTime: number;
   releaseTime: number;
+  // Cached projection from client coords → hanzi-writer internal coords,
+  // captured on pointerdown so pointermove avoids per-event getBoundingClientRect.
+  pointerProjection: { originX: number; originY: number; scale: number } | null;
   timedPoints: Array<{ x: number; y: number; t: number }>;
   boundOnPointerDown: ((e: PointerEvent) => void) | null;
   boundOnPointerMove: ((e: PointerEvent) => void) | null;
@@ -398,16 +401,32 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   // ===== timing tracking (mount only) =====
-  function projectClientToInternal(m: MountState, clientX: number, clientY: number): Pt {
-    // The layer element is square (mount enforces width==height==size), so we
-    // can project clientX/Y → hanzi-writer internal coords ([0, HANZI_COORD_SIZE]
-    // with Y-up) by scaling against the layer's bounding rect.
+  function captureProjection(m: MountState): void {
+    // The layer element is square (mount enforces width==height==size), so
+    // a single rect snapshot lets us project clientX/Y → hanzi-writer
+    // internal coords ([0, HANZI_COORD_SIZE], Y-up) for the rest of the
+    // stroke without re-reading layout.
     const rect = m.layerEl.getBoundingClientRect();
     const size = rect.width || m.size;
-    const scale = HANZI_COORD_SIZE / size;
+    m.pointerProjection = {
+      originX: rect.left,
+      originY: rect.top,
+      scale: HANZI_COORD_SIZE / size,
+    };
+  }
+
+  function projectFromCache(
+    m: MountState,
+    clientX: number,
+    clientY: number,
+  ): Pt {
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return { x: 0, y: 0 };
+    }
     return {
-      x: (clientX - rect.left) * scale,
-      y: HANZI_COORD_SIZE - (clientY - rect.top) * scale,
+      x: (clientX - proj.originX) * proj.scale,
+      y: HANZI_COORD_SIZE - (clientY - proj.originY) * proj.scale,
     };
   }
 
@@ -419,7 +438,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const now = performance.now();
       m.lastMoveTime = now;
       m.releaseTime = 0;
-      const p = projectClientToInternal(m, e.clientX, e.clientY);
+      // Snapshot the layer's rect once per stroke so pointermove only does
+      // arithmetic. The layer cannot move mid-stroke without an external
+      // resize / scroll, in which case the next pointerdown re-snapshots.
+      captureProjection(m);
+      const p = projectFromCache(m, e.clientX, e.clientY);
       m.timedPoints.push({ x: p.x, y: p.y, t: now });
       log?.(`pointerdown  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}`);
     };
@@ -430,7 +453,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const now = performance.now();
       const dt = (now - m.lastMoveTime).toFixed(0);
       m.lastMoveTime = now;
-      const p = projectClientToInternal(m, e.clientX, e.clientY);
+      const p = projectFromCache(m, e.clientX, e.clientY);
       m.timedPoints.push({ x: p.x, y: p.y, t: now });
       log?.(`pointermove  x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  dt=${dt}ms`);
     };
@@ -447,7 +470,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const last = m.timedPoints[m.timedPoints.length - 1];
       const releasePoint = last
         ? { x: last.x, y: last.y, t: m.releaseTime }
-        : { ...projectClientToInternal(m, e.clientX, e.clientY), t: m.releaseTime };
+        : { ...projectFromCache(m, e.clientX, e.clientY), t: m.releaseTime };
       m.timedPoints.push(releasePoint);
       const pause = (m.releaseTime - m.lastMoveTime).toFixed(0);
       log?.(`pointerup    x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  pause=${pause}ms`);
@@ -1212,6 +1235,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       isPointerDown: false,
       lastMoveTime: 0,
       releaseTime: 0,
+      pointerProjection: null,
       timedPoints: [],
       boundOnPointerDown: null,
       boundOnPointerMove: null,
