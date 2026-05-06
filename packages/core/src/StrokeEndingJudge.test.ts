@@ -110,6 +110,26 @@ describe("judge", () => {
       expect(result.correct).toBe(false);
     });
 
+    it("detects hane even when a synthetic release sample is appended", () => {
+      // Same hane shape as above but with a synthetic release point at the
+      // end (same xy as the last move, only `t` differs). Direction and
+      // tail analysis must skip this point or the tip distance and end
+      // direction would be wiped out.
+      const points: TimedPoint[] = [];
+      for (let i = 0; i < 17; i++) {
+        points.push({ x: i * 5, y: 0, t: i * 50 });
+      }
+      points.push({ x: 80, y: -10, t: 870 });
+      points.push({ x: 80, y: -30, t: 890 });
+      points.push({ x: 80, y: -50, t: 895 });
+      // Synthetic release: same xy as the previous sample, only t advances.
+      points.push({ x: 80, y: -50, t: 905 });
+      const expected: StrokeEnding = { types: ["hane"] };
+      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("accelerating");
+    });
+
     it("does not detect hane when stroke is straight with pause", () => {
       const points = makeTimedPoints(
         [[0, 0], [10, 0], [20, 0], [30, 0], [40, 0]],

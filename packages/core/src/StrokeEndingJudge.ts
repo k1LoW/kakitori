@@ -112,10 +112,6 @@ export function judge(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  const tailSize = Math.max(3, Math.floor(points.length * 0.2));
-  const drawnTail = points.slice(-tailSize);
-  const actualEndDirection = getEndDirection(drawnTail);
-
   // The convention: the final element of `points` is the moment of pointerup
   // (its position usually coincides with the previous sample). The gap
   // between the last and second-to-last samples is the user's pause before
@@ -128,8 +124,27 @@ export function judge(
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
+  // Direction and tail analysis must NOT see a synthetic release sample
+  // (xy coinciding with the previous sample): getEndDirection() would
+  // return [0, 0] and the tip window in analyzeTailFromTimedPoints() would
+  // collapse the tip distance / dilute tip speed with the pause duration.
+  // Drop only when the last sample looks like a release marker (same xy
+  // as the previous sample); otherwise the caller is just passing motion
+  // points and we should analyze all of them. pauseMs above already
+  // captured the timing the release sample was carrying.
+  const motionPoints =
+    points.length >= 2 &&
+    points[points.length - 1].x === points[points.length - 2].x &&
+    points[points.length - 1].y === points[points.length - 2].y
+      ? points.slice(0, -1)
+      : points;
+
+  const tailSize = Math.max(3, Math.floor(motionPoints.length * 0.2));
+  const drawnTail = motionPoints.slice(-tailSize);
+  const actualEndDirection = getEndDirection(drawnTail);
+
   const minSegmentDist = 3 * scale;
-  const tail = analyzeTailFromTimedPoints(points, minSegmentDist, scale);
+  const tail = analyzeTailFromTimedPoints(motionPoints, minSegmentDist, scale);
 
   let velocityProfile: "decelerating" | "constant" | "accelerating" = "constant";
   let detectedType: StrokeEndingType;
