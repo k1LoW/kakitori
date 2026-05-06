@@ -570,14 +570,8 @@ describe("char", () => {
         await Promise.resolve();
       }
 
-      // No quiz should be running, so the patched _handleSuccess path
-      // should never have been wired up.
-      const quiz = (k as unknown as {
-        // The closure factory does not expose hw publicly; getStrokeEndings
-        // is enough here to confirm the instance survived. We only need
-        // that no callbacks have fired.
-      });
-      void quiz;
+      // No quiz should be running, so neither callback fires; the patched
+      // _handleSuccess path should never have been wired up.
       expect(onCorrectStroke).not.toHaveBeenCalled();
       expect(onMistake).not.toHaveBeenCalled();
     });
