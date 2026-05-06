@@ -251,7 +251,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cellEl.style.width = `${rect.w}px`;
     cellEl.style.height = `${rect.h}px`;
     cellEl.style.boxSizing = "border-box";
-    cellEl.style.border = resolvedCellBorder;
+    applyBorder(cellEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode, annotations));
     parentEl.appendChild(cellEl);
 
     const overrides = cell.overrides ?? {};
@@ -352,7 +352,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.width = `${rect.w}px`;
     wrapperEl.style.height = `${rect.h}px`;
     wrapperEl.style.boxSizing = "border-box";
-    wrapperEl.style.border = resolvedCellBorder;
+    applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode, annotations));
     parentEl.appendChild(wrapperEl);
 
     const handle = createFreeCell(wrapperEl, {
@@ -397,7 +397,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.width = `${rect.w}px`;
     wrapperEl.style.height = `${rect.h}px`;
     wrapperEl.style.boxSizing = "border-box";
-    wrapperEl.style.border = resolvedCellBorder;
+    applyBorder(wrapperEl, resolvedCellBorder, annotationEdgesToHide(annotation, writingMode));
     parentEl.appendChild(wrapperEl);
 
     const state: PerAnnotationState = {
@@ -480,6 +480,88 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       }
     },
   };
+}
+
+interface BorderHide {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
+const NO_HIDE: BorderHide = { top: false, right: false, bottom: false, left: false };
+
+function applyBorder(el: HTMLElement, border: string, hide: BorderHide): void {
+  el.style.borderTop = hide.top ? "none" : border;
+  el.style.borderRight = hide.right ? "none" : border;
+  el.style.borderBottom = hide.bottom ? "none" : border;
+  el.style.borderLeft = hide.left ? "none" : border;
+}
+
+/** Hide the edge a cell shares with the next cell, plus the edge facing an
+ * annotation that overlaps this cell — that lets the neighbour's own border
+ * draw the shared line and avoids the doubled-up 2px appearance. */
+function cellEdgesToHide(
+  index: number,
+  total: number,
+  writingMode: WritingMode,
+  annotations: ReadonlyArray<FuriganaAnnotation>,
+): BorderHide {
+  const hide: BorderHide = { ...NO_HIDE };
+  const isLast = index === total - 1;
+  if (writingMode === "horizontal-tb" && !isLast) {
+    hide.right = true;
+  } else if (writingMode === "vertical-rl" && !isLast) {
+    hide.bottom = true;
+  }
+  for (const a of annotations) {
+    const [from, to] = a.cellRange;
+    if (index < from || index > to) {
+      continue;
+    }
+    if (writingMode === "vertical-rl") {
+      const placement = a.placement ?? "right";
+      // The annotation strip sits right next to cells on `placement`. The
+      // annotation will skip its inward-facing edge so the cell keeps its
+      // outward-facing one — leave the cell as-is.
+      if (placement === "right" || placement === "left") {
+        // Cell keeps both its right and left edges; annotation hides the
+        // touching one (handled in annotationEdgesToHide).
+        continue;
+      }
+    } else {
+      const placement = a.placement ?? "top";
+      if (placement === "top" || placement === "bottom") {
+        continue;
+      }
+    }
+  }
+  return hide;
+}
+
+/** Hide the annotation's edge that touches the covered cells so only one
+ * 1px line shows on the shared boundary. */
+function annotationEdgesToHide(
+  annotation: FuriganaAnnotation,
+  writingMode: WritingMode,
+): BorderHide {
+  const hide: BorderHide = { ...NO_HIDE };
+  if (writingMode === "vertical-rl") {
+    const placement = annotation.placement ?? "right";
+    if (placement === "right") {
+      hide.left = true;
+    } else if (placement === "left") {
+      hide.right = true;
+    }
+  } else {
+    const placement = annotation.placement ?? "top";
+    if (placement === "top") {
+      hide.bottom = true;
+    } else if (placement === "bottom") {
+      hide.top = true;
+    }
+  }
+  return hide;
 }
 
 /** How many cell slots a cell occupies along the main axis. */
