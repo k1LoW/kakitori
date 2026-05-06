@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kakitori debug</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: sans-serif;
+        padding: 1.5rem;
+        max-width: 1200px;
+        margin: 0 auto;
+        background: #fafafa;
+        color: #222;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      header a { font-size: 0.9rem; color: #0366d6; }
+      p.desc { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+
+      button {
+        padding: 6px 16px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+      button:hover { background: #f0f0f0; }
+      button.tool-btn {
+        text-align: left;
+        padding: 8px 12px;
+        background: transparent;
+        border: 1px solid transparent;
+        border-radius: 4px;
+        width: 100%;
+      }
+      button.tool-btn:hover { background: #eef; }
+      button.tool-btn.active {
+        background: #fff;
+        border-color: #0366d6;
+        color: #0366d6;
+        font-weight: 600;
+      }
+
+      #app {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        gap: 1rem;
+        align-items: start;
+      }
+      #tool-list {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 6px;
+        position: sticky;
+        top: 1rem;
+      }
+      #tool-list h3 {
+        font-size: 0.75rem;
+        color: #999;
+        text-transform: uppercase;
+        margin: 4px 8px 8px;
+        letter-spacing: 0.05em;
+      }
+      #tool-content { min-width: 0; }
+      .tool-panel { display: none; }
+      .tool-panel.active { display: block; }
+
+      /* Convergence tool */
+      .convergence-controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 1rem;
+      }
+      .convergence-body {
+        display: grid;
+        grid-template-columns: 320px 1fr;
+        gap: 1rem;
+        align-items: start;
+      }
+      #writer {
+        border: 1px solid #ddd;
+        background: #fff;
+        border-radius: 4px;
+        width: 300px;
+        height: 300px;
+      }
+      #stroke-results {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.75rem;
+        font-size: 0.85rem;
+        min-height: 300px;
+        max-height: 600px;
+        overflow-y: auto;
+      }
+      .stroke-card {
+        border: 1px solid #eee;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+        margin-bottom: 0.5rem;
+        background: #fcfcfc;
+      }
+      .stroke-card.diverged { border-color: #c44; background: #fff7f7; }
+      .stroke-card-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.4rem;
+      }
+      .stroke-card-head .num { font-weight: 600; }
+      .stroke-card-head .verdict {
+        font-size: 0.75rem;
+        font-family: monospace;
+        padding: 1px 6px;
+        border-radius: 3px;
+      }
+      .verdict.match { background: #d4edda; color: #155724; }
+      .verdict.diff  { background: #f8d7da; color: #721c24; }
+      .compare {
+        display: grid;
+        grid-template-columns: auto 1fr 1fr;
+        gap: 0 0.75rem;
+        font-family: monospace;
+        font-size: 0.78rem;
+      }
+      .compare .label { color: #666; padding-right: 0.5rem; }
+      .compare .col-head {
+        font-weight: 600;
+        font-family: sans-serif;
+        font-size: 0.72rem;
+        color: #444;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding-bottom: 2px;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 2px;
+      }
+      .compare .diff-cell { color: #c44; font-weight: 600; }
+      .empty { color: #999; font-style: italic; padding: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>kakitori debug</h1>
+      <a href="./index.html">← demo</a>
+      <a href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </header>
+    <p class="desc">
+      Internal debugging surface. Pick a tool from the sidebar.
+    </p>
+
+    <div id="app">
+      <aside id="tool-list">
+        <h3>Tools</h3>
+        <button class="tool-btn active" data-tool="convergence">
+          Mount ↔ Judge convergence
+        </button>
+      </aside>
+
+      <main id="tool-content">
+        <section class="tool-panel active" data-tool-panel="convergence">
+          <h2 style="font-size: 1.1rem; margin-bottom: 0.5rem;">Mount ↔ Judge convergence</h2>
+          <p class="desc">
+            Practice <b>あ</b> with <code>start()</code>. Each completed stroke is replayed
+            against a fresh headless Char via <code>judge(strokeNum, points)</code>.
+            Mount-side and judge-side results are listed below; rows in red mean the
+            two paths disagreed.
+          </p>
+          <div class="convergence-controls">
+            <button id="reset-btn">Reset</button>
+            <span id="status" style="font-size: 0.85rem; color: #666;"></span>
+          </div>
+          <div class="convergence-body">
+            <div>
+              <div id="writer"></div>
+            </div>
+            <div id="stroke-results">
+              <div class="empty">Draw a stroke to see results.</div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./src/debug.ts"></script>
+  </body>
+</html>
