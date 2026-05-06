@@ -36,6 +36,22 @@ describe("judge", () => {
       expect(result.velocityProfile).toBe("decelerating");
     });
 
+    it("does not detect tome from a slow final motion segment without a release marker", () => {
+      // Low-frequency sampling: the last segment naturally takes longer
+      // than the tome threshold (>=80ms), but the user never paused — the
+      // last point is just another motion sample (different xy). pauseMs
+      // should be 0, not the segment duration, otherwise tome would fire.
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 250 },
+      ];
+      const expected: StrokeEnding = { types: ["tome"] };
+      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      expect(result.correct).toBe(false);
+    });
+
     it("marks incorrect when tome expected but harai detected", () => {
       // Fast movement (5ms pause) with no sharp turn -> harai
       const points: TimedPoint[] = [

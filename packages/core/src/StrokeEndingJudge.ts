@@ -119,32 +119,30 @@ export function judge(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  // The convention: the final element of `points` is the moment of pointerup
-  // (its position usually coincides with the previous sample). The gap
-  // between the last and second-to-last samples is the user's pause before
-  // releasing. With fewer than 2 samples there is nothing to compare, so we
-  // treat that as "no pause" rather than tome.
-  const pauseMs =
-    points.length >= 2
-      ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
-      : 0;
+  // The convention: when the final element of `points` shares its xy with
+  // the previous sample, it is treated as the moment of pointerup; the gap
+  // between their timestamps is the user's pause before releasing. When
+  // the last point is just another motion sample (xy differs), the final
+  // segment duration is NOT a pause and would produce false tome detections
+  // on low-frequency sampling, so we report 0.
+  //
+  // The same condition decides whether direction and tail analysis should
+  // skip the last sample: a synthetic release point at the same xy makes
+  // getEndDirection() return [0, 0] and lets the tip window in
+  // analyzeTailFromTimedPoints() collapse the tip distance / dilute tip
+  // speed with the pause duration. Motion-only sequences are analyzed in
+  // full.
+  const lastIsRelease =
+    points.length >= 2 &&
+    points[points.length - 1].x === points[points.length - 2].x &&
+    points[points.length - 1].y === points[points.length - 2].y;
+  const pauseMs = lastIsRelease
+    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+    : 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
-  // Direction and tail analysis must NOT see a synthetic release sample
-  // (xy coinciding with the previous sample): getEndDirection() would
-  // return [0, 0] and the tip window in analyzeTailFromTimedPoints() would
-  // collapse the tip distance / dilute tip speed with the pause duration.
-  // Drop only when the last sample looks like a release marker (same xy
-  // as the previous sample); otherwise the caller is just passing motion
-  // points and we should analyze all of them. pauseMs above already
-  // captured the timing the release sample was carrying.
-  const motionPoints =
-    points.length >= 2 &&
-    points[points.length - 1].x === points[points.length - 2].x &&
-    points[points.length - 1].y === points[points.length - 2].y
-      ? points.slice(0, -1)
-      : points;
+  const motionPoints = lastIsRelease ? points.slice(0, -1) : points;
 
   const tailSize = Math.max(3, Math.floor(motionPoints.length * 0.2));
   const drawnTail = motionPoints.slice(-tailSize);
