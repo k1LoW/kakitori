@@ -938,6 +938,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     await configReady;
     const j = await ensureJudger();
 
+    if (strokeGroups && strokeNum >= strokeGroups.length) {
+      throw new Error(
+        `char.judge(): strokeNum ${strokeNum} is out of range; strokeGroups configures ${strokeGroups.length} logical stroke(s).`,
+      );
+    }
     const dataStrokeNum = logicalToFirstDataStroke(strokeNum);
     if (dataStrokeNum >= j.character.strokes.length) {
       throw new Error(

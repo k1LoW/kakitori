@@ -1414,6 +1414,24 @@ describe("char", () => {
       ).rejects.toThrow("out of range");
     });
 
+    it("rejects strokeNum past the configured strokeGroups length", async () => {
+      // strokeGroups merges the 2 data strokes into 1 logical stroke;
+      // judge(1, ...) targets a logical index that is not in the configured
+      // groups even though data index 1 still exists.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        strokeGroups: [[0, 1]],
+      });
+      await k.ready();
+      await expect(
+        k.judge(1, [
+          { x: 0, y: 0 },
+          { x: 50, y: 50 },
+        ]),
+      ).rejects.toThrow("strokeGroups configures 1 logical stroke");
+    });
+
     it("destroy() while judge() is in flight cleans up the offscreen container", async () => {
       const offscreenBefore = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",
