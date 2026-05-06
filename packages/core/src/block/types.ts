@@ -37,7 +37,6 @@ export interface FreeCell {
    * Constraint: `span >= max(expected.length)`.
    */
   span?: number;
-  similarityThreshold?: number;
 }
 
 export type Cell = GuidedCell | FreeCell;
@@ -52,7 +51,6 @@ export interface FuriganaAnnotation {
   placement?: "top" | "bottom" | "left" | "right";
   /** Annotation size relative to the covered cells (longer side ratio). */
   sizeRatio?: number;
-  similarityThreshold?: number;
 }
 
 export interface BlockSpec {
@@ -83,10 +81,21 @@ export interface GuidedCellResult {
 export interface FreeCellResult {
   kind: "free";
   matched: boolean;
-  /** The expected candidate that matched, or the closest one when no candidate matched. */
+  /**
+   * The expected candidate that matched. Set to the matched candidate when
+   * `matched === true`, the highest-similarity attempt when `matched === false`
+   * but the user exhausted candidates, or `null` when the cell never reached
+   * any candidate's stroke total (e.g. `mode: "show"` synthetic results
+   * always carry a candidate).
+   */
   candidate: string | null;
+  /** Mean per-stroke similarity for the reported `candidate`. `0` when no attempt was made. */
   similarity: number;
-  /** Per-character judgement of the candidate (length === Array.from(candidate).length). */
+  /**
+   * Per-character judgement aligned to `Array.from(candidate)` when
+   * `candidate != null`. Empty when `candidate === null` or for synthetic
+   * `mode: "show"` results.
+   */
   perCharacter: CharJudgeResult[];
 }
 
