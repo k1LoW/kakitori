@@ -107,20 +107,35 @@ function diverged(ev: StrokeEvent): boolean {
   return false;
 }
 
+function makeCell(text: string, className?: string): HTMLDivElement {
+  const el = document.createElement("div");
+  if (className) {
+    el.className = className;
+  }
+  el.textContent = text;
+  return el;
+}
+
 function renderEvents() {
+  // Use textContent / appendChild instead of innerHTML so values that may
+  // originate from remotely loaded character config (e.g. the strokeEnding
+  // summary) cannot smuggle markup into the panel.
+  strokeResultsEl.replaceChildren();
   if (events.length === 0) {
-    strokeResultsEl.innerHTML =
-      '<div class="empty">Draw a stroke to see results.</div>';
+    strokeResultsEl.appendChild(makeCell("Draw a stroke to see results.", "empty"));
     return;
   }
-  strokeResultsEl.innerHTML = "";
   for (const ev of events) {
     const card = document.createElement("div");
     card.className = "stroke-card" + (diverged(ev) ? " diverged" : "");
 
     const head = document.createElement("div");
     head.className = "stroke-card-head";
-    head.innerHTML = `<span class="num">#${ev.seq} stroke ${ev.mount.strokeNum + 1} (${ev.source})</span>`;
+    const num = document.createElement("span");
+    num.className = "num";
+    num.textContent = `#${ev.seq} stroke ${ev.mount.strokeNum + 1} (${ev.source})`;
+    head.appendChild(num);
+
     const verdict = document.createElement("span");
     if (ev.judgeError) {
       verdict.className = "verdict diff";
@@ -159,23 +174,28 @@ function renderEvents() {
           ev.mount.strokeEnding &&
           ev.judgeResult.strokeEnding.correct !==
             ev.mount.strokeEnding.correct));
+    const matchedClass = matchedDiffers ? "diff-cell" : undefined;
+    const endingClass = endingDiffers ? "diff-cell" : undefined;
 
-    compare.innerHTML = `
-      <div class="label col-head"></div>
-      <div class="col-head">mount</div>
-      <div class="col-head">judge</div>
-      <div class="label">matched</div>
-      <div${matchedDiffers ? ' class="diff-cell"' : ""}>${mountMatched}</div>
-      <div${matchedDiffers ? ' class="diff-cell"' : ""}>${judgeMatched}</div>
-      <div class="label">similarity</div>
-      <div>${mountSim}</div>
-      <div>${judgeSim}</div>
-      <div class="label">ending</div>
-      <div${endingDiffers ? ' class="diff-cell"' : ""}>${mountEnding}</div>
-      <div${endingDiffers ? ' class="diff-cell"' : ""}>${judgeEnding}</div>
-      <div class="label">points</div>
-      <div class="span2">${ev.mount.points.length} (shared input — judge() ran on the same TimedPoint[])</div>
-    `;
+    compare.append(
+      makeCell("", "label col-head"),
+      makeCell("mount", "col-head"),
+      makeCell("judge", "col-head"),
+      makeCell("matched", "label"),
+      makeCell(mountMatched, matchedClass),
+      makeCell(judgeMatched, matchedClass),
+      makeCell("similarity", "label"),
+      makeCell(mountSim),
+      makeCell(judgeSim),
+      makeCell("ending", "label"),
+      makeCell(mountEnding, endingClass),
+      makeCell(judgeEnding, endingClass),
+      makeCell("points", "label"),
+      makeCell(
+        `${ev.mount.points.length} (shared input — judge() ran on the same TimedPoint[])`,
+        "span2",
+      ),
+    );
     card.appendChild(compare);
     strokeResultsEl.appendChild(card);
   }
