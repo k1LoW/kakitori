@@ -197,6 +197,36 @@ describe("char", () => {
         });
       }).toThrow("padding (50) must be less than size/2");
     });
+
+    it("throws when strokeEndingStrictness is below 0", () => {
+      expect(() => {
+        char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeEndingStrictness: -0.1,
+        });
+      }).toThrow("strokeEndingStrictness must be in [0, 1]");
+    });
+
+    it("throws when strokeEndingStrictness is above 1", () => {
+      expect(() => {
+        char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeEndingStrictness: 1.5,
+        });
+      }).toThrow("strokeEndingStrictness must be in [0, 1]");
+    });
+
+    it("throws when strokeEndingStrictness is NaN", () => {
+      expect(() => {
+        char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          strokeEndingStrictness: Number.NaN,
+        });
+      }).toThrow("strokeEndingStrictness must be in [0, 1]");
+    });
   });
 
   describe("render", () => {

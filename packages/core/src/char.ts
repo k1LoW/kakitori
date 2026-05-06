@@ -310,6 +310,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   const charDataLoader = options.charDataLoader ?? defaultCharDataLoader;
   const leniency = options.leniency;
   const strokeEndingStrictness = options.strokeEndingStrictness ?? 0.7;
+  if (
+    !Number.isFinite(strokeEndingStrictness) ||
+    strokeEndingStrictness < 0 ||
+    strokeEndingStrictness > 1
+  ) {
+    throw new Error(
+      `char: strokeEndingStrictness must be in [0, 1], got ${options.strokeEndingStrictness}`,
+    );
+  }
 
   // mount-bound and judger-bound state are populated lazily.
   let mounted: MountState | null = null;
