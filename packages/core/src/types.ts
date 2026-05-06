@@ -2,9 +2,17 @@
 export type StrokeEndingType = "tome" | "hane" | "harai";
 
 /**
- * A point sampled along a drawn stroke, with a timestamp. `x` and `y` are in
- * hanzi-writer's internal coord space ([0, HANZI_COORD_SIZE], Y-up). `t` is
- * milliseconds (typically `performance.now()`).
+ * A point sampled along a drawn stroke, with a timestamp.
+ *
+ * `x` and `y` are coord-space-agnostic; the receiving API decides the
+ * contract:
+ * - Mount callbacks ({@link CharStrokeData.points}) emit values in
+ *   hanzi-writer's internal coord space ([0, HANZI_COORD_SIZE], Y-up).
+ * - {@link Char.judge}'s `points` argument expects internal coords by
+ *   default, but accepts arbitrary source coords when `opts.sourceBox` is
+ *   provided — judge() projects them into internal coords for you.
+ *
+ * `t` is milliseconds (typically `performance.now()`).
  *
  * The final element of a stroke array is treated as the moment the user
  * released the pointer: its `t` is the release time and its position is
