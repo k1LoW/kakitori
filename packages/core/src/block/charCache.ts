@@ -1,7 +1,10 @@
 import { char, type Char } from "../char.js";
-import { defaultCharDataLoader } from "../dataLoader.js";
-import type { CharDataLoaderFn } from "../charOptions.js";
-import type { NormalizeTarget } from "../recognition/normalize.js";
+import { defaultCharDataLoader, defaultConfigLoader } from "../dataLoader.js";
+import type { CharDataLoaderFn, ConfigLoaderFn } from "../charOptions.js";
+import {
+  DEFAULT_NORMALIZE_TARGET,
+  type NormalizeTarget,
+} from "../recognition/normalize.js";
 import type { BlockLoaders } from "./types.js";
 
 /**
@@ -56,7 +59,7 @@ export async function getJudgeChar(
   c: string,
   opts: GetJudgeCharOptions = {},
 ): Promise<JudgeCharEntry> {
-  const key = cacheKey(c, opts.leniency);
+  const key = cacheKey(c, opts);
   let entry = cache.get(key);
   if (!entry) {
     const inst = char.create(c, {
@@ -82,8 +85,41 @@ export async function getJudgeChar(
   return entry;
 }
 
-function cacheKey(c: string, leniency: number | undefined): string {
-  return leniency === undefined ? c : `${c}|len=${leniency}`;
+/**
+ * Cache key includes loader identity (function reference) so that two Blocks
+ * configured with different `charDataLoader` / `configLoader` don't share the
+ * same `Char` instance — which would otherwise pin behavior (stroke counts,
+ * strokeEndings) to whichever loader populated the cache first. Default
+ * loaders normalize to a stable string so the common path stays a single
+ * shared entry per `(character, leniency)`.
+ */
+function cacheKey(c: string, opts: GetJudgeCharOptions): string {
+  const charLoaderKey = loaderId("char", opts.charDataLoader, defaultCharDataLoader);
+  const configLoaderKey =
+    opts.configLoader === null
+      ? "config=null"
+      : loaderId("config", opts.configLoader, defaultConfigLoader);
+  const leniencyKey = opts.leniency === undefined ? "len=default" : `len=${opts.leniency}`;
+  return `${c}|${leniencyKey}|${charLoaderKey}|${configLoaderKey}`;
+}
+
+const loaderIds = new WeakMap<object, number>();
+let loaderSeq = 0;
+function loaderId(
+  prefix: string,
+  loader: CharDataLoaderFn | ConfigLoaderFn | undefined,
+  defaultLoader: CharDataLoaderFn | ConfigLoaderFn,
+): string {
+  const fn = loader ?? defaultLoader;
+  if (fn === defaultLoader) {
+    return `${prefix}=default`;
+  }
+  let id = loaderIds.get(fn as unknown as object);
+  if (id === undefined) {
+    id = ++loaderSeq;
+    loaderIds.set(fn as unknown as object, id);
+  }
+  return `${prefix}=${id}`;
 }
 
 interface CharMeta {
@@ -127,18 +163,13 @@ function loadCharMeta(
         }
         // Fall back to the full canvas when a character has no medians (a
         // theoretical edge case for character data without sampled paths).
-        const HANZI_COORD_SIZE_FALLBACK = 900;
         const normalizeTarget: NormalizeTarget = any
           ? {
               centerX: (minX + maxX) / 2,
               centerY: (minY + maxY) / 2,
               longerSide: Math.max(maxX - minX, maxY - minY),
             }
-          : {
-              centerX: HANZI_COORD_SIZE_FALLBACK / 2,
-              centerY: HANZI_COORD_SIZE_FALLBACK / 2,
-              longerSide: HANZI_COORD_SIZE_FALLBACK,
-            };
+          : DEFAULT_NORMALIZE_TARGET;
         resolve({ dataStrokeCount: data.strokes.length, normalizeTarget });
       },
       (err) =>
