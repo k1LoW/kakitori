@@ -488,21 +488,32 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // Listen on the Char-owned layerEl (not targetEl) so pointer events on
     // unrelated sibling DOM the host placed inside targetEl never feed
     // into our timing tracker.
-    m.layerEl.addEventListener("pointerdown", m.boundOnPointerDown);
-    m.layerEl.addEventListener("pointermove", m.boundOnPointerMove);
-    m.layerEl.addEventListener("pointerup", m.boundOnPointerUp);
+    //
+    // Capture phase (`useCapture: true`) so layerEl's handler fires before
+    // hanzi-writer's listener inside the SVG. That matters most for
+    // pointerup: hanzi-writer runs the matcher and its onCorrectStroke /
+    // onMistake / ending-judgment patch synchronously from its own
+    // pointerup, so the release sample MUST be appended first or those
+    // callbacks would observe `m.timedPoints` without it and tome
+    // detection would be skewed. The other two handlers are kept in
+    // capture for symmetry — they do not depend on order, but reading
+    // them all the same way avoids surprises if hanzi-writer ever does
+    // synchronous work in pointerdown / pointermove too.
+    m.layerEl.addEventListener("pointerdown", m.boundOnPointerDown, true);
+    m.layerEl.addEventListener("pointermove", m.boundOnPointerMove, true);
+    m.layerEl.addEventListener("pointerup", m.boundOnPointerUp, true);
   }
   function stopTimingTracking(m: MountState): void {
     if (m.boundOnPointerDown) {
-      m.layerEl.removeEventListener("pointerdown", m.boundOnPointerDown);
+      m.layerEl.removeEventListener("pointerdown", m.boundOnPointerDown, true);
       m.boundOnPointerDown = null;
     }
     if (m.boundOnPointerMove) {
-      m.layerEl.removeEventListener("pointermove", m.boundOnPointerMove);
+      m.layerEl.removeEventListener("pointermove", m.boundOnPointerMove, true);
       m.boundOnPointerMove = null;
     }
     if (m.boundOnPointerUp) {
-      m.layerEl.removeEventListener("pointerup", m.boundOnPointerUp);
+      m.layerEl.removeEventListener("pointerup", m.boundOnPointerUp, true);
       m.boundOnPointerUp = null;
     }
   }
