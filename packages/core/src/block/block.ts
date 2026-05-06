@@ -142,7 +142,7 @@ interface PerCellState {
 interface PerAnnotationState {
   index: number;
   annotation: FuriganaAnnotation;
-  freeHandle: FreeCellHandle;
+  freeHandle: FreeCellHandle | null;
   result: AnnotationResult | null;
 }
 
@@ -374,6 +374,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode));
     parentEl.appendChild(wrapperEl);
 
+    if (cell.mode === "show") {
+      // Render the first candidate as static text and synthesize a matched
+      // result so block aggregation still completes.
+      renderShowText(wrapperEl, firstCandidate(cell.expected), rect);
+      const state: PerCellState = { index, cell, result: null };
+      queueMicrotask(() => commitFreeShowResult(state, "cell", cell.expected));
+      return state;
+    }
+
     const handle = createFreeCell(wrapperEl, {
       expected: cell.expected,
       width: rect.w,
@@ -403,6 +412,26 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     return state;
   }
 
+  function commitFreeShowResult(
+    state: PerCellState,
+    kind: "cell" | "annotation",
+    expected: import("./types.js").Expected,
+  ): void {
+    if (state.result) {
+      return;
+    }
+    const result: FreeCellResult = {
+      kind: "free",
+      matched: true,
+      candidate: firstCandidate(expected),
+      similarity: 1,
+      perCharacter: [],
+    };
+    state.result = result;
+    opts.onCellComplete?.(state.index, kind, result);
+    maybeCommitBlock();
+  }
+
   function mountAnnotation(
     parentEl: HTMLElement,
     rect: { x: number; y: number; w: number; h: number },
@@ -418,6 +447,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.boxSizing = "border-box";
     applyBorder(wrapperEl, resolvedCellBorder, annotationEdgesToHide(annotation, writingMode));
     parentEl.appendChild(wrapperEl);
+
+    if (annotation.mode === "show") {
+      renderShowText(wrapperEl, firstCandidate(annotation.expected), rect);
+      const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
+      queueMicrotask(() => commitAnnotationShowResult(state));
+      return state;
+    }
 
     const state: PerAnnotationState = {
       index,
@@ -445,6 +481,22 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       }),
     };
     return state;
+  }
+
+  function commitAnnotationShowResult(state: PerAnnotationState): void {
+    if (state.result) {
+      return;
+    }
+    const result: FreeCellResult = {
+      kind: "free",
+      matched: true,
+      candidate: firstCandidate(state.annotation.expected),
+      similarity: 1,
+      perCharacter: [],
+    };
+    state.result = result;
+    opts.onCellComplete?.(state.index, "annotation", result);
+    maybeCommitBlock();
   }
 
   function maybeCommitBlock(): void {
@@ -475,11 +527,20 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         } else if (state.freeHandle) {
           state.freeHandle.reset();
+        } else if (state.cell.kind === "free" && state.cell.mode === "show") {
+          // mode='show' free cell — re-emit the synthetic matched result.
+          const expected = state.cell.expected;
+          queueMicrotask(() => commitFreeShowResult(state, "cell", expected));
         }
       }
       for (const state of annotationStates) {
         state.result = null;
-        state.freeHandle.reset();
+        if (state.freeHandle) {
+          state.freeHandle.reset();
+        } else {
+          // mode='show' annotation — re-emit the synthetic result.
+          queueMicrotask(() => commitAnnotationShowResult(state));
+        }
       }
     },
     destroy(): void {
@@ -492,7 +553,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         }
       }
       for (const state of annotationStates) {
-        state.freeHandle.destroy();
+        if (state.freeHandle) {
+          state.freeHandle.destroy();
+        }
       }
       if (wrapper.parentNode) {
         wrapper.parentNode.removeChild(wrapper);
@@ -558,6 +621,36 @@ function annotationEdgesToHide(
     }
   }
   return hide;
+}
+
+function firstCandidate(expected: import("./types.js").Expected): string {
+  return Array.isArray(expected) ? expected[0] : expected;
+}
+
+/** Render the expected text as static SVG so a `mode: "show"` free cell /
+ * annotation displays the answer instead of an interactive surface. */
+function renderShowText(
+  parentEl: HTMLElement,
+  text: string,
+  rect: { w: number; h: number },
+): void {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", String(rect.w));
+  svg.setAttribute("height", String(rect.h));
+  svg.setAttribute("viewBox", `0 0 ${rect.w} ${rect.h}`);
+  svg.style.display = "block";
+  const fontSize = Math.max(12, Math.min(rect.w, rect.h) * 0.6);
+  const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+  t.setAttribute("x", String(rect.w / 2));
+  t.setAttribute("y", String(rect.h / 2));
+  t.setAttribute("text-anchor", "middle");
+  t.setAttribute("dominant-baseline", "central");
+  t.setAttribute("font-size", String(fontSize));
+  t.setAttribute("font-family", "serif");
+  t.setAttribute("fill", "#222");
+  t.textContent = text;
+  svg.appendChild(t);
+  parentEl.appendChild(svg);
 }
 
 /** How many cell slots a cell occupies along the main axis. */
