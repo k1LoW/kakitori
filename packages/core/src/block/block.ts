@@ -22,6 +22,10 @@ import type {
 
 const DEFAULT_CELL_SIZE = 120;
 const DEFAULT_ANNOTATION_RATIO = 0.4;
+/** Free cell stroke width default (mirrors `freeCell.DEFAULT_DRAWING_WIDTH`). */
+const DEFAULT_FREE_DRAWING_WIDTH = 6;
+/** Floor for the auto-scaled annotation drawing width so very small ratios stay visible. */
+const MIN_ANNOTATION_DRAWING_WIDTH = 1.5;
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
 
@@ -38,6 +42,14 @@ export interface BlockCreateOptions {
   matchedColor?: string;
   failedColor?: string;
   drawingWidth?: number;
+  /**
+   * Drawing width for annotation cells (ふりがな等). When omitted, the value
+   * is derived from `drawingWidth` scaled by each annotation's `sizeRatio`
+   * so the line thickness reads proportional to the annotation strip's
+   * smaller area. Set explicitly to override (e.g. match the cell's
+   * `drawingWidth` exactly).
+   */
+  annotationDrawingWidth?: number;
   /**
    * Cross-grid background for guided cells. Defaults to `true` (a練習帳-style
    * cross). Pass `false` to disable, or a `GridOptions` object to customize
@@ -378,7 +390,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
         ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
-        ...(opts.drawingWidth ? { drawingWidth: opts.drawingWidth } : {}),
+        drawingWidth: resolveAnnotationDrawingWidth(opts, annotation),
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
@@ -446,6 +458,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       }
     },
   };
+}
+
+function resolveAnnotationDrawingWidth(
+  opts: BlockCreateOptions,
+  annotation: FuriganaAnnotation,
+): number {
+  if (opts.annotationDrawingWidth != null) {
+    return opts.annotationDrawingWidth;
+  }
+  const base = opts.drawingWidth ?? DEFAULT_FREE_DRAWING_WIDTH;
+  const ratio = annotation.sizeRatio ?? DEFAULT_ANNOTATION_RATIO;
+  return Math.max(MIN_ANNOTATION_DRAWING_WIDTH, base * ratio);
 }
 
 /** How many cell slots a cell occupies along the main axis. */
