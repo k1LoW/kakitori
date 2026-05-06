@@ -1,6 +1,6 @@
 {
   "name": "@k1low/kakitori",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Kanji writing practice library with stroke ending judgment (tome/hane/harai)",
   "license": "MIT",
   "repository": {

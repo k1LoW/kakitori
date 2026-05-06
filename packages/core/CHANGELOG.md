@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.10.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.9.0...packages/core/v0.10.0) - 2026-05-06
+### Breaking Changes 🛠
+- feat(core)!: headless-first Char with judge/result + method chaining by @k1LoW in https://github.com/k1LoW/kakitori/pull/56
+### New Features 🚀
+- feat(core): add reset() and cross-cancel between start/animate by @k1LoW in https://github.com/k1LoW/kakitori/pull/54
+
 ## [v0.9.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.8.0...packages/core/v0.9.0) - 2026-05-05
 ### Breaking Changes 🛠
 - feat(core)!: replace Kakitori class with char namespace by @k1LoW in https://github.com/k1LoW/kakitori/pull/53
