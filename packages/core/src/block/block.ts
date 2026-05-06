@@ -4,6 +4,7 @@ import type {
   GridOptions,
   MountOptions,
 } from "../charOptions.js";
+import { HANZI_COORD_SIZE } from "../constants.js";
 import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
@@ -257,13 +258,19 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const c = char.create(cell.char, createOpts);
 
     const blockShowGrid = opts.showGrid ?? true;
+    // hanzi-writer's `drawingWidth` is interpreted in its internal coord
+    // system (HANZI_COORD_SIZE). To make guided cells match free cells'
+    // display-pixel widths, scale our resolved width up by the same factor
+    // hanzi-writer uses to render to the cell — display px → internal units.
+    const guidedDrawingWidth =
+      rect.w > 0 ? (resolvedDrawingWidth * HANZI_COORD_SIZE) / rect.w : resolvedDrawingWidth;
     const mountOpts: MountOptions = {
       size: rect.w,
       showGrid: blockShowGrid,
       // Apply the block-wide drawingWidth so guided / free / annotation
       // cells share line thickness by default. Per-cell overrides below
       // (via `pickMountOpts`) still win.
-      drawingWidth: resolvedDrawingWidth,
+      drawingWidth: guidedDrawingWidth,
       ...pickMountOpts(overrides),
     };
     const state: PerCellState = {
