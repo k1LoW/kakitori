@@ -117,6 +117,19 @@ export function judge(
   if (drawableSize <= 0) {
     throw new Error(`judge(): drawableSize must be positive, got ${drawableSize}`);
   }
+  // Boundary validation: NaN / Infinity in `t` would propagate through
+  // pauseMs and the tail-speed calculations and silently produce wrong
+  // verdicts. The mount path only ever feeds in performance.now() values, so
+  // this guards external callers of judgeStrokeEnding (and Char.judge by
+  // extension). Monotonicity is intentionally NOT required — the tail-speed
+  // math already floors negative dt to 0.
+  for (let i = 0; i < points.length; i++) {
+    if (!Number.isFinite(points[i].t)) {
+      throw new Error(
+        `judge(): points[${i}].t must be a finite number, got ${points[i].t}`,
+      );
+    }
+  }
   const scale = drawableSize / BASE_SIZE;
 
   // The convention: when the final element of `points` shares its xy with

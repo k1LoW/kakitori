@@ -348,4 +348,27 @@ describe("judge", () => {
       expect(() => judge(points, { types: ["tome"] }, { drawableSize: Number.POSITIVE_INFINITY })).toThrow("drawableSize must be finite");
     });
   });
+
+  describe("timestamp validation", () => {
+    it("throws when any point.t is NaN", () => {
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: Number.NaN },
+        { x: 20, y: 20, t: 100 },
+      ];
+      expect(() =>
+        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+      ).toThrow("points[1].t must be a finite number");
+    });
+
+    it("throws when any point.t is Infinity", () => {
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: Number.POSITIVE_INFINITY },
+      ];
+      expect(() =>
+        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+      ).toThrow("points[1].t must be a finite number");
+    });
+  });
 });
