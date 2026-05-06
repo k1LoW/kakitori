@@ -134,9 +134,12 @@ function projectToInternal(
 }
 
 /**
- * A Char instance: a 1-character abstraction. Headless by default — judging
- * works without any DOM. Call {@link Char.mount} to attach the character to
- * a `target` element for interactive practice and rendering.
+ * A Char instance: a 1-character abstraction. Headless by default in the
+ * sense that there is no visible on-screen mount, though judge() still
+ * requires a DOM environment because it lazily mounts an offscreen
+ * (hidden) container so hanzi-writer's matcher can run. Call
+ * {@link Char.mount} to attach the character to a `target` element for
+ * interactive practice and rendering.
  */
 export interface Char {
   /** Wait for the async config (strokeGroups, strokeEndings) to finish loading. */
