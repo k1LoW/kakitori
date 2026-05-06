@@ -24,13 +24,11 @@ import type {
 const DEFAULT_CELL_SIZE = 120;
 const DEFAULT_ANNOTATION_RATIO = 0.4;
 /**
- * Block-wide stroke width default. Picking a single value here (instead of
- * letting hanzi-writer's default and freeCell's default diverge) keeps
- * guided cells, free cells, and annotations on the same line thickness
- * out of the box. Callers can override per call via `drawingWidth` (or
- * per-annotation via `annotationDrawingWidth`).
+ * Block-wide stroke width default in **display pixels**. Tuned for a
+ * ~120-150px cell (about 3% of the cell's longer side); guided / free /
+ * annotation all use this, so adjust here to scale every cell at once.
  */
-const DEFAULT_BLOCK_DRAWING_WIDTH = 8;
+const DEFAULT_BLOCK_DRAWING_WIDTH = 4;
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
 
