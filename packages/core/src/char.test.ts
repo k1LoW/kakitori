@@ -1286,5 +1286,76 @@ describe("char", () => {
       await expect(k.judge(-1, [])).rejects.toThrow("non-negative integer");
       await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
     });
+
+    it("sourceBox projects screen-space points into hanzi-writer internal coords", async () => {
+      // mockCharData stroke 0 median is [(0, 0), (100, 100)] in internal
+      // coords (Y up). The same shape on a 900x900 source square (Y down,
+      // origin top-left) would draw from (0, 900) to (100, 800). With
+      // sourceBox set, judge() must flip Y and pass through unchanged in X
+      // (since size matches HANZI_COORD_SIZE).
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const sourceBox = { x: 0, y: 0, size: 900 };
+      const trace = [
+        { x: 0, y: 900 },
+        { x: 25, y: 875 },
+        { x: 50, y: 850 },
+        { x: 75, y: 825 },
+        { x: 100, y: 800 },
+      ];
+      const r = await k.judge(0, trace, { sourceBox });
+      expect(r.matched).toBe(true);
+      expect(r.similarity).toBeGreaterThan(0);
+    });
+
+    it("sourceBox preserves the spatial relationship between strokes", async () => {
+      // Both strokes drawn at their canonical (internal) positions but
+      // expressed in screen coords on a 900x900 square. Mock medians are
+      // [(0,0)-(100,100)] for stroke 0 and [(200,200)-(300,300)] for
+      // stroke 1; both must match when fed through the same sourceBox.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      const sourceBox = { x: 0, y: 0, size: 900 };
+      const stroke0 = [
+        { x: 0, y: 900 },
+        { x: 50, y: 850 },
+        { x: 100, y: 800 },
+      ];
+      const stroke1 = [
+        { x: 200, y: 700 },
+        { x: 250, y: 650 },
+        { x: 300, y: 600 },
+      ];
+      const r0 = await k.judge(0, stroke0, { sourceBox });
+      const r1 = await k.judge(1, stroke1, { sourceBox });
+      expect(r0.matched).toBe(true);
+      expect(r1.matched).toBe(true);
+    });
+
+    it("sourceBox.size must be positive and finite", async () => {
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await expect(
+        k.judge(0, [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ], { sourceBox: { x: 0, y: 0, size: 0 } }),
+      ).rejects.toThrow("sourceBox.size must be a positive finite number");
+      await expect(
+        k.judge(0, [
+          { x: 0, y: 0 },
+          { x: 1, y: 1 },
+        ], { sourceBox: { x: 0, y: 0, size: Number.POSITIVE_INFINITY } }),
+      ).rejects.toThrow("sourceBox.size must be a positive finite number");
+    });
   });
 });

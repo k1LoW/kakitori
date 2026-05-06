@@ -112,6 +112,28 @@ export function computeMedianPathLength(
 }
 
 /**
+ * Project drawn points from a source coordinate-space square into the
+ * hanzi-writer internal `[0, HANZI_COORD_SIZE]` square. Source is assumed
+ * to be Y-down (browser/SVG); internal is Y-up (math), so the y axis is
+ * flipped during projection.
+ */
+function projectToInternal(
+  points: ReadonlyArray<Pt>,
+  sourceBox: { x: number; y: number; size: number },
+): Pt[] {
+  if (sourceBox.size <= 0 || !Number.isFinite(sourceBox.size)) {
+    throw new Error(
+      `char.judge(): sourceBox.size must be a positive finite number, got ${sourceBox.size}`,
+    );
+  }
+  const scale = HANZI_COORD_SIZE / sourceBox.size;
+  return points.map((p) => ({
+    x: (p.x - sourceBox.x) * scale,
+    y: HANZI_COORD_SIZE - (p.y - sourceBox.y) * scale,
+  }));
+}
+
+/**
  * A Char instance: a 1-character abstraction. Headless by default — judging
  * works without any DOM. Call {@link Char.mount} to attach the character to
  * a `target` element for interactive practice and rendering.
@@ -124,8 +146,17 @@ export interface Char {
   /**
    * Judge a single drawn stroke against the corresponding character stroke.
    * `strokeNum` is the logical stroke index (respects `strokeGroups` when
-   * configured). Resolves with the per-stroke result. Pass `opts.timing` to
-   * also obtain a tome/hane/harai judgment for this stroke.
+   * configured). Resolves with the per-stroke result.
+   *
+   * `points` must be in hanzi-writer's internal coord space
+   * (`[0, HANZI_COORD_SIZE]`, Y-up) unless `opts.sourceBox` is provided —
+   * in that case judge() projects from the source square (Y-down /
+   * browser convention) into internal coords. Pass the SAME `sourceBox`
+   * for every stroke of one character so the spatial relationship between
+   * strokes is preserved.
+   *
+   * Pass `opts.timing` to also obtain a tome/hane/harai judgment for the
+   * current stroke.
    *
    * Records the result on the instance so {@link Char.result} returns the
    * cumulative judgment of every stroke judged so far.
@@ -826,14 +857,21 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       throw new Error("char.judge(): hanzi-writer quiz disappeared between calls.");
     }
 
+    // If a sourceBox was provided, project each point into hanzi-writer's
+    // internal coord space (`[0, HANZI_COORD_SIZE]` with Y-up). Otherwise
+    // assume the caller has already done the projection.
+    const internalPoints = opts.sourceBox
+      ? projectToInternal(points, opts.sourceBox)
+      : points.map((p) => ({ x: p.x, y: p.y }));
+
     // Drive the matcher: position the quiz at the requested stroke, set the
-    // user stroke to the drawn points, and let endUserStroke run
+    // user stroke to the projected points, and let endUserStroke run
     // strokeMatches. The patched handlers capture the verdict.
     quiz._currentStrokeIndex = dataStrokeNum;
     j.capture = null;
     quiz._userStroke = {
-      points: points.map((p) => ({ x: p.x, y: p.y })),
-      externalPoints: points.map((p) => ({ x: p.x, y: p.y })),
+      points: internalPoints,
+      externalPoints: internalPoints,
     };
     quiz.endUserStroke();
 
@@ -843,7 +881,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // on hanzi-writer). 0 distance → 1.0; clamps to 0 once distance reaches
     // hanzi-writer's averageDistanceThreshold.
     const stroke = j.character.strokes[dataStrokeNum];
-    const avgDist = stroke ? stroke.getAverageDistance(points) : Infinity;
+    const avgDist = stroke ? stroke.getAverageDistance(internalPoints) : Infinity;
     const threshold = HW_AVERAGE_DISTANCE_THRESHOLD * (leniency ?? 1);
     const similarity = threshold > 0 ? Math.max(0, Math.min(1, 1 - avgDist / threshold)) : 0;
 
@@ -857,7 +895,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
       const judgement = computeEndingJudgment({
         dataStrokeNum,
-        drawnPoints: points,
+        drawnPoints: internalPoints,
         timing: opts.timing,
         strokeEndings,
         strokeGroups,

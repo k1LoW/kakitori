@@ -95,11 +95,26 @@ export interface MountOptions {
 }
 
 /**
- * Per-call options for {@link Char.judge}. Pass `timing` to enable
- * tome/hane/harai judgment for the current stroke (otherwise the stroke
- * ending is omitted from the result).
+ * Per-call options for {@link Char.judge}.
  */
 export interface CharJudgeStrokeOptions {
+  /**
+   * Source coordinate-space square. When provided, judge() linearly maps
+   * `[x, x+size] x [y, y+size]` in source coords to `[0, HANZI_COORD_SIZE]`
+   * in hanzi-writer's internal coords, also flipping the Y axis (source is
+   * assumed to be Y-down / browser convention; hanzi-writer is Y-up).
+   *
+   * Pass the SAME `sourceBox` for every stroke of a single character so
+   * the spatial relationship across strokes is preserved.
+   *
+   * If your input strokes are not square-fit, expand to a square (using the
+   * longer side of the bounding box) before passing the box here so the
+   * aspect ratio is preserved.
+   *
+   * Omit when `points` are already in hanzi-writer internal coords.
+   */
+  sourceBox?: { x: number; y: number; size: number };
+  /** Pass timing to enable tome/hane/harai judgment for the current stroke. */
   timing?: StrokeTimingData;
 }
 
