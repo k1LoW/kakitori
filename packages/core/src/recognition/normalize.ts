@@ -27,10 +27,14 @@ export const DEFAULT_NORMALIZE_TARGET: NormalizeTarget = {
 
 /**
  * Normalize a single character's drawn strokes so they overlap the matcher's
- * expected character region. The user's bbox is centered on `target.center`
- * and scaled so its longer side equals `target.longerSide`; aspect ratio is
- * preserved. The y axis is flipped so source-Y-down (browser / SVG) becomes
- * target-Y-up (hanzi-writer internal).
+ * expected character region. The user's **centroid** (mean of all sampled
+ * points across every stroke in the segment) is moved onto `target.center`,
+ * and the points are uniformly scaled so the bounding box's longer side
+ * equals `target.longerSide`; aspect ratio is preserved. The y axis is
+ * flipped so source-Y-down (browser / SVG) becomes target-Y-up (hanzi-writer
+ * internal). Centroid is used (rather than the bbox center) because it stays
+ * robust against extreme outlier samples that would otherwise yank the bbox
+ * off-axis.
  *
  * For accurate matching, callers should pass a target derived from the
  * character's median bounding box (see `block/charCache.ts`). When the
