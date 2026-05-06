@@ -33,8 +33,10 @@ const DEFAULT_FREE_CELL_LENIENCY = 1.5;
 
 export interface FreeCellCreateOptions {
   expected: Expected;
-  /** Square side length in display pixels. */
-  size: number;
+  /** Width in display pixels. */
+  width: number;
+  /** Height in display pixels. */
+  height: number;
   drawingColor?: string;
   matchedColor?: string;
   failedColor?: string;
@@ -116,9 +118,9 @@ export function createFreeCell(
     : null;
 
   const el = document.createElementNS(SVG_NS, "svg") as SVGSVGElement;
-  el.setAttribute("width", String(opts.size));
-  el.setAttribute("height", String(opts.size));
-  el.setAttribute("viewBox", `0 0 ${opts.size} ${opts.size}`);
+  el.setAttribute("width", String(opts.width));
+  el.setAttribute("height", String(opts.height));
+  el.setAttribute("viewBox", `0 0 ${opts.width} ${opts.height}`);
   el.style.touchAction = "none";
   el.style.cursor = "crosshair";
   el.style.display = "block";
@@ -192,7 +194,13 @@ export function createFreeCell(
 
   function projectEvent(e: PointerEvent): { x: number; y: number } {
     const rect = el.getBoundingClientRect();
-    return projectClientToCell(rect, opts.size, e.clientX, e.clientY);
+    return projectClientToCell(
+      rect,
+      opts.width,
+      opts.height,
+      e.clientX,
+      e.clientY,
+    );
   }
 
   function newStroke(p: { x: number; y: number; t: number }): DrawnStroke {

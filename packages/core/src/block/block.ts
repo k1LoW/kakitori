@@ -345,7 +345,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     const handle = createFreeCell(wrapperEl, {
       expected: cell.expected,
-      size: Math.max(rect.w, rect.h),
+      width: rect.w,
+      height: rect.h,
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -393,7 +394,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       result: null,
       freeHandle: createFreeCell(wrapperEl, {
         expected: annotation.expected,
-        size: Math.max(rect.w, rect.h),
+        width: rect.w,
+      height: rect.h,
         label: `annotation#${index}`,
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),

@@ -1,24 +1,24 @@
 /**
- * Project a `clientX` / `clientY` pair into the local coordinate system of
- * a square cell element. The cell is assumed to be square and to fill its
- * bounding rect (no internal padding) — that's the simplest case relevant
- * for free cells; the more complex padded mapping lives in `char.ts`.
+ * Project a `clientX` / `clientY` pair into the local viewBox coordinate
+ * system of a free-cell `<svg>`. Handles non-square cells (e.g. tall furigana
+ * strips) by scaling each axis independently.
  *
- * Returns Y-down cell-local pixels (0 at the top edge, `cellSize` at the
- * bottom). The output coord system is **independent** of hanzi-writer's
- * internal Y-up coords: callers (freeCell) draw directly in this space and
- * only flip / normalize at match time via {@link normalizeCharacterSegment}.
+ * Returns Y-down cell-local coords (0 at the top edge, `viewBoxHeight` at
+ * the bottom). The output is independent of hanzi-writer's Y-up internal
+ * coords: callers (freeCell) draw directly in this space and only flip /
+ * normalize at match time via {@link normalizeCharacterSegment}.
  */
 export function projectClientToCell(
-  rect: { left: number; top: number; width: number },
-  cellSize: number,
+  rect: { left: number; top: number; width: number; height: number },
+  viewBoxWidth: number,
+  viewBoxHeight: number,
   clientX: number,
   clientY: number,
 ): { x: number; y: number } {
-  const displayedSize = rect.width || cellSize;
-  const scale = cellSize / displayedSize;
+  const displayedWidth = rect.width || viewBoxWidth;
+  const displayedHeight = rect.height || viewBoxHeight;
   return {
-    x: (clientX - rect.left) * scale,
-    y: (clientY - rect.top) * scale,
+    x: ((clientX - rect.left) / displayedWidth) * viewBoxWidth,
+    y: ((clientY - rect.top) / displayedHeight) * viewBoxHeight,
   };
 }
