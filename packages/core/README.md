@@ -15,7 +15,7 @@ npm install @k1low/kakitori hanzi-writer
 ```javascript
 import { char, defaultCharDataLoader } from "@k1low/kakitori";
 
-const writer = char.create("#target", "永", {
+const c = char.create("#target", "永", {
   size: 300,
   charDataLoader: defaultCharDataLoader,
   onCorrectStroke: (data) => {
@@ -28,13 +28,13 @@ const writer = char.create("#target", "永", {
   },
 });
 
-writer.setStrokeEndings([
+c.setStrokeEndings([
   { types: ["tome"] },
   { types: ["hane"] },
   { types: ["harai"] },
 ]);
 
-writer.start();
+c.start();
 ```
 
 ## License

@@ -145,6 +145,14 @@ export interface Char {
   /** Change the displayed character. Resets stroke endings and mistake count. */
   setCharacter(c: string): Promise<void>;
   /**
+   * Return to a clean rest state: cancel any in-flight animate() overlay,
+   * cancel any active quiz (drops pointer listeners and per-run counters),
+   * and clear any custom stroke colors applied via {@link setStrokeColor}
+   * back to their original values. The current character and configured
+   * strokeEndings / strokeGroups stay in place.
+   */
+  reset(): void;
+  /**
    * Clean up event listeners, remove the rendered SVG, and mark the instance as destroyed.
    * After destroy, calling any other public method throws. destroy() itself is idempotent.
    */
@@ -182,6 +190,20 @@ function createImpl(
 
   // Bridge: judgment computed in patched _handleSuccess, consumed in onCorrectStroke
   let pendingEndingJudgment: StrokeEndingJudgment | null = null;
+
+  // True between start() invoking hw.quiz() and the quiz reaching onComplete
+  // or being cancelled. Gates the user-stroke reload in cancelActiveQuiz so a
+  // cancel-before-quiz path (e.g. animate() with no prior practice) does not
+  // trigger an unnecessary char-data reload that would also wipe colors set
+  // via setStrokeColor.
+  let quizActive = false;
+
+  // Monotonic counter bumped on every start() / animate() / reset() call.
+  // Their `configReady.then(...)` callbacks capture the seq at scheduling
+  // time and bail when a later call has superseded them, so e.g.
+  // `start(); reset();` cannot leave a quiz running once configReady
+  // resolves.
+  let requestSeq = 0;
 
   // onClick listener
   let boundOnClick: ((e: MouseEvent) => void) | null = null;
@@ -353,6 +375,7 @@ function createImpl(
   }
 
   function startQuiz(): void {
+    quizActive = true;
     strokeEndingMistakes = 0;
     pendingEndingJudgment = null;
 
@@ -424,6 +447,7 @@ function createImpl(
       },
 
       onComplete: (summary) => {
+        quizActive = false;
         stopTimingTracking();
         log?.(`complete: totalMistakes=${summary.totalMistakes} strokeEndingMistakes=${strokeEndingMistakes}`);
         options.onComplete?.({
@@ -700,10 +724,56 @@ function createImpl(
     strokeEndings = next;
   }
 
+  /**
+   * Tear down any in-flight animate() overlay and restore the hanzi-writer
+   * SVG so the next interactive surface (quiz, click highlight, etc.) is
+   * usable immediately. The pending animateWithGroups() promise still
+   * resolves, but its `finally` block sees `activeOverlay !== overlaySvg`
+   * and skips a second cleanup pass.
+   */
+  function cancelActiveAnimation(): void {
+    if (activeOverlay) {
+      activeOverlay.remove();
+      activeOverlay = null;
+    }
+    if (hwSvg) {
+      hwSvg.style.visibility = "";
+    }
+  }
+
+  /**
+   * Tear down any in-flight quiz so an animate() request lands on a clean
+   * surface. Forwards to hanzi-writer's cancelQuiz, drops our pointer
+   * timing listeners, and clears per-run counters; the next start() rebuilds
+   * everything from scratch.
+   *
+   * hanzi-writer's `cancelQuiz` does NOT erase strokes the user has already
+   * drawn on the canvas, so without the reload below a half-finished
+   * practice would re-emerge once animate()'s overlay is taken down. We
+   * reload the same character to reset the renderer's userStrokes state.
+   * Fire-and-forget: callers (animate / reset) do not depend on it
+   * completing, and any in-flight reload is harmless once superseded.
+   */
+  function cancelActiveQuiz(): void {
+    const wasActive = quizActive;
+    quizActive = false;
+    hw.cancelQuiz();
+    stopTimingTracking();
+    strokeEndingMistakes = 0;
+    pendingEndingJudgment = null;
+    if (wasActive) {
+      hw.setCharacter(currentCharacter).catch((err: unknown) => {
+        log?.(`cancelActiveQuiz reload failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+  }
+
   function start(): void {
     assertNotDestroyed();
+    cancelActiveAnimation();
+    const seq = ++requestSeq;
     configReady.then(() => {
-      if (destroyed) {
+      if (destroyed || seq !== requestSeq) {
         return;
       }
       startQuiz();
@@ -712,8 +782,10 @@ function createImpl(
 
   function animate(): void {
     assertNotDestroyed();
+    cancelActiveQuiz();
+    const seq = ++requestSeq;
     configReady.then(() => {
-      if (destroyed) {
+      if (destroyed || seq !== requestSeq) {
         return;
       }
       startAnimation();
@@ -835,6 +907,17 @@ function createImpl(
       return strokeGroups.length;
     }
     return getStrokePaths().length;
+  }
+
+  function reset(): void {
+    assertNotDestroyed();
+    // Invalidate any start()/animate() that is still waiting on configReady
+    // so it does not re-enter quiz / overlay state after we tear everything
+    // down here.
+    ++requestSeq;
+    cancelActiveAnimation();
+    cancelActiveQuiz();
+    resetStrokeColors();
   }
 
   async function setCharacter(c: string): Promise<void> {
@@ -1022,6 +1105,7 @@ function createImpl(
     resetStrokeColors,
     getLogicalStrokeCount,
     setCharacter,
+    reset,
     destroy,
   };
 }

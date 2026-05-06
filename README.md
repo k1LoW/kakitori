@@ -29,7 +29,7 @@ Features:
 ```javascript
 import { char, defaultCharDataLoader } from "@k1low/kakitori";
 
-const writer = char.create("#target", "永", {
+const c = char.create("#target", "永", {
   size: 300,
   charDataLoader: defaultCharDataLoader,
   strokeGroups: [[0], [1], [2, 3]], // optional: merge data strokes
@@ -44,7 +44,7 @@ const writer = char.create("#target", "永", {
 });
 
 // Set stroke endings (types can be an array for multiple acceptable endings)
-writer.setStrokeEndings([
+c.setStrokeEndings([
   { types: ["tome"] },
   { types: ["hane"] },
   { types: ["harai"] },
@@ -52,7 +52,7 @@ writer.setStrokeEndings([
   { types: ["harai"] },
 ]);
 
-writer.start();
+c.start();
 ```
 
 ## License
