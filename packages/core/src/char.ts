@@ -171,9 +171,13 @@ export interface Char {
   ): Promise<CharJudgeStrokeResult>;
   /**
    * Cumulative judgment built up by previous {@link Char.judge} calls.
-   * `matched` is true when every judged stroke matched. Strokes that have
-   * not been judged are absent from `perStroke` (it has the highest index
-   * judged + 1 entries; gaps appear as `matched: false` placeholders).
+   *
+   * `matched` is true when at least one stroke has been judged AND every
+   * judged stroke matched. Before any judge() call, `matched` is `false`
+   * (the call has nothing to attest to). Strokes that have not been judged
+   * are absent from `perStroke`; it has the highest index judged + 1
+   * entries with gaps filled by `{ matched: false, similarity: 0 }`
+   * placeholders.
    */
   result(): CharJudgeResult;
 
