@@ -484,18 +484,35 @@ describe("char", () => {
   });
 
   describe("onClick option", () => {
-    it("fires onClick with character and strokeIndex null when no stroke hit", () => {
+    it("fires onClick with character and strokeIndex null when the layer is clicked but no stroke hit", () => {
       const onClick = vi.fn();
       createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         onClick,
       });
-      container.click();
+      // The click listener lives on the Char-owned layerEl, which is the
+      // first child of the host container.
+      const layerEl = container.firstElementChild as HTMLElement;
+      layerEl.click();
       expect(onClick).toHaveBeenCalledWith({
         character: "あ",
         strokeIndex: null,
       });
+    });
+
+    it("does not fire onClick when sibling DOM inside the host target is clicked", () => {
+      const onClick = vi.fn();
+      const sibling = document.createElement("button");
+      sibling.textContent = "host action";
+      container.appendChild(sibling);
+      createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onClick,
+      });
+      sibling.click();
+      expect(onClick).not.toHaveBeenCalled();
     });
   });
 

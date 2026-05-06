@@ -391,21 +391,24 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const pause = (m.releaseTime - m.lastMoveTime).toFixed(0);
       log?.(`pointerup    x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  pause=${pause}ms`);
     };
-    m.targetEl.addEventListener("pointerdown", m.boundOnPointerDown);
-    m.targetEl.addEventListener("pointermove", m.boundOnPointerMove);
-    m.targetEl.addEventListener("pointerup", m.boundOnPointerUp);
+    // Listen on the Char-owned layerEl (not targetEl) so pointer events on
+    // unrelated sibling DOM the host placed inside targetEl never feed
+    // into our timing tracker.
+    m.layerEl.addEventListener("pointerdown", m.boundOnPointerDown);
+    m.layerEl.addEventListener("pointermove", m.boundOnPointerMove);
+    m.layerEl.addEventListener("pointerup", m.boundOnPointerUp);
   }
   function stopTimingTracking(m: MountState): void {
     if (m.boundOnPointerDown) {
-      m.targetEl.removeEventListener("pointerdown", m.boundOnPointerDown);
+      m.layerEl.removeEventListener("pointerdown", m.boundOnPointerDown);
       m.boundOnPointerDown = null;
     }
     if (m.boundOnPointerMove) {
-      m.targetEl.removeEventListener("pointermove", m.boundOnPointerMove);
+      m.layerEl.removeEventListener("pointermove", m.boundOnPointerMove);
       m.boundOnPointerMove = null;
     }
     if (m.boundOnPointerUp) {
-      m.targetEl.removeEventListener("pointerup", m.boundOnPointerUp);
+      m.layerEl.removeEventListener("pointerup", m.boundOnPointerUp);
       m.boundOnPointerUp = null;
     }
   }
@@ -1074,7 +1077,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         const strokeIndex = getStrokeIndexAtPoint(e.clientX, e.clientY);
         mountOpts.onClick!({ character: currentCharacter, strokeIndex });
       };
-      targetEl.addEventListener("click", m.boundOnClick);
+      // Attach to layerEl (Char-owned) instead of targetEl so clicks on
+      // unrelated sibling DOM the host placed inside targetEl do not
+      // trigger spurious onClick callbacks (with strokeIndex: null).
+      m.layerEl.addEventListener("click", m.boundOnClick);
     }
 
     mounted = m;
@@ -1097,7 +1103,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     mounted = null;
     stopTimingTracking(m);
     if (m.boundOnClick) {
-      m.targetEl.removeEventListener("click", m.boundOnClick);
+      m.layerEl.removeEventListener("click", m.boundOnClick);
       m.boundOnClick = null;
     }
     // Symmetric with mount(), which only appends layerEl. Removing just
