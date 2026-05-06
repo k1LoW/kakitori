@@ -102,6 +102,13 @@ function specForUseCase(uc: string): BlockSpec {
           { cellRange: [0, 1], expected: "がっこう", mode: "write" },
         ],
       };
+    case "8":
+      return {
+        cells: [
+          { kind: "guided", char: "学", mode: "write", overrides: { showOutline: false } },
+          { kind: "guided", char: "校", mode: "write", overrides: { showOutline: false } },
+        ],
+      };
   }
   throw new Error(`unknown use case: ${uc}`);
 }
