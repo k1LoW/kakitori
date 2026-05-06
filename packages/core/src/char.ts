@@ -195,8 +195,10 @@ export interface Char {
   setStrokeGroups(strokeGroups: number[][]): Char;
   /**
    * Total logical stroke count. Returns `strokeGroups.length` when groups
-   * are configured; otherwise needs a mounted SVG to count main-group paths
-   * (returns 0 before mount when groups are unconfigured).
+   * are configured. Otherwise it counts paths from the mounted SVG when
+   * mounted, falls back to the offscreen judger's data-stroke count when
+   * judging has been started, and returns 0 before either of those (i.e.
+   * before mount() and before the first judge() call).
    */
   getLogicalStrokeCount(): number;
   /** Change the displayed character. Resets stroke endings and judge result. */
