@@ -349,7 +349,7 @@ describe("judge", () => {
     });
   });
 
-  describe("timestamp validation", () => {
+  describe("point validation", () => {
     it("throws when any point.t is NaN", () => {
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
@@ -358,7 +358,7 @@ describe("judge", () => {
       ];
       expect(() =>
         judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
-      ).toThrow("points[1].t must be a finite number");
+      ).toThrow("points[1] must have finite x/y/t");
     });
 
     it("throws when any point.t is Infinity", () => {
@@ -368,7 +368,27 @@ describe("judge", () => {
       ];
       expect(() =>
         judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
-      ).toThrow("points[1].t must be a finite number");
+      ).toThrow("points[1] must have finite x/y/t");
+    });
+
+    it("throws when any point.x is NaN", () => {
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: Number.NaN, y: 10, t: 50 },
+      ];
+      expect(() =>
+        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+      ).toThrow("points[1] must have finite x/y/t");
+    });
+
+    it("throws when any point.y is Infinity", () => {
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: Number.POSITIVE_INFINITY, t: 50 },
+      ];
+      expect(() =>
+        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+      ).toThrow("points[1] must have finite x/y/t");
     });
   });
 });
