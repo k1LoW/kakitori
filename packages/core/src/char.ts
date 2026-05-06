@@ -1187,7 +1187,6 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
     mounted = null;
-    stopTimingTracking(m);
     if (m.boundOnClick) {
       m.layerEl.removeEventListener("click", m.boundOnClick);
       m.boundOnClick = null;
