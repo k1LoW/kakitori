@@ -1370,6 +1370,41 @@ describe("char", () => {
       expect(res.matched).toBe(true);
     });
 
+    it("result() returns independent placeholder objects for missing entries", async () => {
+      // 3-stroke mock so that judging only the last index leaves two
+      // separate gaps (indices 0 and 1) in the resulting array. The fix
+      // gives each gap its own object so mutating one does not bleed
+      // into the other.
+      const threeStrokeData = {
+        strokes: [
+          "M 0 0 L 100 100",
+          "M 200 200 L 300 300",
+          "M 400 400 L 500 500",
+        ],
+        medians: [
+          [[0, 0], [100, 100]],
+          [[200, 200], [300, 300]],
+          [[400, 400], [500, 500]],
+        ],
+      };
+      const loader: CharDataLoaderFn = (_char, onLoad) => onLoad(threeStrokeData);
+      const k = char.create("あ", {
+        charDataLoader: loader,
+        configLoader: null,
+      });
+      await k.ready();
+      await k.judge(2, [
+        { x: 0, y: 0 },
+        { x: 50, y: 50 },
+      ]);
+      const res = k.result();
+      expect(res.perStroke).toHaveLength(3);
+      // Two distinct placeholder objects, not the same shared reference.
+      expect(res.perStroke[0]).not.toBe(res.perStroke[1]);
+      res.perStroke[0].similarity = 999;
+      expect(res.perStroke[1].similarity).toBe(0);
+    });
+
     it("result() reports matched=false when at least one judged stroke missed", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,

@@ -1016,11 +1016,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
   function result(): CharJudgeResult {
     assertNotDestroyed();
-    const empty: CharJudgeStrokeResult = { matched: false, similarity: 0 };
     const perStroke: CharJudgeStrokeResult[] = [];
     if (judger) {
       for (let i = 0; i < judger.perStroke.length; i++) {
-        perStroke.push(judger.perStroke[i] ?? empty);
+        perStroke.push(judger.perStroke[i] ?? { matched: false, similarity: 0 });
       }
     }
     const matched = perStroke.length > 0 && perStroke.every((r) => r.matched);
