@@ -1,5 +1,9 @@
-import type { StrokeEnding, StrokeEndingJudgment } from "./types.js";
-import { judge, type StrokeTimingData } from "./StrokeEndingJudge.js";
+import type {
+  StrokeEnding,
+  StrokeEndingJudgment,
+  TimedPoint,
+} from "./types.js";
+import { judge } from "./StrokeEndingJudge.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
 import { findDataStroke, type StrokeGroups } from "./strokeGroups.js";
@@ -27,17 +31,23 @@ export function computeDirectionFromMedian(
 export interface EndingJudgmentInput {
   /** Data-stroke index (hanzi-writer's perspective). */
   dataStrokeNum: number;
-  /** Points the user actually drew, in hanzi-writer coord space. */
-  drawnPoints: ReadonlyArray<Pt>;
-  /** Pointer-derived timing for the same stroke. */
-  timing: StrokeTimingData;
+  /** Points the user actually drew, in hanzi-writer coord space, with timestamps. */
+  points: ReadonlyArray<TimedPoint>;
   /** Configured stroke endings (logical-stroke indexed). */
   strokeEndings: readonly StrokeEnding[] | null;
   /** Logical→data stroke grouping. Null = identity (1:1). */
   strokeGroups: StrokeGroups | null;
   /** Loaded hanzi-writer character data, used for direction auto-compute. */
   characterData: HanziCharacterData | null;
-  /** Pixel size of the drawable area (size - 2 * padding). */
+  /**
+   * Side length of the drawable area in the SAME coord space as `points`.
+   * For internal-coord callers (the default — `Char.judge` and the mounted
+   * quiz path both project into hanzi-writer internal coords) this is
+   * `HANZI_COORD_SIZE`. For callers passing CSS-pixel points it is the
+   * displayed size minus padding (`size - 2 * padding`). Mismatched units
+   * here will skew the speed / distance thresholds in
+   * {@link StrokeEndingJudge.judge}.
+   */
   drawableSize: number;
   /** Stroke ending strictness in [0, 1]. */
   strictness: number;
@@ -57,8 +67,7 @@ export function computeEndingJudgment(
 ): StrokeEndingJudgment | null {
   const {
     dataStrokeNum,
-    drawnPoints,
-    timing,
+    points,
     strokeEndings,
     strokeGroups,
     characterData,
@@ -111,14 +120,23 @@ export function computeEndingJudgment(
     }
   }
 
+  // Match StrokeEndingJudge.judge()'s release-marker detection so the log
+  // does not report a misleading "pause" for motion-only sequences (where
+  // the final dt is just the last segment, not a pointerup pause).
+  const lastIsRelease =
+    points.length >= 2 &&
+    points[points.length - 1].x === points[points.length - 2].x &&
+    points[points.length - 1].y === points[points.length - 2].y;
+  const pauseBeforeRelease = lastIsRelease
+    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+    : 0;
   log?.(
-    `judge input: pause=${timing.pauseBeforeRelease.toFixed(0)}ms timedPoints=${timing.timedPoints.length} hwPoints=${drawnPoints.length}`,
+    `judge input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
   );
 
-  const judgment = judge(drawnPoints as Array<Pt>, resolvedExpected, {
+  const judgment = judge(points, resolvedExpected, {
     drawableSize,
     strictness,
-    timing,
   });
 
   log?.(

@@ -121,8 +121,8 @@ function log(msg: string) {
 }
 
 function formatStrokeData(data: CharStrokeData): string {
-  const { drawnPath, ...rest } = data;
-  return JSON.stringify({ ...rest, drawnPath: { pathString: drawnPath.pathString } });
+  const { points, ...rest } = data;
+  return JSON.stringify({ ...rest, points: points.length });
 }
 
 function clearResult() {
