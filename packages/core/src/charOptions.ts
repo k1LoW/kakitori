@@ -1,7 +1,6 @@
-import type { CharStrokeData, StrokeEnding, StrokeEndingJudgment } from "./types.js";
+import type { CharStrokeData, StrokeEndingJudgment } from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
 import type { StrokeTimingData } from "./StrokeEndingJudge.js";
-import type { Pt } from "./hanziWriterInternals.js";
 
 export type CharLogger = (msg: string) => void;
 export type ConfigLoaderFn = (char: string) => Promise<CharacterConfig | null>;
@@ -136,9 +135,3 @@ export interface CharJudgeResult {
   matched: boolean;
   perStroke: CharJudgeStrokeResult[];
 }
-
-// Re-export StrokeEnding so callers can construct judge inputs without
-// reaching into types.ts directly.
-export type { StrokeEnding };
-// Re-export Pt so consumers can describe drawn-stroke arguments.
-export type { Pt };
