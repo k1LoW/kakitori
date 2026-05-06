@@ -1,5 +1,5 @@
 import type { Char } from "../char.js";
-import type { CharJudgeResult } from "../charOptions.js";
+import type { CharJudgeResult, CharJudgeStrokeResult } from "../charOptions.js";
 import type { TimedPoint } from "../types.js";
 import {
   normalizeCharacterSegment,
@@ -376,21 +376,30 @@ export function createFreeCell(
         charSegments,
         charInfo.normalizeTarget,
       );
-      // Each character's strokes drive judge() in logical order; the Char
-      // owns perStroke state, so result() afterwards reflects this candidate.
-      for (let j = 0; j < normalized.length; j++) {
-        await charInfo.instance.judge(j, normalized[j]);
-      }
-      const result = charInfo.instance.result();
-      perCharacter.push(result);
+      // Each character's strokes drive judge() in logical order. The Char
+      // instance is shared across cells via charCache, so reading
+      // `instance.result()` later would race with other cells / candidates
+      // overwriting `perStroke`. Collect each judge() return value locally
+      // and assemble the per-character result from those snapshots — that
+      // way concurrent cells can interleave on the same Char without
+      // corrupting each other's verdicts.
+      const perStroke: CharJudgeStrokeResult[] = [];
+      let charMatched = normalized.length > 0;
       let charSimSum = 0;
-      for (const s of result.perStroke) {
-        similaritySum += s.similarity;
+      for (let j = 0; j < normalized.length; j++) {
+        const stroke = await charInfo.instance.judge(j, normalized[j]);
+        perStroke.push(stroke);
+        if (!stroke.matched) {
+          charMatched = false;
+        }
+        similaritySum += stroke.similarity;
         similarityCount++;
-        charSimSum += s.similarity;
+        charSimSum += stroke.similarity;
       }
-      const charAvgSim = result.perStroke.length > 0 ? charSimSum / result.perStroke.length : 0;
-      const perStrokeFlags = result.perStroke
+      const result: CharJudgeResult = { matched: charMatched, perStroke };
+      perCharacter.push(result);
+      const charAvgSim = perStroke.length > 0 ? charSimSum / perStroke.length : 0;
+      const perStrokeFlags = perStroke
         .map((s) => `${s.matched ? "✓" : "✗"}${s.similarity.toFixed(2)}`)
         .join(",");
       log?.(
