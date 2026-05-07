@@ -15,18 +15,20 @@ export function segmentByStrokeCounts(
   strokes: ReadonlyArray<ReadonlyArray<TimedPoint>>,
   counts: ReadonlyArray<number>,
 ): TimedPoint[][][] {
-  const expected = counts.reduce((a, b) => a + b, 0);
-  if (expected !== strokes.length) {
-    throw new Error(
-      `segmentByStrokeCounts(): stroke count mismatch — strokes=${strokes.length}, sum(counts)=${expected}`,
-    );
-  }
+  // Validate per-count integrity first; otherwise a NaN entry would make
+  // the sum NaN and surface as a misleading "stroke count mismatch".
   for (const c of counts) {
     if (!Number.isInteger(c) || c < 0) {
       throw new Error(
         `segmentByStrokeCounts(): each count must be a non-negative integer, got ${c}`,
       );
     }
+  }
+  const expected = counts.reduce((a, b) => a + b, 0);
+  if (expected !== strokes.length) {
+    throw new Error(
+      `segmentByStrokeCounts(): stroke count mismatch — strokes=${strokes.length}, sum(counts)=${expected}`,
+    );
   }
   const groups: TimedPoint[][][] = [];
   let cursor = 0;

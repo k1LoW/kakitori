@@ -54,6 +54,13 @@ describe("segmentByStrokeCounts", () => {
     );
   });
 
+  it("flags NaN counts before the sum mismatch (clearer diagnostic)", () => {
+    const strokes = [mkStroke(1), mkStroke(2)];
+    expect(() => segmentByStrokeCounts(strokes, [NaN, 1])).toThrow(
+      "non-negative integer",
+    );
+  });
+
   it("accepts zero counts (a 0-stroke character is an empty group)", () => {
     const strokes = [mkStroke(1)];
     const groups = segmentByStrokeCounts(strokes, [0, 1]);
