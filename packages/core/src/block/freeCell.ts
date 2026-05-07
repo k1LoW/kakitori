@@ -317,10 +317,10 @@ export function createFreeCell(
           return;
         }
         const total = strokes.length;
+        const max = list.reduce((m, c) => Math.max(m, c.totalStrokes), 0);
         const eligible = list.filter((c) => c.totalStrokes === total);
         if (eligible.length === 0) {
           // Either still mid-input or already past every candidate's total.
-          const max = list.reduce((m, c) => Math.max(m, c.totalStrokes), 0);
           log?.(
             `match check total=${total} eligible=0 max=${max} → ${
               total > max ? "fail" : "wait"
@@ -370,6 +370,13 @@ export function createFreeCell(
         drawSegmentBoxes(best.segmentBoxes);
         if (best.matchedAll) {
           commitMatch(best);
+        } else if (total >= max) {
+          // No longer candidate is reachable (every candidate is at most
+          // `max` strokes long), so an extra stroke can't rescue the cell.
+          // Commit the failure now instead of waiting for total > max,
+          // which would force the user to draw an extra stroke just to
+          // see the rejection.
+          commitFail();
         }
       } catch (err) {
         log?.(`match error: ${errorMessage(err)}`);

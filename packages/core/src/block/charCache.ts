@@ -82,15 +82,15 @@ export function getJudgeChar(
     return pending;
   }
   const promise = (async () => {
+    const inst = char.create(c, {
+      ...(opts.charDataLoader ? { charDataLoader: opts.charDataLoader } : {}),
+      // Pass through configLoader so kakitori-data's strokeEndings / strokeGroups
+      // are auto-applied; that's what wires tome/hane/harai detection through
+      // free cells without explicit per-character configuration.
+      ...(opts.configLoader !== undefined ? { configLoader: opts.configLoader } : {}),
+      ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
+    });
     try {
-      const inst = char.create(c, {
-        ...(opts.charDataLoader ? { charDataLoader: opts.charDataLoader } : {}),
-        // Pass through configLoader so kakitori-data's strokeEndings / strokeGroups
-        // are auto-applied; that's what wires tome/hane/harai detection through
-        // free cells without explicit per-character configuration.
-        ...(opts.configLoader !== undefined ? { configLoader: opts.configLoader } : {}),
-        ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
-      });
       await inst.ready();
       const meta = await loadCharMeta(c, opts.charDataLoader);
       const groups = inst.getStrokeGroups();
@@ -104,6 +104,12 @@ export function getJudgeChar(
       };
       cache.set(key, entry);
       return entry;
+    } catch (err) {
+      // ready() / loadCharMeta() raced past create(), so the inst we just
+      // built would otherwise leak (configReady, judger state, possibly a
+      // pending DOM-side ready) every time a flaky loader rejects.
+      inst.destroy();
+      throw err;
     } finally {
       inFlight.delete(key);
     }
