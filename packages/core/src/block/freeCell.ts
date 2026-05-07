@@ -88,12 +88,24 @@ export interface FreeCellCreateOptions {
   /** Color for the segment bbox overlay (debug). */
   segmentBoxColor?: string;
   onCellComplete?: (result: FreeCellResult) => void;
+  /**
+   * Fires after each stroke is buffered (pointerup). Lets the host
+   * (block / page) record that this freeCell was the most recently
+   * active target so a later undo() can be routed here.
+   */
+  onStroke?: () => void;
 }
 
 export interface FreeCellHandle {
   /** Underlying SVG elements (one per surface, in declaration order). */
   els: SVGSVGElement[];
   reset(): void;
+  /**
+   * Cell-level undo. Drops every drawn stroke and resets matching state
+   * — same effect as {@link reset}, exposed under a name that matches
+   * the block / page undo() entry points.
+   */
+  undo(): void;
   destroy(): void;
 }
 
@@ -344,6 +356,7 @@ export function createFreeCell(
       const finished = activeStroke;
       activeStroke = null;
       strokes.push(finished);
+      opts.onStroke?.();
       log?.(
         `pointerup surface=${surfaceIndex} stroke=${strokes.length - 1} samples=${finished.points.length} pause=${pause.toFixed(0)}ms`,
       );
@@ -655,26 +668,29 @@ export function createFreeCell(
     s.el.addEventListener("pointercancel", h.onPointerUp, true);
   });
 
+  function clearAll(): void {
+    sessionId++;
+    status = "drawing";
+    pointerActive = false;
+    activeStroke = null;
+    activeSurfaceIndex = -1;
+    strokes = [];
+    segmentBoxEls = [];
+    bestAttempt = null;
+    // Drop any pending judge tail so a stale match does not flip the new
+    // session into matched/failed.
+    judgeQueue = Promise.resolve();
+    for (const s of surfaces) {
+      while (s.el.firstChild) {
+        s.el.removeChild(s.el.firstChild);
+      }
+    }
+  }
+
   return {
     els,
-    reset(): void {
-      sessionId++;
-      status = "drawing";
-      pointerActive = false;
-      activeStroke = null;
-      activeSurfaceIndex = -1;
-      strokes = [];
-      segmentBoxEls = [];
-      bestAttempt = null;
-      // Drop any pending judge tail so a stale match does not flip the new
-      // session into matched/failed.
-      judgeQueue = Promise.resolve();
-      for (const s of surfaces) {
-        while (s.el.firstChild) {
-          s.el.removeChild(s.el.firstChild);
-        }
-      }
-    },
+    reset: clearAll,
+    undo: clearAll,
     destroy(): void {
       if (destroyed) {
         return;
