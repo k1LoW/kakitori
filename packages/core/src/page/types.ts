@@ -106,13 +106,26 @@ export interface Page {
    * active block (or page-level annotation) and reverts just that
    * unit. Repeated calls keep walking back through prior activity in
    * LRU-on-touch order — same block's earlier cells first, then the
-   * next-most-recent block, and so on. No-op only when nothing is
-   * left to undo.
+   * next-most-recent block, and so on. Returns a descriptor of what
+   * was undone so the host can surface the action; returns `null` when
+   * nothing is left to undo.
    */
-  undo(): void;
+  undo(): PageUndoResult | null;
   /** Destroy every child block and detach the page. */
   destroy(): void;
 }
+
+/**
+ * Descriptor returned from {@link Page.undo}. `block-cell` resolves to
+ * the user-block's original cell index (page handles the segment-back-
+ * mapping internally); `annotation` resolves to the page-level
+ * annotation index inside the same user-block. Mirrors the shape of
+ * the {@link import("../block/index.js").Block.undo} return value so
+ * hosts can treat the two layers uniformly.
+ */
+export type PageUndoResult =
+  | { kind: "block-cell"; blockIndex: number; cellIndex: number }
+  | { kind: "annotation"; blockIndex: number; annotationIndex: number };
 
 /** Per-block result keyed alongside `blocks` order. */
 export interface PageBlockResult {

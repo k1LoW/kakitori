@@ -17,6 +17,7 @@ import type {
   PageBlockEntry,
   PageBlockResult,
   PageCreateOptions,
+  PageUndoResult,
 } from "./types.js";
 
 const DEFAULT_ANNOTATION_RATIO = 0.4;
@@ -482,23 +483,29 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       }
       activityStack.length = 0;
     },
-    undo(): void {
+    undo(): PageUndoResult | null {
       if (destroyed) {
-        return;
+        return null;
       }
       const target = activityStack.pop();
       if (!target) {
-        return;
+        return null;
       }
       const state = blockStates[target.blockIndex];
       if (!state) {
-        return;
+        return null;
       }
+      let result: PageUndoResult | null = null;
       if (target.kind === "annotation") {
         const slotState = state.annotationHandles[target.annotationIndex];
         if (slotState) {
           slotState.handle.undo();
           slotState.result = null;
+          result = {
+            kind: "annotation",
+            blockIndex: target.blockIndex,
+            annotationIndex: target.annotationIndex,
+          };
         }
       } else {
         const segBlock = state.segmentBlocks[target.segmentIndex];
@@ -511,6 +518,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           const cellFrom = state.segmentCellFroms[target.segmentIndex] ?? 0;
           const origIndex = cellFrom + undone.index;
           state.cellResults[origIndex] = null;
+          result = {
+            kind: "block-cell",
+            blockIndex: target.blockIndex,
+            cellIndex: origIndex,
+          };
         }
         // Re-push the same target so a follow-up page.undo() keeps
         // walking back through this segment's earlier activity. Only
@@ -522,6 +534,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       }
       state.done = false;
       state.result = null;
+      return result;
     },
     destroy(): void {
       destroyed = true;

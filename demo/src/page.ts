@@ -228,9 +228,17 @@ undoBtn.addEventListener("click", () => {
   if (!currentPage) {
     return;
   }
-  log("undo");
+  const undone = currentPage.undo();
+  if (!undone) {
+    log("undo (nothing to undo)");
+    return;
+  }
+  if (undone.kind === "block-cell") {
+    log(`undo block#${undone.blockIndex} cell#${undone.cellIndex}`);
+  } else {
+    log(`undo block#${undone.blockIndex} annotation#${undone.annotationIndex}`);
+  }
   statusEl.textContent = "";
-  currentPage.undo();
 });
 
 rebuild();
