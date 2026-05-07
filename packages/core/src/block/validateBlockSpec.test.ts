@@ -305,4 +305,54 @@ describe("block.create input validation", () => {
     });
   });
 
+  describe("annotationThickness", () => {
+    const baseSpec: BlockSpec = {
+      cells: [{ kind: "guided", char: "学", mode: "show" }],
+    };
+
+    it("rejects negative annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, { spec: baseSpec, annotationThickness: -10 }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects NaN annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, { spec: baseSpec, annotationThickness: NaN }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects Infinity annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, {
+          spec: baseSpec,
+          annotationThickness: Number.POSITIVE_INFINITY,
+        }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects annotationThickness smaller than the largest annotation's required thickness", () => {
+      const annotation: FuriganaAnnotation = {
+        cellRange: [0, 0],
+        expected: "がく",
+        mode: "show",
+        sizeRatio: 0.5,
+      };
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, {
+          spec: { ...baseSpec, annotations: [annotation] },
+          cellSize: 100,
+          annotationThickness: 10,
+        }),
+      ).toThrow(/annotationThickness=10 is smaller than the largest annotation's required thickness \(50\)/);
+      expect(parent.children.length).toBe(0);
+    });
+  });
 });
