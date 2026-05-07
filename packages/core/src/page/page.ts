@@ -288,6 +288,8 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         writingMode,
         opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH,
         opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR,
+        state.blockIndex,
+        annotationIndex,
       );
       if (annotation.mode === "show") {
         // Split show-mode renders the expected text vertically (or
@@ -610,10 +612,13 @@ function annotationSurfaces(
   writingMode: WritingMode,
   cellBorderWidth: number,
   cellBorderColor: string,
+  blockIndex: number,
+  annotationIndex: number,
 ): AnnotationSurface[] {
   if (annotationStripThickness <= 0) {
+    const [from, to] = annotation.cellRange;
     throw new Error(
-      `page.create(): block has annotations but annotationStripThickness is 0.`,
+      `page.create(): blocks[${blockIndex}].spec.annotations[${annotationIndex}] (cellRange [${from}, ${to}]) requires an annotation strip but annotationStripThickness is 0 (showAnnotationStrip is false?).`,
     );
   }
   const [annFrom, annTo] = annotation.cellRange;
