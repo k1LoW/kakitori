@@ -135,6 +135,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
 
   const showGrid = opts.showGrid ?? true;
   if (showGrid !== false) {
+    const overrides = typeof showGrid === "object" ? showGrid : {};
     drawGrid(wrapper, {
       pageWidth,
       pageHeight,
@@ -143,14 +144,9 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       columns: opts.columns,
       cellsPerColumn: opts.cellsPerColumn,
       writingMode,
-      color:
-        (typeof showGrid === "object" && showGrid.color) ||
-        opts.cellBorderColor ||
-        DEFAULT_CELL_BORDER_COLOR,
-      width:
-        (typeof showGrid === "object" && showGrid.width) ||
-        opts.cellBorderWidth ||
-        DEFAULT_CELL_BORDER_WIDTH,
+      color: overrides.color ?? opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR,
+      width: overrides.width ?? opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH,
+      ...(overrides.dashArray !== undefined ? { dashArray: overrides.dashArray } : {}),
     });
   }
 
@@ -705,6 +701,8 @@ interface GridDrawOptions {
   writingMode: WritingMode;
   color: string;
   width: number;
+  /** Optional SVG `stroke-dasharray` value. */
+  dashArray?: string;
 }
 
 /**
@@ -760,6 +758,9 @@ function drawGrid(parent: HTMLElement, opts: GridDrawOptions): void {
     el.setAttribute("y2", String(ln.y2));
     el.setAttribute("stroke", opts.color);
     el.setAttribute("stroke-width", String(opts.width));
+    if (opts.dashArray) {
+      el.setAttribute("stroke-dasharray", opts.dashArray);
+    }
     svg.appendChild(el);
   }
   parent.appendChild(svg);
