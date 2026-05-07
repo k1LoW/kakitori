@@ -163,6 +163,38 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   // stays visually uniform along the user-supplied blocks.
 
   let destroyed = false;
+  /**
+   * Activity history powering {@link Page.undo}. `block-cell` entries
+   * are keyed by (blockIndex, segmentIndex) so a multi-segment block
+   * undoes the segment that was actually touched most recently rather
+   * than blindly walking from segment 0. `annotation` entries are keyed
+   * by (blockIndex, annotationIndex) since page hosts those freeCells
+   * directly. Dedup-on-push: re-touching the same target moves it to
+   * the top instead of stacking duplicates that would no-op later.
+   */
+  type PageActivity =
+    | { kind: "block-cell"; blockIndex: number; segmentIndex: number }
+    | { kind: "annotation"; blockIndex: number; annotationIndex: number };
+  const activityStack: PageActivity[] = [];
+  function pushPageActivity(t: PageActivity): void {
+    const existing = activityStack.findIndex((e) => sameTarget(e, t));
+    if (existing >= 0) {
+      activityStack.splice(existing, 1);
+    }
+    activityStack.push(t);
+  }
+  function sameTarget(a: PageActivity, b: PageActivity): boolean {
+    if (a.kind !== b.kind || a.blockIndex !== b.blockIndex) {
+      return false;
+    }
+    if (a.kind === "block-cell" && b.kind === "block-cell") {
+      return a.segmentIndex === b.segmentIndex;
+    }
+    if (a.kind === "annotation" && b.kind === "annotation") {
+      return a.annotationIndex === b.annotationIndex;
+    }
+    return false;
+  }
   const blockStates: PerBlockState[] = opts.blocks.map((entry, i) => {
     const id = entry.id;
     return {
@@ -211,7 +243,8 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     // sub-spec). Sub-specs carry no annotations — annotations are handled
     // separately so multi-segment blocks share one stroke buffer per
     // annotation across surfaces.
-    for (const seg of segments) {
+    for (let segIndex = 0; segIndex < segments.length; segIndex++) {
+      const seg = segments[segIndex];
       const slotEl = document.createElement("div");
       slotEl.style.position = "absolute";
       const origin = segmentOrigin(seg, {
@@ -265,6 +298,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           }
           opts.onCellComplete?.(state.blockIndex, origIndex, kind, result);
           maybeCommitBlock(state);
+        },
+        onActivity: () => {
+          pushPageActivity({
+            kind: "block-cell",
+            blockIndex: state.blockIndex,
+            segmentIndex: segIndex,
+          });
         },
       };
       const b = block.create(slotEl, blockOpts);
@@ -347,6 +387,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", result);
           maybeCommitBlock(state);
         },
+        onStroke: () => {
+          pushPageActivity({
+            kind: "annotation",
+            blockIndex: state.blockIndex,
+            annotationIndex,
+          });
+        },
       });
       const slotState: AnnotationHandleState = {
         annotationIndex,
@@ -425,6 +472,49 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         s.done = false;
         s.result = null;
       }
+      activityStack.length = 0;
+    },
+    undo(): void {
+      if (destroyed) {
+        return;
+      }
+      const target = activityStack.pop();
+      if (!target) {
+        return;
+      }
+      const state = blockStates[target.blockIndex];
+      if (!state) {
+        return;
+      }
+      if (target.kind === "annotation") {
+        const slotState = state.annotationHandles[target.annotationIndex];
+        if (slotState) {
+          slotState.handle.undo();
+          slotState.result = null;
+        }
+      } else {
+        const segBlock = state.segmentBlocks[target.segmentIndex];
+        const undone = segBlock?.undo();
+        if (undone && undone.kind === "cell") {
+          // Map the sub-spec cell index back to the user-block's
+          // original index so cellResults aggregation stays in sync.
+          const blockSegments = layout.segments.filter(
+            (s) => s.blockIndex === target.blockIndex,
+          );
+          const seg = blockSegments[target.segmentIndex];
+          const origIndex = (seg?.cellFrom ?? 0) + undone.index;
+          state.cellResults[origIndex] = null;
+        }
+        // Re-push the same target so a follow-up page.undo() keeps
+        // walking back through this segment's earlier activity. Only
+        // skip the re-push when the segment block reports nothing left
+        // to undo — at that point this segment is empty.
+        if (undone && undone.hasMore) {
+          activityStack.push(target);
+        }
+      }
+      state.done = false;
+      state.result = null;
     },
     destroy(): void {
       destroyed = true;
@@ -447,6 +537,7 @@ function noopHandle(): FreeCellHandle {
   return {
     els: [],
     reset(): void {},
+    undo(): void {},
     destroy(): void {},
   };
 }

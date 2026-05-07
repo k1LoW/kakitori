@@ -101,6 +101,12 @@ export interface Page {
   el: HTMLElement;
   /** Reset every block to a clean writing state. */
   reset(): void;
+  /**
+   * Cell-level undo at the page level. Walks down to the most recently
+   * active block (or page-level annotation) and reverts just that
+   * unit. No-op when nothing has been touched since the last undo.
+   */
+  undo(): void;
   /** Destroy every child block and detach the page. */
   destroy(): void;
 }
