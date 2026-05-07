@@ -145,11 +145,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   wrapper.style.height = `${pageHeight}px`;
   parent.appendChild(wrapper);
 
-  // The page is "blocks all the way down": every visible cell on the
-  // grid is rendered by a block, including the empty slots between
-  // user-supplied blocks. We don't draw any page-level grid here — the
-  // padding blocks generated below paint cell borders + cross-grid in
-  // exactly the same style guided cells do.
+  // The page renders only the user-supplied blocks. Empty slots between
+  // (or after) blocks stay blank — the page draws no chrome of its own,
+  // so callers who want practice-book chrome in those gaps must place
+  // explicit `kind: "blank"` blocks. Each block reserves an empty
+  // furigana-strip frame next to every cell-slot, so the strip column
+  // stays visually uniform along the user-supplied blocks.
 
   let destroyed = false;
   const blockStates: PerBlockState[] = opts.blocks.map((entry, i) => {
