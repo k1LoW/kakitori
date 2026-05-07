@@ -187,13 +187,31 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // When > 0, the block reserves a strip alongside every cell — even
   // those without annotation content — so block stacking on a page
   // stays visually uniform.
-  const annotationThickness = opts.annotationThickness !== undefined
-    ? opts.annotationThickness
-    : annotations.length === 0
+  const requiredAnnotationThickness =
+    annotations.length === 0
       ? 0
       : Math.max(
           ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
         );
+  if (opts.annotationThickness !== undefined) {
+    if (
+      !Number.isFinite(opts.annotationThickness) ||
+      opts.annotationThickness < 0
+    ) {
+      throw new Error(
+        `block.create(): annotationThickness must be a finite non-negative number (got ${opts.annotationThickness}).`,
+      );
+    }
+    if (opts.annotationThickness < requiredAnnotationThickness) {
+      throw new Error(
+        `block.create(): annotationThickness=${opts.annotationThickness} is smaller than the largest annotation's required thickness (${requiredAnnotationThickness}).`,
+      );
+    }
+  }
+  const annotationThickness =
+    opts.annotationThickness !== undefined
+      ? opts.annotationThickness
+      : requiredAnnotationThickness;
 
   const cellsExtent = cells.reduce((acc, c) => acc + cellSlotSpan(c) * cellSize, 0);
 
