@@ -24,6 +24,7 @@ const hostEl = document.getElementById("block-host")!;
 const logEl = document.getElementById("log")!;
 const statusEl = document.getElementById("status")!;
 const resetBtn = document.getElementById("reset") as HTMLButtonElement;
+const undoBtn = document.getElementById("undo") as HTMLButtonElement;
 const useCaseSelect = document.getElementById("usecase") as HTMLSelectElement;
 
 let currentBlock: Block | null = null;
@@ -159,6 +160,19 @@ resetBtn.addEventListener("click", () => {
   log("reset");
   statusEl.textContent = "";
   currentBlock.reset();
+});
+
+undoBtn.addEventListener("click", () => {
+  if (!currentBlock) {
+    return;
+  }
+  const undone = currentBlock.undo();
+  if (undone) {
+    log(`undo ${undone.kind}#${undone.index}`);
+    statusEl.textContent = "";
+  } else {
+    log("undo (nothing to undo)");
+  }
 });
 
 useCaseSelect.addEventListener("change", rebuild);
