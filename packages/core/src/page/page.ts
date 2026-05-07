@@ -55,6 +55,13 @@ interface AnnotationHandleState {
   annotationIndex: number;
   handle: FreeCellHandle;
   result: AnnotationResult | null;
+  /**
+   * For show-mode annotations there is no interactive freeCell, so
+   * `handle` is a no-op and the synthetic matched result is committed via
+   * a microtask. Reset must re-queue that commit, otherwise a reset()
+   * after a completed page would clear the result and never restore it.
+   */
+  emitSynthetic?: () => void;
 }
 
 interface PerBlockState {
@@ -192,6 +199,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         lineThickness,
         pageWidth,
         writingMode,
+        annotationStripThickness,
       });
       slotEl.style.left = `${origin.x}px`;
       slotEl.style.top = `${origin.y}px`;
@@ -270,15 +278,19 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           handle: noopHandle(),
           result: null,
         };
+        const emitSynthetic = () => {
+          queueMicrotask(() => {
+            if (destroyed) {
+              return;
+            }
+            slotState.result = stub;
+            opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", stub);
+            maybeCommitBlock(state);
+          });
+        };
+        slotState.emitSynthetic = emitSynthetic;
         state.annotationHandles.push(slotState);
-        queueMicrotask(() => {
-          if (destroyed) {
-            return;
-          }
-          slotState.result = stub;
-          opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", stub);
-          maybeCommitBlock(state);
-        });
+        emitSynthetic();
         return;
       }
       const handle = createFreeCell({
@@ -361,6 +373,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         for (const h of s.annotationHandles) {
           h.result = null;
           h.handle.reset();
+          // Show-mode annotations don't have an interactive handle that
+          // re-fires onCellComplete; re-emit the synthetic matched
+          // result so block completion can fire again.
+          h.emitSynthetic?.();
         }
         for (const b of s.segmentBlocks) {
           b.reset();
@@ -416,13 +432,16 @@ interface PageGeometry {
   lineThickness: number;
   pageWidth: number;
   writingMode: WritingMode;
+  annotationStripThickness: number;
 }
 
 /**
- * Top-left corner of a segment slot. The block.create that follows lays
- * cells out at (0, 0) of this slot (cell side of the line strip); the
- * annotation strips that page builds separately sit on the perpendicular
- * side beyond cellSize.
+ * Top-left corner of a segment's CELL area on the page (where the
+ * sub-block lays out cells starting at its (0, 0)). The annotation strips
+ * page builds separately sit on the perpendicular side, anchored to this
+ * origin: in vertical-rl they extend right of `origin.x + cellSize`; in
+ * horizontal-tb they extend up from `origin.y` into the strip space
+ * reserved at the top of the row.
  */
 function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: number } {
   if (geo.writingMode === "vertical-rl") {
@@ -430,8 +449,11 @@ function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: nu
     const y = seg.cellInColumn * geo.cellSize;
     return { x, y };
   }
+  // horizontal-tb: a row's strip space sits ABOVE its cells, so cells of
+  // row N start at y = N*lineThickness + stripThickness. Without this
+  // offset the first row's annotation would land at a negative y.
   const x = seg.cellInColumn * geo.cellSize;
-  const y = seg.column * geo.lineThickness;
+  const y = seg.column * geo.lineThickness + geo.annotationStripThickness;
   return { x, y };
 }
 
@@ -477,6 +499,7 @@ function annotationSurfaces(
       lineThickness,
       pageWidth,
       writingMode,
+      annotationStripThickness,
     });
     for (let cell = overlapFrom; cell <= overlapTo; cell++) {
       const localOffset = cell - seg.cellFrom;

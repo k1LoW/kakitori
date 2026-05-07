@@ -92,8 +92,9 @@
     </header>
     <p class="desc">
       <code>page.create()</code> で複数のブロックを縦書きグリッドに自動配置する。
-      blockWrap (デフォルト <code>'avoid'</code>) によって行末でブロックが折り返したときに
-      ふりがな欄の位置がどうなるかを確認できる。
+      ブロックは column 末をまたぐと cell 単位で分割され、 annotation 付きでも分割される。
+      分割後のふりがな欄の位置、 および multi-surface でストロークが共有 buffer として
+      判定されるかを確認できる。
     </p>
     <div id="controls">
       <button id="reset">Reset</button>

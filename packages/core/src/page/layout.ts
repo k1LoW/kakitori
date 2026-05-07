@@ -3,13 +3,12 @@ import type { PageBlockEntry } from "./types.js";
 
 /**
  * One contiguous run of cells from a single block, placed at a specific
- * grid position. A block with no annotation that doesn't fit in the
- * remainder of a column is split into multiple segments — one per column —
- * so the visual flow is just "cells stacked from the top-right". A block
- * with an annotation never splits: if it doesn't fit it advances to the
- * next column whole, and we'd rather throw than render it half-rendered
- * because the proportional split of furigana characters across segments is
- * almost always wrong (e.g. 大人 → おとな is 0+3 chars, not 1+2 / 2+1).
+ * grid position. Blocks flow from the top of one column to the next and
+ * split greedily at the column boundary regardless of whether they carry
+ * annotations: cells become per-segment block.create calls, while page
+ * builds a multi-surface freeCell per logical annotation so the strokes
+ * the user writes across segments share one judgment buffer (the user
+ * can write the answer at any character boundary).
  */
 export interface BlockSegment {
   blockIndex: number;
@@ -39,9 +38,10 @@ export interface LayoutResult {
 
 /**
  * Stack `entries` into a `columns × cellsPerColumn` grid, flowing from the
- * top of one column to the next. Annotation-free blocks split at the column
- * boundary; annotation-bearing blocks advance whole to the next column.
- * Throws when a block (or any of its segments) would fall outside the page.
+ * top of one column to the next. All blocks (annotated or not) split at
+ * the column boundary so the visual flow is just "cells stacked from the
+ * top". Throws when a block (or any of its segments) would fall outside
+ * the page.
  *
  * Pure (no DOM access) so it's unit-testable without happy-dom.
  */
@@ -140,6 +140,15 @@ function cellSlotSpan(cell: Cell): number {
       return cell.span;
     }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
+    if (candidates.length === 0) {
+      // Math.max(...[]) is -Infinity, which would propagate negative spans
+      // into the layout and surface as confusing downstream errors. Reject
+      // up front; block.create's validation will reject the same input
+      // for callers that go through it directly.
+      throw new Error(
+        `page.create(): free cell expected must be a non-empty string array.`,
+      );
+    }
     return Math.max(...candidates.map((c) => Array.from(c).length));
   }
   return 1;
