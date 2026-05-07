@@ -281,6 +281,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         wrapper,
         annotation,
         segments,
+        entry.spec.cells,
         cellSize,
         annotationStripThickness,
         lineThickness,
@@ -610,6 +611,7 @@ function annotationSurfaces(
   wrapper: HTMLElement,
   annotation: FuriganaAnnotation,
   segments: ReadonlyArray<BlockSegment>,
+  cells: ReadonlyArray<import("../block/types.js").Cell>,
   cellSize: number,
   annotationStripThickness: number,
   lineThickness: number,
@@ -643,8 +645,17 @@ function annotationSurfaces(
       writingMode,
       annotationStripThickness,
     });
+    // Compute the slot offset for cell `seg.cellFrom` up to (but not
+    // including) `cell`. block.create positions strip frames using slot
+    // spans, so an annotated cell that sits behind a span>1 cell would
+    // misalign if we used the cell-index offset here.
+    let slotOffsetWithinSegment = 0;
+    for (let i = seg.cellFrom; i < overlapFrom; i++) {
+      slotOffsetWithinSegment += annotatedCellSpan(cells[i]);
+    }
     for (let cell = overlapFrom; cell <= overlapTo; cell++) {
-      const localOffset = cell - seg.cellFrom;
+      const localOffset = slotOffsetWithinSegment;
+      slotOffsetWithinSegment += annotatedCellSpan(cells[cell]);
       const stripDiv = document.createElement("div");
       stripDiv.style.position = "absolute";
       let width: number;

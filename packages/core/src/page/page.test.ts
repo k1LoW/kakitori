@@ -106,6 +106,53 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("aligns annotation overlays by slot offset, not cell index", async () => {
+    // Regression: annotationSurfaces used localOffset = cell -
+    // seg.cellFrom, which wrongly assumed every earlier cell consumed 1
+    // slot. With a span=2 free cell sitting before annotated guided
+    // cells, the overlays slipped to slot 1 / 2 instead of 2 / 3.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const cellSize = 80;
+    const handle = page.create(parent, {
+      writingMode: "vertical-rl",
+      columns: 1,
+      cellsPerColumn: 6,
+      cellSize,
+      blocks: [
+        {
+          spec: {
+            cells: [
+              { kind: "free", expected: "あい", mode: "show", span: 2 },
+              { kind: "free", expected: "学", mode: "show", span: 1 },
+              { kind: "free", expected: "校", mode: "show", span: 1 },
+            ],
+            annotations: [
+              { cellRange: [1, 2], expected: "がっこう", mode: "show" },
+            ],
+          },
+        },
+      ],
+    });
+    await flushMicrotasks();
+    // Annotation overlay strips are appended after the per-segment
+    // slotEl; pick out the cellSize-tall overlays (vertical-rl).
+    const annotationOverlays = Array.from(
+      handle.el.querySelectorAll<HTMLDivElement>(":scope > div"),
+    ).filter(
+      (el) =>
+        parseInt(el.style.height, 10) === cellSize &&
+        el.style.left !== "" &&
+        parseInt(el.style.left, 10) > 0,
+    );
+    // Two annotated cells; tops should be at slot 2 and slot 3, not 1
+    // and 2.
+    const tops = annotationOverlays.map((el) => parseInt(el.style.top, 10)).toSorted((a, b) => a - b);
+    expect(tops).toEqual([2 * cellSize, 3 * cellSize]);
+    handle.destroy();
+    parent.remove();
+  });
+
   it("places horizontal-tb sub-blocks at the wrapper top, not double-offset by the strip", async () => {
     // Regression: segmentOrigin used to add annotationStripThickness in
     // horizontal-tb, which combined with block.create's own
