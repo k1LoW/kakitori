@@ -33,6 +33,9 @@ const DEFAULT_CELL_BORDER_COLOR = "#ddd";
  * annotation all use this, so adjust here to scale every cell at once.
  */
 const DEFAULT_BLOCK_DRAWING_WIDTH = 4;
+/** Shared dashArray for the cross-grid drawn inside every cell flavour
+ * (guided / free / blank), so the visual is uniform across the block. */
+const DEFAULT_GRID_DASH_ARRAY = "3,3";
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
 
@@ -530,31 +533,54 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     parentEl: HTMLElement,
     rect: { x: number; y: number; w: number; h: number },
     cell: BlankCell,
-    index: number,
+    _index: number,
   ): PerCellState {
-    const wrapperEl = document.createElement("div");
-    wrapperEl.style.position = "absolute";
-    wrapperEl.style.left = `${rect.x}px`;
-    wrapperEl.style.top = `${rect.y}px`;
-    wrapperEl.style.width = `${rect.w}px`;
-    wrapperEl.style.height = `${rect.h}px`;
-    wrapperEl.style.boxSizing = "border-box";
-    applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode));
-    parentEl.appendChild(wrapperEl);
-    // Optional cross-grid (matches the guided cell cross-grid drawn by
-    // hanzi-writer when block.showGrid is enabled). Each grid slot in the
-    // span gets its own +. Dashes by default so the placement guide
-    // reads visually distinct from the solid cell border.
+    // Render one independent cell-slot per span unit so a span=5 blank
+    // shows up as 5 cells (each with its own border + cross-grid),
+    // matching how guided cells stack along the same axis.
+    const span = cellSlotSpan(cell);
     const userShowGrid = opts.showGrid ?? true;
+    let color = cellBorderColor;
+    let width = cellBorderWidth;
+    let dashArray: string | undefined = DEFAULT_GRID_DASH_ARRAY;
     if (userShowGrid !== false) {
       const grid = (typeof userShowGrid === "object" ? userShowGrid : {});
-      const color = grid.color ?? cellBorderColor;
-      const width = grid.width ?? cellBorderWidth;
-      const dashArray = grid.dashArray ?? "3,3";
-      const span = cellSlotSpan(cell);
-      drawBlankCrossGrid(wrapperEl, rect, span, writingMode, color, width, dashArray);
+      color = grid.color ?? cellBorderColor;
+      width = grid.width ?? cellBorderWidth;
+      dashArray = grid.dashArray ?? DEFAULT_GRID_DASH_ARRAY;
     }
-    const state: PerCellState = { index, cell, result: null };
+    for (let k = 0; k < span; k++) {
+      const slot = document.createElement("div");
+      slot.style.position = "absolute";
+      let sx: number;
+      let sy: number;
+      if (writingMode === "vertical-rl") {
+        sx = rect.x;
+        sy = rect.y + k * cellSize;
+      } else {
+        sx = rect.x + k * cellSize;
+        sy = rect.y;
+      }
+      slot.style.left = `${sx}px`;
+      slot.style.top = `${sy}px`;
+      slot.style.width = `${cellSize}px`;
+      slot.style.height = `${cellSize}px`;
+      slot.style.boxSizing = "border-box";
+      applyBorder(slot, resolvedCellBorder, NO_HIDE);
+      parentEl.appendChild(slot);
+      if (userShowGrid !== false) {
+        drawBlankCrossGrid(
+          slot,
+          { w: cellSize, h: cellSize },
+          1,
+          writingMode,
+          color,
+          width,
+          dashArray,
+        );
+      }
+    }
+    const state: PerCellState = { index: _index, cell, result: null };
     queueMicrotask(() => {
       if (destroyed) {
         return;

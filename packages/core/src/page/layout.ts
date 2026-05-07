@@ -135,6 +135,17 @@ export function layoutPage(
 }
 
 function cellSlotSpan(cell: Cell, blockIndex = -1, cellIndex = -1): number {
+  if (cell.kind === "blank") {
+    if (cell.span == null) {
+      return 1;
+    }
+    if (!Number.isInteger(cell.span) || cell.span <= 0) {
+      throw new Error(
+        `layoutPage(): ${cellLocation(blockIndex, cellIndex)} span must be a positive integer (got ${cell.span}).`,
+      );
+    }
+    return cell.span;
+  }
   if (cell.kind !== "free") {
     return 1;
   }

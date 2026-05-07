@@ -126,10 +126,10 @@ function blocks(): PageBlockEntry[] {
         ],
       },
     },
-    // free としょかん (col 2 残り)
+    // blank 5 cells (col 2 残り) — 視覚だけの空マス
     {
       id: "q10",
-      spec: { cells: [{ kind: "free", expected: "としょかん", mode: "write", span: 5 }] },
+      spec: { cells: [{ kind: "blank", span: 5 }] },
     },
     // 春夏秋冬 + はるなつあきふゆ (col 3)
     {
@@ -191,11 +191,13 @@ function rebuild() {
           `block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"} mistakes=${result.mistakes}`,
           ok ? "ok" : "ng",
         );
-      } else {
+      } else if (result.kind === "free") {
         log(
           `block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"} candidate=${result.candidate ?? "-"} similarity=${result.similarity.toFixed(2)}`,
           ok ? "ok" : "ng",
         );
+      } else {
+        log(`block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"}`, ok ? "ok" : "ng");
       }
     },
     onBlockComplete: (blockIndex, result) => {

@@ -135,11 +135,13 @@ function rebuild() {
           `${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"} mistakes=${result.mistakes} endingMistakes=${result.strokeEndingMistakes}`,
           ok ? "ok" : "ng",
         );
-      } else {
+      } else if (result.kind === "free") {
         log(
           `${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"} candidate=${result.candidate ?? "-"} similarity=${result.similarity.toFixed(2)}`,
           ok ? "ok" : "ng",
         );
+      } else {
+        log(`${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"}`, ok ? "ok" : "ng");
       }
     },
     onBlockComplete: (result) => {
