@@ -152,7 +152,7 @@ export function createFreeCell(
       return Promise.resolve(candidates);
     }
     if (!candidatesLoad) {
-      candidatesLoad = (async () => {
+      const pending = (async () => {
         log?.(`loading ${candidatesText.length} candidate(s)`);
         const out: CandidateInfo[] = [];
         for (const text of candidatesText) {
@@ -191,6 +191,16 @@ export function createFreeCell(
         candidates = out;
         return out;
       })();
+      // On failure, drop the rejected promise so a subsequent stroke (or
+      // reset() and retry) re-enters the loader instead of seeing a stale
+      // permanently-rejected cache and giving up forever on what was
+      // really a transient charDataLoader / configLoader error.
+      candidatesLoad = pending.catch((err) => {
+        if (candidatesLoad === pending) {
+          candidatesLoad = null;
+        }
+        throw err;
+      });
     }
     return candidatesLoad;
   }
