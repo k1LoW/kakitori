@@ -17,7 +17,6 @@ import type {
   PageBlockEntry,
   PageBlockResult,
   PageCreateOptions,
-  PageResult,
 } from "./types.js";
 
 const DEFAULT_ANNOTATION_RATIO = 0.4;
@@ -273,7 +272,9 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         };
         state.annotationHandles.push(slotState);
         queueMicrotask(() => {
-          if (destroyed) return;
+          if (destroyed) {
+            return;
+          }
           slotState.result = stub;
           opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", stub);
           maybeCommitBlock(state);
