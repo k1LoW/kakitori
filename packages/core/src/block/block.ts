@@ -389,20 +389,56 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cell: FreeCell,
     index: number,
   ): PerCellState {
-    const wrapperEl = document.createElement("div");
-    wrapperEl.style.position = "absolute";
-    wrapperEl.style.left = `${rect.x}px`;
-    wrapperEl.style.top = `${rect.y}px`;
-    wrapperEl.style.width = `${rect.w}px`;
-    wrapperEl.style.height = `${rect.h}px`;
-    wrapperEl.style.boxSizing = "border-box";
-    applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode));
-    parentEl.appendChild(wrapperEl);
+    // Per-cell-slot chrome: each slot in the span gets its own border +
+    // cross-grid so a free cell looks like the same row of cells a blank
+    // / guided cell would, while the freeCell input layer below treats
+    // them as one shared stroke buffer the user can write across.
+    const span = cellSlotSpan(cell);
+    const slotEls: HTMLDivElement[] = [];
+    for (let k = 0; k < span; k++) {
+      const slot = document.createElement("div");
+      slot.style.position = "absolute";
+      let sx: number;
+      let sy: number;
+      let sw: number;
+      let sh: number;
+      if (writingMode === "vertical-rl") {
+        sx = rect.x;
+        sy = rect.y + k * cellSize;
+        sw = cellSize;
+        sh = cellSize;
+      } else {
+        sx = rect.x + k * cellSize;
+        sy = rect.y;
+        sw = cellSize;
+        sh = cellSize;
+      }
+      slot.style.left = `${sx}px`;
+      slot.style.top = `${sy}px`;
+      slot.style.width = `${sw}px`;
+      slot.style.height = `${sh}px`;
+      slot.style.boxSizing = "border-box";
+      applyBorder(
+        slot,
+        resolvedCellBorder,
+        freeCellSlotEdgesToHide(index, cells.length, k, span, writingMode),
+      );
+      parentEl.appendChild(slot);
+      slotEls.push(slot);
+      const userShowGrid = opts.showGrid ?? true;
+      if (userShowGrid !== false) {
+        const grid = typeof userShowGrid === "object" ? userShowGrid : {};
+        const color = grid.color ?? cellBorderColor;
+        const width = grid.width ?? cellBorderWidth;
+        const dashArray = grid.dashArray ?? "3,3";
+        drawBlankCrossGrid(slot, { w: sw, h: sh }, 1, writingMode, color, width, dashArray);
+      }
+    }
 
     if (cell.mode === "show") {
-      // Render the first candidate as static text and synthesize a matched
-      // result so block aggregation still completes.
-      renderShowText(wrapperEl, firstCandidate(cell.expected), rect, writingMode);
+      // Render the first candidate as static text spread across the
+      // sub-slots so it visually aligns with cell chrome.
+      renderShowText(parentEl, firstCandidate(cell.expected), rect, writingMode);
       const state: PerCellState = { index, cell, result: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -415,7 +451,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     const handle = createFreeCell({
       expected: cell.expected,
-      surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
+      surfaces: slotEls.map((el) => ({
+        parent: el,
+        width: cellSize,
+        height: cellSize,
+      })),
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -750,6 +790,31 @@ function cellEdgesToHide(
     hide.right = true;
   } else if (writingMode === "vertical-rl" && !isLast) {
     hide.bottom = true;
+  }
+  return hide;
+}
+
+/** A free cell expanded into per-slot sub-cells hides the edge each
+ * sub-cell shares with its neighbour (so the next slot's own border
+ * draws the shared line) while keeping the outer block-cell hides
+ * inherited from cellEdgesToHide. */
+function freeCellSlotEdgesToHide(
+  cellIndex: number,
+  cellTotal: number,
+  slotIndex: number,
+  slotTotal: number,
+  writingMode: WritingMode,
+): BorderHide {
+  const hide: BorderHide = { ...cellEdgesToHide(cellIndex, cellTotal, writingMode) };
+  const isLastSlot = slotIndex === slotTotal - 1;
+  if (writingMode === "vertical-rl") {
+    if (!isLastSlot) {
+      hide.bottom = true;
+    }
+  } else {
+    if (!isLastSlot) {
+      hide.right = true;
+    }
   }
   return hide;
 }
