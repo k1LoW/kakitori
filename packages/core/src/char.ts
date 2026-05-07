@@ -251,6 +251,13 @@ export interface Char {
    * place. Returns the same Char for chaining.
    */
   reset(): Char;
+  /**
+   * Cell-level undo: equivalent to {@link reset} but, if a write quiz was
+   * armed via {@link start}, re-arms it so the user can immediately keep
+   * writing from stroke 1. Animate-only / show-mode mounts behave like
+   * reset(). Returns the same Char for chaining.
+   */
+  undo(): Char;
   /** Hide the character strokes. Returns the same Char for chaining. */
   hideCharacter(): Char;
   /** Show the character strokes. Returns the same Char for chaining. */
@@ -289,6 +296,12 @@ interface MountState {
   activeOverlay: SVGSVGElement | null;
   pendingEndingJudgment: StrokeEndingJudgment | null;
   quizActive: boolean;
+  /**
+   * True after start() has armed a write quiz on this mount. Stays true
+   * across quiz completion so undo() can re-arm the same quiz; cleared
+   * by reset() (intentional opt-out) and on unmount/destroy.
+   */
+  quizArmed: boolean;
   strokeEndingMistakes: number;
   // pointer timing
   isPointerDown: boolean;
@@ -1252,6 +1265,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       activeOverlay: null,
       pendingEndingJudgment: null,
       quizActive: false,
+      quizArmed: false,
       strokeEndingMistakes: 0,
       isPointerDown: false,
       lastMoveTime: 0,
@@ -1296,6 +1310,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    m.quizArmed = false;
     mounted = null;
     if (m.boundOnClick) {
       m.layerEl.removeEventListener("click", m.boundOnClick);
@@ -1377,6 +1392,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   function start(): Char {
     const m = assertMounted();
     cancelActiveAnimation(m);
+    m.quizArmed = true;
     const seq = ++requestSeq;
     configReady.then(() => {
       if (destroyed || mounted !== m || seq !== requestSeq) {
@@ -1405,7 +1421,28 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    m.quizArmed = false;
     resetStrokeColors();
+    return api;
+  }
+
+  function undo(): Char {
+    const m = assertMounted();
+    const wasArmed = m.quizArmed;
+    ++requestSeq;
+    cancelActiveAnimation(m);
+    cancelActiveQuiz(m);
+    resetStrokeColors();
+    if (wasArmed) {
+      // quizArmed remains true: the quiz is being re-armed in place.
+      const seq = ++requestSeq;
+      configReady.then(() => {
+        if (destroyed || mounted !== m || seq !== requestSeq) {
+          return;
+        }
+        startQuiz(m);
+      });
+    }
     return api;
   }
 
@@ -1587,6 +1624,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     start,
     animate,
     reset,
+    undo,
     hideCharacter,
     showCharacter,
     showOutline,
