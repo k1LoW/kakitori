@@ -488,14 +488,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       );
       parentEl.appendChild(slot);
       slotEls.push(slot);
-      const userShowGrid = opts.showGrid ?? true;
-      if (userShowGrid !== false) {
-        const grid = typeof userShowGrid === "object" ? userShowGrid : {};
-        const color = grid.color ?? cellBorderColor;
-        const width = grid.width ?? cellBorderWidth;
-        const dashArray = grid.dashArray ?? "3,3";
-        drawBlankCrossGrid(slot, { w: sw, h: sh }, 1, writingMode, color, width, dashArray);
-      }
+      // Free cells are a free-writing area — keep only the per-slot
+      // border (so the span is visually evident) and skip the cross
+      // grid that guided / blank cells use as a placement guide.
     }
 
     if (cell.mode === "show") {
