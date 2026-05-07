@@ -50,9 +50,14 @@ export interface FreeCellCreateOptions {
   expected: Expected;
   /**
    * One or more writable surfaces. Pointer events on each surface feed
-   * the same stroke buffer in time order; a single character must be
-   * drawn entirely on one surface for the matcher to accept it (we do
-   * not blend coordinates across surfaces).
+   * the same stroke buffer in time order, then the matcher normalizes
+   * each character's strokes (centroid + bbox) inside the originating
+   * surface's coordinate space. The cell does not enforce that a single
+   * character lives on one surface; spanning surfaces is allowed but
+   * mixes coordinate systems during normalization and almost always
+   * misses, so treat surfaces as character-aligned partitions of the
+   * answer (the page primitive places one surface per cell so the user
+   * writes one character per surface naturally).
    */
   surfaces: ReadonlyArray<FreeCellSurface>;
   drawingColor?: string;
