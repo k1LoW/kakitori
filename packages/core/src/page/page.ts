@@ -180,14 +180,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     placeBlock(state, entry, segments);
   }
 
-  // Fill every cell the user blocks didn't cover with a 1-cell blank
-  // block. The page is then literally a stack of blocks (user blocks +
-  // padding blocks), and the cross-grid / cell border that block.ts
-  // already paints for blank cells gives empty cells the same chrome
-  // guided / free cells get — no separate page-level grid to maintain.
-  const paddingBlocks: Block[] = placePaddingBlocks(layout.segments);
-
-
   // An empty page has nothing to commit — fire onPageComplete via a
   // microtask so the lifecycle still resolves deterministically.
   if (blockStates.length === 0) {
@@ -197,74 +189,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       }
       opts.onPageComplete?.({ matched: true, perBlock: [] });
     });
-  }
-
-  function placePaddingBlocks(userSegments: ReadonlyArray<BlockSegment>): Block[] {
-    // Mark every (column, cellInColumn) slot that a user block covers, so
-    // the rest can get padding blanks.
-    const covered = new Set<string>();
-    for (const seg of userSegments) {
-      for (let cell = 0; cell < seg.span; cell++) {
-        covered.add(`${seg.column}:${seg.cellInColumn + cell}`);
-      }
-    }
-    const blocks: Block[] = [];
-    for (let column = 0; column < opts.columns; column++) {
-      // Merge consecutive uncovered cells in the same column into a single
-      // multi-span blank block to keep the DOM lean.
-      let runStart = -1;
-      const flush = (endExclusive: number) => {
-        if (runStart < 0) {
-          return;
-        }
-        const span = endExclusive - runStart;
-        const slotEl = document.createElement("div");
-        slotEl.style.position = "absolute";
-        const origin = segmentOrigin(
-          {
-            blockIndex: -1,
-            segmentIndex: 0,
-            segmentCount: 1,
-            column,
-            cellInColumn: runStart,
-            cellFrom: 0,
-            cellTo: span - 1,
-            span,
-          },
-          {
-            cellSize,
-            lineThickness,
-            pageWidth,
-            writingMode,
-            annotationStripThickness,
-          },
-        );
-        slotEl.style.left = `${origin.x}px`;
-        slotEl.style.top = `${origin.y}px`;
-        wrapper.appendChild(slotEl);
-        const b = block.create(slotEl, {
-          spec: { cells: [{ kind: "blank", span }] },
-          cellSize,
-          writingMode,
-          ...(opts.cellBorderWidth !== undefined ? { cellBorderWidth: opts.cellBorderWidth } : {}),
-          ...(opts.cellBorderColor ? { cellBorderColor: opts.cellBorderColor } : {}),
-          showGrid: opts.showGrid ?? true,
-          annotationThickness: annotationStripThickness,
-        });
-        blocks.push(b);
-        runStart = -1;
-      };
-      for (let cellInColumn = 0; cellInColumn < opts.cellsPerColumn; cellInColumn++) {
-        const isFilled = covered.has(`${column}:${cellInColumn}`);
-        if (isFilled) {
-          flush(cellInColumn);
-        } else if (runStart < 0) {
-          runStart = cellInColumn;
-        }
-      }
-      flush(opts.cellsPerColumn);
-    }
-    return blocks;
   }
 
   function placeBlock(
@@ -484,12 +408,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         s.done = false;
         s.result = null;
       }
-      // Padding blocks are visual-only but their reset() also re-emits
-      // the synthetic blank-cell results — harmless, and keeps any
-      // listener that observes the underlying blocks consistent.
-      for (const b of paddingBlocks) {
-        b.reset();
-      }
     },
     destroy(): void {
       destroyed = true;
@@ -500,9 +418,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         for (const h of s.annotationHandles) {
           h.handle.destroy();
         }
-      }
-      for (const b of paddingBlocks) {
-        b.destroy();
       }
       if (wrapper.parentNode) {
         wrapper.parentNode.removeChild(wrapper);
