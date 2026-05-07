@@ -248,9 +248,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
-        // Forward the page's showGrid so guided cells inside blocks draw
-        // (or hide) their cross-grid in lockstep with the page-level
-        // background grid — `page.showGrid` is the single switch.
+        // Forward the page's showGrid so guided / blank cells inside
+        // every block share one switch for the cross-grid. The page
+        // itself draws no grid background; this purely controls the
+        // intra-cell cross-grid that the block primitive paints.
         showGrid: opts.showGrid ?? true,
         // Pin the strip thickness on every per-segment block so an
         // empty strip frame is reserved alongside each cell, even when
