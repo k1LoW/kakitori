@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.11.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.10.0...packages/core/v0.11.0) - 2026-05-07
+### Breaking Changes 🛠
+- feat!: unified TimedPoint API + mount/judge convergence debug page by @k1LoW in https://github.com/k1LoW/kakitori/pull/57
+### New Features 🚀
+- feat(core): block primitive with guided + free cells by @k1LoW in https://github.com/k1LoW/kakitori/pull/60
+- feat(core): page primitive with column-flow + multi-surface annotation by @k1LoW in https://github.com/k1LoW/kakitori/pull/63
+- feat(core): cell-level undo across char / block / page by @k1LoW in https://github.com/k1LoW/kakitori/pull/65
+### Fix bug 🐛
+- feat(data): add stroke configs for small kana by @k1LoW in https://github.com/k1LoW/kakitori/pull/61
+
 ## [v0.10.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.9.0...packages/core/v0.10.0) - 2026-05-06
 ### Breaking Changes 🛠
 - feat(core)!: headless-first Char with judge/result + method chaining by @k1LoW in https://github.com/k1LoW/kakitori/pull/56
