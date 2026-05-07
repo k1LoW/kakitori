@@ -370,13 +370,28 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     // `showGrid: true` (default) means "draw the cross-grid in the cell-border
     // style". Plumb the cell-border width / color through so the grid lines
-    // inside guided cells visually match the wrapper border. Explicit
-    // `GridOptions` passed by the caller wins.
+    // inside guided cells visually match the wrapper border, and pin a
+    // shared default dashArray so guided/free/blank cross-grids are
+    // visually identical (char's own default is "10,10", which would
+    // diverge from the blank cell's "3,3" without this).
     const userShowGrid = opts.showGrid ?? true;
-    const blockShowGrid: NonNullable<MountOptions["showGrid"]> =
-      userShowGrid === true
-        ? { color: cellBorderColor, width: cellBorderWidth }
-        : userShowGrid;
+    let blockShowGrid: NonNullable<MountOptions["showGrid"]>;
+    if (userShowGrid === true) {
+      blockShowGrid = {
+        color: cellBorderColor,
+        width: cellBorderWidth,
+        dashArray: DEFAULT_GRID_DASH_ARRAY,
+      };
+    } else if (userShowGrid === false) {
+      blockShowGrid = false;
+    } else {
+      blockShowGrid = {
+        ...userShowGrid,
+        ...(userShowGrid.dashArray === undefined
+          ? { dashArray: DEFAULT_GRID_DASH_ARRAY }
+          : {}),
+      };
+    }
     // hanzi-writer's `drawingWidth` is interpreted in its internal coord
     // system (HANZI_COORD_SIZE). The character is rendered into the inner
     // padded area, so the display-px → internal-units factor is
