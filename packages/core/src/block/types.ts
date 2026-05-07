@@ -38,10 +38,12 @@ export interface FreeCell {
 
 /**
  * A cell that just draws the empty 練習帳-style chrome (border + cross-grid)
- * with no interactive surface and no answer. Page uses this to fill leftover
- * grid slots so the entire visual is "blocks all the way down" — direct
- * block.create callers can also use it to reserve a visual slot that
- * doesn't participate in matching.
+ * with no interactive surface and no answer. Use it (in either a direct
+ * `block.create` spec or a block placed on a `page`) to reserve a visual
+ * slot that doesn't participate in matching. Nothing fills empty slots
+ * automatically — `page.create` renders only the user-supplied blocks,
+ * so callers who want chrome in those gaps must place blank-cell blocks
+ * explicitly.
  */
 export interface BlankCell {
   kind: "blank";
