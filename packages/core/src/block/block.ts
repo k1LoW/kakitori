@@ -154,6 +154,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     );
   }
   const writingMode = opts.writingMode ?? "vertical-rl";
+  if (writingMode !== "vertical-rl" && writingMode !== "horizontal-tb") {
+    throw new Error(
+      `block.create(): writingMode must be "vertical-rl" or "horizontal-tb" (got ${JSON.stringify(writingMode)}).`,
+    );
+  }
   const annotations = opts.spec.annotations ?? [];
   const cells = opts.spec.cells;
   validateBlockSpec(cells, annotations, writingMode);
@@ -736,6 +741,11 @@ function validateBlockSpec(
     if (cell.span == null) {
       return;
     }
+    if (!Number.isInteger(cell.span) || cell.span <= 0) {
+      throw new Error(
+        `block.create(): cells[${i}].span must be a positive integer (got ${cell.span}).`,
+      );
+    }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
     const longest = Math.max(...candidates.map((c) => Array.from(c).length));
     if (cell.span < longest) {
@@ -746,9 +756,12 @@ function validateBlockSpec(
   });
   annotations.forEach((a, i) => {
     validateExpected(a.expected, `annotations[${i}].expected`);
-    if (a.sizeRatio !== undefined && (!Number.isFinite(a.sizeRatio) || a.sizeRatio < 0)) {
+    // 0 produces a zero-sized SVG which has no usable interactive surface
+    // (and divides by zero in projectClientToCell), so reject 0 as well as
+    // negatives / NaN.
+    if (a.sizeRatio !== undefined && (!Number.isFinite(a.sizeRatio) || a.sizeRatio <= 0)) {
       throw new Error(
-        `block.create(): annotations[${i}].sizeRatio must be a finite non-negative number (got ${a.sizeRatio}).`,
+        `block.create(): annotations[${i}].sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
       );
     }
     const [from, to] = a.cellRange;

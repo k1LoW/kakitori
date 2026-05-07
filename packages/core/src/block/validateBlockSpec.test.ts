@@ -100,6 +100,47 @@ describe("block.create input validation", () => {
         /span \(2\) is smaller than the longest expected candidate length \(4\)/,
       );
     });
+
+    it("rejects non-integer span", () => {
+      expectCreateThrows(
+        {
+          cells: [{ kind: "free", expected: "学", mode: "write", span: 1.5 }],
+        },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects NaN span", () => {
+      expectCreateThrows(
+        {
+          cells: [{ kind: "free", expected: "学", mode: "write", span: NaN }],
+        },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects zero span", () => {
+      expectCreateThrows(
+        {
+          cells: [{ kind: "free", expected: "学", mode: "write", span: 0 }],
+        },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+  });
+
+  describe("writingMode", () => {
+    it("rejects unsupported writingMode", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, {
+          spec: { cells: [{ kind: "guided", char: "学", mode: "show" }] },
+          // intentionally bad input
+          writingMode: "horizontal-rl" as unknown as "horizontal-tb",
+        }),
+      ).toThrow(/writingMode must be "vertical-rl" or "horizontal-tb"/);
+      expect(parent.children.length).toBe(0);
+    });
   });
 
   describe("annotations", () => {
@@ -129,7 +170,20 @@ describe("block.create input validation", () => {
       };
       expectCreateThrows(
         { cells: baseCells, annotations: [annotation] },
-        /annotations\[0\]\.sizeRatio must be a finite non-negative number/,
+        /annotations\[0\]\.sizeRatio must be a finite positive number/,
+      );
+    });
+
+    it("rejects zero sizeRatio", () => {
+      const annotation: FuriganaAnnotation = {
+        cellRange: [0, 1],
+        expected: "がっこう",
+        mode: "show",
+        sizeRatio: 0,
+      };
+      expectCreateThrows(
+        { cells: baseCells, annotations: [annotation] },
+        /annotations\[0\]\.sizeRatio must be a finite positive number/,
       );
     });
 
@@ -142,7 +196,7 @@ describe("block.create input validation", () => {
       };
       expectCreateThrows(
         { cells: baseCells, annotations: [annotation] },
-        /annotations\[0\]\.sizeRatio must be a finite non-negative number/,
+        /annotations\[0\]\.sizeRatio must be a finite positive number/,
       );
     });
 
