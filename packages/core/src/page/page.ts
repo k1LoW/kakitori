@@ -85,6 +85,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       `page.create(): cellSize must be a finite positive number (got ${cellSize}).`,
     );
   }
+  validateAnnotations(opts.blocks);
   const writingMode: WritingMode = opts.writingMode ?? "vertical-rl";
   if (writingMode !== "vertical-rl" && writingMode !== "horizontal-tb") {
     throw new Error(
@@ -421,6 +422,69 @@ function noopHandle(): FreeCellHandle {
   };
 }
 
+/**
+ * Validate every block's annotations up front. Page strips annotations
+ * out of the per-segment block.create() calls, so the existing block
+ * validation never sees them — without this pass, a malformed cellRange,
+ * non-positive sizeRatio, or unsupported placement would either silently
+ * misrender or fail later with less actionable errors.
+ */
+function validateAnnotations(blocks: ReadonlyArray<PageBlockEntry>): void {
+  blocks.forEach((entry, i) => {
+    const cells = entry.spec.cells;
+    (entry.spec.annotations ?? []).forEach((a, j) => {
+      const at = `blocks[${i}].annotations[${j}]`;
+      if (a.mode !== "write" && a.mode !== "show") {
+        throw new Error(
+          `page.create(): ${at}.mode must be "write" or "show" (got ${JSON.stringify(a.mode)}).`,
+        );
+      }
+      const expected = a.expected;
+      if (Array.isArray(expected)) {
+        if (expected.length === 0) {
+          throw new Error(`page.create(): ${at}.expected must be a non-empty string array.`);
+        }
+        expected.forEach((s, k) => {
+          if (typeof s !== "string" || s.length === 0) {
+            throw new Error(
+              `page.create(): ${at}.expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
+            );
+          }
+        });
+      } else if (typeof expected !== "string" || expected.length === 0) {
+        throw new Error(
+          `page.create(): ${at}.expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
+        );
+      }
+      const [from, to] = a.cellRange;
+      if (
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        from < 0 ||
+        to < from ||
+        to >= cells.length
+      ) {
+        throw new Error(
+          `page.create(): ${at}.cellRange [${from}, ${to}] is out of range for ${cells.length} cell(s).`,
+        );
+      }
+      if (a.sizeRatio !== undefined && (!Number.isFinite(a.sizeRatio) || a.sizeRatio <= 0)) {
+        throw new Error(
+          `page.create(): ${at}.sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
+        );
+      }
+      if (a.placement != null && a.placement !== "right" && a.placement !== "top") {
+        // page only positions strips on the cell side of each segment
+        // (right of cells in vertical-rl, top of cells in horizontal-tb);
+        // other placements would render outside the reserved strip area.
+        throw new Error(
+          `page.create(): ${at}.placement="${a.placement}" is not supported (only "right" / "top" align with the per-line strip).`,
+        );
+      }
+    });
+  });
+}
+
 function blocksRequireStrip(
   blocks: ReadonlyArray<PageBlockEntry>,
   cellSize: number,
@@ -552,19 +616,25 @@ function renderShowAnnotation(
   const text = firstCandidate(annotation.expected);
   const chars = Array.from(text);
   const annLength = annotation.cellRange[1] - annotation.cellRange[0] + 1;
-  // Distribute chars proportional to each surface's cell coverage. When
-  // the distribution doesn't divide evenly, the trailing surfaces get the
-  // overflow chars (small visual quirk vs throwing for misaligned reads).
-  let cursor = 0;
+  // Distribute chars proportional to each surface's cell coverage using
+  // cumulative rounding. Computing each surface's *end* index from
+  // cumulative covered cells (and clamping) keeps the per-surface chunk
+  // non-negative even when the reading has fewer chars than cells (more
+  // cells than kana in a reading would otherwise let cursor outrun
+  // chars.length and the last take drift negative).
+  let prevEnd = 0;
+  let coveredCells = 0;
   for (let i = 0; i < surfaces.length; i++) {
     const s = surfaces[i];
     const span = s.cellTo - s.cellFrom + 1;
+    coveredCells += span;
     const isLast = i === surfaces.length - 1;
-    const take = isLast
-      ? chars.length - cursor
-      : Math.round((chars.length * span) / annLength);
-    const slice = chars.slice(cursor, cursor + take).join("");
-    cursor += take;
+    const targetEnd = isLast
+      ? chars.length
+      : Math.round((chars.length * coveredCells) / annLength);
+    const end = Math.min(chars.length, Math.max(prevEnd, targetEnd));
+    const slice = chars.slice(prevEnd, end).join("");
+    prevEnd = end;
     appendShowSvg(s, slice, writingMode);
   }
 }

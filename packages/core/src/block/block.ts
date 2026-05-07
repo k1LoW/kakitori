@@ -747,11 +747,13 @@ interface SubStripView {
 }
 
 /** Distribute a show-mode annotation's text across per-cell sub-strips
- * proportional to each sub-strip's cell coverage. For uniform readings
- * (e.g. 学校 → がっこう, 2 chars per cell) the split lands cleanly on
- * char boundaries; non-uniform readings (大人 → おとな) hit a small
- * visual quirk that explicit per-cell expected strings would resolve in
- * a future revision. */
+ * proportional to each sub-strip's cell coverage. Uses cumulative
+ * rounding so the per-strip chunk is always non-negative even when the
+ * reading has fewer characters than there are strips (e.g. 2-char reading
+ * across 4 cells). For uniform readings (学校 → がっこう, 2 chars per
+ * cell) the split lands cleanly on char boundaries; non-uniform readings
+ * (大人 → おとな) hit a small visual quirk that explicit per-cell
+ * expected strings would resolve in a future revision. */
 function renderShowAcrossSubStrips(
   text: string,
   subStrips: ReadonlyArray<SubStripView>,
@@ -759,14 +761,15 @@ function renderShowAcrossSubStrips(
 ): void {
   const chars = Array.from(text);
   const total = subStrips.length;
-  let cursor = 0;
+  let prevEnd = 0;
   for (let i = 0; i < total; i++) {
     const isLast = i === total - 1;
-    const take = isLast
-      ? chars.length - cursor
-      : Math.round((chars.length * 1) / total);
-    const slice = chars.slice(cursor, cursor + take).join("");
-    cursor += take;
+    const targetEnd = isLast
+      ? chars.length
+      : Math.round(((i + 1) * chars.length) / total);
+    const end = Math.min(chars.length, Math.max(prevEnd, targetEnd));
+    const slice = chars.slice(prevEnd, end).join("");
+    prevEnd = end;
     const s = subStrips[i];
     renderShowText(s.el, slice, { w: s.width, h: s.height }, writingMode);
   }
