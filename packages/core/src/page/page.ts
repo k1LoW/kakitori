@@ -20,6 +20,8 @@ import type {
 } from "./types.js";
 
 const DEFAULT_ANNOTATION_RATIO = 0.4;
+const DEFAULT_CELL_BORDER_WIDTH = 1;
+const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -173,6 +175,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   // guided / free cells get — no separate page-level grid to maintain.
   const paddingBlocks: Block[] = placePaddingBlocks(layout.segments);
 
+
   // An empty page has nothing to commit — fire onPageComplete via a
   // microtask so the lifecycle still resolves deterministically.
   if (blockStates.length === 0) {
@@ -234,6 +237,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           ...(opts.cellBorderWidth !== undefined ? { cellBorderWidth: opts.cellBorderWidth } : {}),
           ...(opts.cellBorderColor ? { cellBorderColor: opts.cellBorderColor } : {}),
           showGrid: opts.showGrid ?? true,
+          annotationThickness: annotationStripThickness,
         });
         blocks.push(b);
         runStart = -1;
@@ -299,6 +303,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // (or hide) their cross-grid in lockstep with the page-level
         // background grid — `page.showGrid` is the single switch.
         showGrid: opts.showGrid ?? true,
+        // Pin the strip thickness on every per-segment block so an
+        // empty strip frame is reserved alongside each cell, even when
+        // the segment's sub-spec carries no annotations.
+        annotationThickness: annotationStripThickness,
         onCellComplete: (subIndex, kind, result) => {
           // Translate sub-spec cell index back to original block cell index.
           const origIndex = seg.cellFrom + subIndex;
@@ -329,6 +337,8 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         lineThickness,
         pageWidth,
         writingMode,
+        opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH,
+        opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR,
       );
       if (annotation.mode === "show") {
         // Split show-mode renders the expected text vertically (or
@@ -631,6 +641,8 @@ function annotationSurfaces(
   lineThickness: number,
   pageWidth: number,
   writingMode: WritingMode,
+  cellBorderWidth: number,
+  cellBorderColor: string,
 ): AnnotationSurface[] {
   if (annotationStripThickness <= 0) {
     throw new Error(
@@ -675,6 +687,14 @@ function annotationSurfaces(
       }
       stripDiv.style.width = `${width}px`;
       stripDiv.style.height = `${height}px`;
+      stripDiv.style.boxSizing = "border-box";
+      // Every per-cell sub-strip draws its own complete border (no
+      // edge-hiding between adjacent cells).
+      const borderStr = `${cellBorderWidth}px solid ${cellBorderColor}`;
+      stripDiv.style.borderTop = borderStr;
+      stripDiv.style.borderRight = borderStr;
+      stripDiv.style.borderBottom = borderStr;
+      stripDiv.style.borderLeft = borderStr;
       wrapper.appendChild(stripDiv);
       surfaces.push({
         el: stripDiv,

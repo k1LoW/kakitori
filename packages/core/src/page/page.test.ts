@@ -47,8 +47,7 @@ describe("page.create — mount layout", () => {
     //         春夏秋冬 splits col 0 cell 2 + col 1 cells 0-2 (2 segments)
     //         -> 2 slots + 4 strips. Together they cover the whole 2×3
     //         grid, so no padding blocks are generated. Page no longer
-    //         draws its own grid SVG (every visible cell is rendered by a
-    //         block — see placePaddingBlocks).
+    //         draws its own grid SVG.
     const svgGrids = handle.el.querySelectorAll(":scope > svg").length;
     const placedDivs = handle.el.querySelectorAll(":scope > div").length;
     expect(svgGrids).toBe(0);

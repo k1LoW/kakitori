@@ -57,6 +57,15 @@ export interface BlockCreateOptions {
    */
   annotationDrawingWidth?: number;
   /**
+   * Reserve a furigana strip alongside every cell with this thickness in
+   * display pixels, even when the spec contains no annotations. Used by
+   * the page primitive to keep every block on a page the same width
+   * (cellSize + annotationThickness) so block stacking is uniform. When
+   * omitted, the block sizes its strip from the largest annotation's
+   * `sizeRatio * cellSize` (or 0 if there are no annotations).
+   */
+  annotationThickness?: number;
+  /**
    * Cross-grid background for guided cells. Defaults to `true` (a練習帳-style
    * cross). Pass `false` to disable, or a `GridOptions` object to customize
    * color / dash / width. Per-cell overrides via `GuidedCell.overrides` win.
@@ -240,6 +249,22 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // that have already been torn down.
   let destroyed = false;
 
+  // Reserve an empty annotation strip frame next to every cell-slot
+  // (one per slot in the span) so block-stacking on a page stays
+  // visually uniform whether or not an annotation lands on that slot.
+  // mountAnnotation paints content on top of these frames where
+  // applicable.
+  if (annotationThickness > 0) {
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      const rect = cellRects[i];
+      const span = cellSlotSpan(cell);
+      for (let k = 0; k < span; k++) {
+        drawEmptyAnnotationStripFrame(rect, k);
+      }
+    }
+  }
+
   // Mount each cell.
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
@@ -258,6 +283,37 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const rect = annotationRect(annotation);
     const state = mountAnnotation(wrapper, rect, annotation, i);
     annotationStates.push(state);
+  }
+
+  function drawEmptyAnnotationStripFrame(
+    cellRect: { x: number; y: number; w: number; h: number; spanCells: number },
+    slotIndex: number,
+  ): void {
+    const frame = document.createElement("div");
+    frame.style.position = "absolute";
+    frame.style.boxSizing = "border-box";
+    frame.style.pointerEvents = "none";
+    let x: number;
+    let y: number;
+    let w: number;
+    let h: number;
+    if (writingMode === "vertical-rl") {
+      x = cellRect.x + cellSize;
+      y = cellRect.y + slotIndex * cellSize;
+      w = annotationThickness;
+      h = cellSize;
+    } else {
+      x = cellRect.x + slotIndex * cellSize;
+      y = cellRect.y - annotationThickness;
+      w = cellSize;
+      h = annotationThickness;
+    }
+    frame.style.left = `${x}px`;
+    frame.style.top = `${y}px`;
+    frame.style.width = `${w}px`;
+    frame.style.height = `${h}px`;
+    applyBorder(frame, resolvedCellBorder, NO_HIDE);
+    wrapper.appendChild(frame);
   }
 
   function mountGuidedCell(
@@ -776,92 +832,39 @@ function applyBorder(el: HTMLElement, border: string, hide: BorderHide): void {
   el.style.borderLeft = hide.left ? "none" : border;
 }
 
-/** Hide the edge a cell shares with the next cell so the neighbour's own
- * border draws the shared line — avoids the doubled-up 2px appearance.
- * Annotations handle their own touching edge in `annotationEdgesToHide`. */
+/**
+ * Edge-hiding stubs. Earlier versions hid the edges shared between
+ * adjacent cells / annotation sub-strips so two 1px borders wouldn't
+ * stack into a 2px line. The current model leaves every cell and strip
+ * to draw its own complete frame so the visual is consistent regardless
+ * of what (if anything) sits next to it; these functions stay around so
+ * existing callers keep compiling, but always return NO_HIDE.
+ */
 function cellEdgesToHide(
-  index: number,
-  total: number,
-  writingMode: WritingMode,
+  _index: number,
+  _total: number,
+  _writingMode: WritingMode,
 ): BorderHide {
-  const hide: BorderHide = { ...NO_HIDE };
-  const isLast = index === total - 1;
-  if (writingMode === "horizontal-tb" && !isLast) {
-    hide.right = true;
-  } else if (writingMode === "vertical-rl" && !isLast) {
-    hide.bottom = true;
-  }
-  return hide;
+  return { ...NO_HIDE };
 }
 
-/** A free cell expanded into per-slot sub-cells hides the edge each
- * sub-cell shares with its neighbour (so the next slot's own border
- * draws the shared line) while keeping the outer block-cell hides
- * inherited from cellEdgesToHide. */
 function freeCellSlotEdgesToHide(
-  cellIndex: number,
-  cellTotal: number,
-  slotIndex: number,
-  slotTotal: number,
-  writingMode: WritingMode,
+  _cellIndex: number,
+  _cellTotal: number,
+  _slotIndex: number,
+  _slotTotal: number,
+  _writingMode: WritingMode,
 ): BorderHide {
-  const hide: BorderHide = { ...cellEdgesToHide(cellIndex, cellTotal, writingMode) };
-  const isLastSlot = slotIndex === slotTotal - 1;
-  if (writingMode === "vertical-rl") {
-    if (!isLastSlot) {
-      hide.bottom = true;
-    }
-  } else {
-    if (!isLastSlot) {
-      hide.right = true;
-    }
-  }
-  return hide;
+  return { ...NO_HIDE };
 }
 
-/** Hide the annotation's edge that touches the covered cells so only one
- * 1px line shows on the shared boundary. */
-function annotationEdgesToHide(
-  annotation: FuriganaAnnotation,
-  writingMode: WritingMode,
-): BorderHide {
-  const hide: BorderHide = { ...NO_HIDE };
-  if (writingMode === "vertical-rl") {
-    const placement = annotation.placement ?? "right";
-    if (placement === "right") {
-      hide.left = true;
-    } else if (placement === "left") {
-      hide.right = true;
-    }
-  } else {
-    const placement = annotation.placement ?? "top";
-    if (placement === "top") {
-      hide.bottom = true;
-    } else if (placement === "bottom") {
-      hide.top = true;
-    }
-  }
-  return hide;
-}
-
-/** Like {@link annotationEdgesToHide} but for one of the per-cell sub-strips
- * that make up the annotation. The strip-cells share an edge with each
- * other (hide it on every non-last sub) and the outer-edge facing the
- * underlying cells is hidden to merge with the cell border. */
 function annotationSubStripEdgesToHide(
-  annotation: FuriganaAnnotation,
-  writingMode: WritingMode,
-  index: number,
-  total: number,
+  _annotation: FuriganaAnnotation,
+  _writingMode: WritingMode,
+  _index: number,
+  _total: number,
 ): BorderHide {
-  const hide: BorderHide = { ...annotationEdgesToHide(annotation, writingMode) };
-  const isLast = index === total - 1;
-  if (writingMode === "vertical-rl" && !isLast) {
-    hide.bottom = true;
-  } else if (writingMode === "horizontal-tb" && !isLast) {
-    hide.right = true;
-  }
-  return hide;
+  return { ...NO_HIDE };
 }
 
 interface SubStripView {
