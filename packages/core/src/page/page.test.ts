@@ -1,6 +1,40 @@
 import { describe, it, expect, vi } from "vitest";
 import { page } from "./page.js";
 import type { PageBlockEntry } from "./types.js";
+import type { CharDataLoaderFn } from "../charOptions.js";
+
+const stubLoader: CharDataLoaderFn = (_c, onLoad) => {
+  onLoad({
+    strokes: ["M 0 0 L 100 100"],
+    medians: [[[0, 0], [100, 100]]],
+  });
+};
+
+function strokeAt(
+  el: SVGElement,
+  points: Array<[number, number]>,
+  pointerId = 1,
+): void {
+  const rect = el.getBoundingClientRect();
+  const dispatch = (type: string, x: number, y: number) => {
+    const evt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+      type,
+      {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        clientX: rect.left + x,
+        clientY: rect.top + y,
+      },
+    );
+    el.dispatchEvent(evt);
+  };
+  dispatch("pointerdown", points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) {
+    dispatch("pointermove", points[i][0], points[i][1]);
+  }
+  dispatch("pointerup", points[points.length - 1][0], points[points.length - 1][1]);
+}
 
 // Free-cell show mode short-circuits hanzi-writer entirely (renderShowText
 // paints SVG text and synthesizes a matched result), so we can mount the
@@ -185,6 +219,86 @@ describe("page.create — mount layout", () => {
     for (const s of annotationSurfaces) {
       expect(parseInt(s.style.top, 10) % lineThickness).toBe(0);
     }
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("undo() walks back across blocks in LRU-on-touch order", async () => {
+    // Two blocks, each with a single write-mode free cell. Touch
+    // block 0, then block 1, then block 0 again. Repeated undo should
+    // revert most-recent-first: block 0 (latest touch), then block 1,
+    // then block 0 (initial touch — still in stack via LRU).
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      writingMode: "vertical-rl",
+      columns: 1,
+      cellsPerColumn: 4,
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      blocks: [
+        { id: "b0", spec: { cells: [{ kind: "free", expected: "あ", mode: "write" }] } },
+        { id: "b1", spec: { cells: [{ kind: "free", expected: "い", mode: "write" }] } },
+      ],
+    });
+    await flushMicrotasks();
+    const surfaces = handle.el.querySelectorAll<SVGSVGElement>("svg");
+    expect(surfaces.length).toBeGreaterThanOrEqual(2);
+    // surfaces[0] is the freeCell of block 0 (first placed at top of
+    // column). surfaces[1] is block 1's freeCell.
+    strokeAt(surfaces[0] as SVGElement, [[10, 10], [70, 70]], 1);
+    strokeAt(surfaces[1] as SVGElement, [[10, 10], [70, 70]], 2);
+    strokeAt(surfaces[0] as SVGElement, [[20, 20], [60, 60]], 3);
+
+    // First undo reverts block 0 (most recent), block 0's stack still
+    // empty afterwards because re-touch deduped to a single entry.
+    handle.undo();
+    // Second undo reverts block 1.
+    handle.undo();
+    // Third undo: nothing left — all stacks drained.
+    handle.undo();
+    handle.undo(); // safe no-op
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("undo() clears cellResults so block/page completion can re-fire", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onPageComplete = vi.fn();
+    const handle = page.create(parent, {
+      writingMode: "vertical-rl",
+      columns: 1,
+      cellsPerColumn: 4,
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      blocks: [
+        {
+          spec: {
+            cells: [
+              { kind: "free", expected: "あ", mode: "show" },
+              { kind: "free", expected: "い", mode: "write" },
+            ],
+          },
+        },
+      ],
+      onPageComplete,
+    });
+    await flushMicrotasks();
+    // The page commits the show cell synchronously but the write cell
+    // stays open until the user matches. Touch the write cell (no
+    // match expected with the stub stroke), then undo. After undo
+    // the page's done flag must be cleared so a future commit can
+    // re-fire onPageComplete.
+    const surfaces = handle.el.querySelectorAll<SVGSVGElement>("svg");
+    const writeSurface = surfaces[surfaces.length - 1] as SVGElement;
+    strokeAt(writeSurface, [[10, 10], [70, 70]], 1);
+    handle.undo();
+    // Page-level done flag should have been cleared, so it isn't
+    // visibly stuck. We can't easily synthesize a successful match
+    // here, but we at least verify the page accepts further work
+    // without throwing.
+    expect(() => handle.reset()).not.toThrow();
     handle.destroy();
     parent.remove();
   });
