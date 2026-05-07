@@ -465,18 +465,59 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     annotation: FuriganaAnnotation,
     index: number,
   ): PerAnnotationState {
-    const wrapperEl = document.createElement("div");
-    wrapperEl.style.position = "absolute";
-    wrapperEl.style.left = `${rect.x}px`;
-    wrapperEl.style.top = `${rect.y}px`;
-    wrapperEl.style.width = `${rect.w}px`;
-    wrapperEl.style.height = `${rect.h}px`;
-    wrapperEl.style.boxSizing = "border-box";
-    applyBorder(wrapperEl, resolvedCellBorder, annotationEdgesToHide(annotation, writingMode));
-    parentEl.appendChild(wrapperEl);
+    // Split the annotation strip into one sub-strip per covered cell so
+    // the divider lines line up with the cell boundaries below — visually
+    // matches a 練習帳 page where every kanji has its own furigana row.
+    // For write mode the sub-strips become a multi-surface freeCell
+    // sharing one stroke buffer, so the user can still write the answer
+    // freely across them at character boundaries.
+    const [annFrom, annTo] = annotation.cellRange;
+    const cellCount = annTo - annFrom + 1;
+    interface SubStrip {
+      el: HTMLDivElement;
+      width: number;
+      height: number;
+      cellIndex: number;
+    }
+    const subStrips: SubStrip[] = [];
+    for (let k = 0; k < cellCount; k++) {
+      const sub = document.createElement("div");
+      sub.style.position = "absolute";
+      let sx: number;
+      let sy: number;
+      let sw: number;
+      let sh: number;
+      if (writingMode === "vertical-rl") {
+        sx = rect.x;
+        sy = rect.y + k * cellSize;
+        sw = rect.w;
+        sh = cellSize;
+      } else {
+        sx = rect.x + k * cellSize;
+        sy = rect.y;
+        sw = cellSize;
+        sh = rect.h;
+      }
+      sub.style.left = `${sx}px`;
+      sub.style.top = `${sy}px`;
+      sub.style.width = `${sw}px`;
+      sub.style.height = `${sh}px`;
+      sub.style.boxSizing = "border-box";
+      applyBorder(
+        sub,
+        resolvedCellBorder,
+        annotationSubStripEdgesToHide(annotation, writingMode, k, cellCount),
+      );
+      parentEl.appendChild(sub);
+      subStrips.push({ el: sub, width: sw, height: sh, cellIndex: annFrom + k });
+    }
 
     if (annotation.mode === "show") {
-      renderShowText(wrapperEl, firstCandidate(annotation.expected), rect, writingMode);
+      renderShowAcrossSubStrips(
+        firstCandidate(annotation.expected),
+        subStrips,
+        writingMode,
+      );
       const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -493,7 +534,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       result: null,
       freeHandle: createFreeCell({
         expected: annotation.expected,
-        surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
+        surfaces: subStrips.map((s) => ({ parent: s.el, width: s.width, height: s.height })),
         label: `annotation#${index}`,
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -677,6 +718,58 @@ function annotationEdgesToHide(
     }
   }
   return hide;
+}
+
+/** Like {@link annotationEdgesToHide} but for one of the per-cell sub-strips
+ * that make up the annotation. The strip-cells share an edge with each
+ * other (hide it on every non-last sub) and the outer-edge facing the
+ * underlying cells is hidden to merge with the cell border. */
+function annotationSubStripEdgesToHide(
+  annotation: FuriganaAnnotation,
+  writingMode: WritingMode,
+  index: number,
+  total: number,
+): BorderHide {
+  const hide: BorderHide = { ...annotationEdgesToHide(annotation, writingMode) };
+  const isLast = index === total - 1;
+  if (writingMode === "vertical-rl" && !isLast) {
+    hide.bottom = true;
+  } else if (writingMode === "horizontal-tb" && !isLast) {
+    hide.right = true;
+  }
+  return hide;
+}
+
+interface SubStripView {
+  el: HTMLDivElement;
+  width: number;
+  height: number;
+}
+
+/** Distribute a show-mode annotation's text across per-cell sub-strips
+ * proportional to each sub-strip's cell coverage. For uniform readings
+ * (e.g. 学校 → がっこう, 2 chars per cell) the split lands cleanly on
+ * char boundaries; non-uniform readings (大人 → おとな) hit a small
+ * visual quirk that explicit per-cell expected strings would resolve in
+ * a future revision. */
+function renderShowAcrossSubStrips(
+  text: string,
+  subStrips: ReadonlyArray<SubStripView>,
+  writingMode: WritingMode,
+): void {
+  const chars = Array.from(text);
+  const total = subStrips.length;
+  let cursor = 0;
+  for (let i = 0; i < total; i++) {
+    const isLast = i === total - 1;
+    const take = isLast
+      ? chars.length - cursor
+      : Math.round((chars.length * 1) / total);
+    const slice = chars.slice(cursor, cursor + take).join("");
+    cursor += take;
+    const s = subStrips[i];
+    renderShowText(s.el, slice, { w: s.width, h: s.height }, writingMode);
+  }
 }
 
 function firstCandidate(expected: import("./types.js").Expected): string {

@@ -460,6 +460,10 @@ function annotationSurfaces(
     );
   }
   const [annFrom, annTo] = annotation.cellRange;
+  // One surface per overlapping cell so the strip dividers line up with
+  // the cells underneath — same pattern block.ts uses inside a single
+  // column. The freeCell still treats them as a single judging unit
+  // (shared stroke buffer).
   const surfaces: AnnotationSurface[] = [];
   for (const seg of segments) {
     const overlapFrom = Math.max(annFrom, seg.cellFrom);
@@ -467,43 +471,40 @@ function annotationSurfaces(
     if (overlapFrom > overlapTo) {
       continue;
     }
-    // How far into this segment's cells (within seg) does the annotation
-    // start, and how many cells does it cover here?
-    const localFrom = overlapFrom - seg.cellFrom;
-    const localCount = overlapTo - overlapFrom + 1;
     const segOrigin = segmentOrigin(seg, {
       cellSize,
       lineThickness,
       pageWidth,
       writingMode,
     });
-    const stripDiv = document.createElement("div");
-    stripDiv.style.position = "absolute";
-    let width: number;
-    let height: number;
-    if (writingMode === "vertical-rl") {
-      // Strip sits to the right of the cells, aligned to the cells the
-      // annotation actually covers within this segment.
-      stripDiv.style.left = `${segOrigin.x + cellSize}px`;
-      stripDiv.style.top = `${segOrigin.y + localFrom * cellSize}px`;
-      width = annotationStripThickness;
-      height = localCount * cellSize;
-    } else {
-      stripDiv.style.left = `${segOrigin.x + localFrom * cellSize}px`;
-      stripDiv.style.top = `${segOrigin.y - annotationStripThickness}px`;
-      width = localCount * cellSize;
-      height = annotationStripThickness;
+    for (let cell = overlapFrom; cell <= overlapTo; cell++) {
+      const localOffset = cell - seg.cellFrom;
+      const stripDiv = document.createElement("div");
+      stripDiv.style.position = "absolute";
+      let width: number;
+      let height: number;
+      if (writingMode === "vertical-rl") {
+        stripDiv.style.left = `${segOrigin.x + cellSize}px`;
+        stripDiv.style.top = `${segOrigin.y + localOffset * cellSize}px`;
+        width = annotationStripThickness;
+        height = cellSize;
+      } else {
+        stripDiv.style.left = `${segOrigin.x + localOffset * cellSize}px`;
+        stripDiv.style.top = `${segOrigin.y - annotationStripThickness}px`;
+        width = cellSize;
+        height = annotationStripThickness;
+      }
+      stripDiv.style.width = `${width}px`;
+      stripDiv.style.height = `${height}px`;
+      wrapper.appendChild(stripDiv);
+      surfaces.push({
+        el: stripDiv,
+        width,
+        height,
+        cellFrom: cell,
+        cellTo: cell,
+      });
     }
-    stripDiv.style.width = `${width}px`;
-    stripDiv.style.height = `${height}px`;
-    wrapper.appendChild(stripDiv);
-    surfaces.push({
-      el: stripDiv,
-      width,
-      height,
-      cellFrom: overlapFrom,
-      cellTo: overlapTo,
-    });
   }
   return surfaces;
 }
