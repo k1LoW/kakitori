@@ -495,7 +495,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       freeHandle: createFreeCell(wrapperEl, {
         expected: annotation.expected,
         width: rect.w,
-      height: rect.h,
+        height: rect.h,
         label: `annotation#${index}`,
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -503,9 +503,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         drawingWidth: opts.annotationDrawingWidth ?? resolvedDrawingWidth,
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
-      ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
-      ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
-      ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
+        ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
+        ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
         onCellComplete: (result: FreeCellResult) => {
           state.result = result;
           opts.onCellComplete?.(index, "annotation", result);
