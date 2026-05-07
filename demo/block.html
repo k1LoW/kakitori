@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kakitori block demo</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: sans-serif;
+        padding: 1.5rem;
+        max-width: 1100px;
+        margin: 0 auto;
+        background: #fafafa;
+        color: #222;
+      }
+      header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+      header a { font-size: 0.9rem; color: #0366d6; }
+      p.desc { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+
+      button {
+        padding: 6px 14px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+      button:hover { background: #f0f0f0; }
+      select {
+        padding: 6px;
+        font-size: 0.9rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+
+      #controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+      }
+      #controls label {
+        font-size: 0.85rem;
+        color: #555;
+      }
+
+      #stage {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+      #block-host {
+        flex-shrink: 0;
+        background: #fff;
+        padding: 1rem;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      }
+      #log {
+        flex: 1;
+        min-width: 0;
+        height: 360px;
+        overflow-y: auto;
+        font-size: 11px;
+        font-family: monospace;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px;
+      }
+      #log .ok { color: #0a7d2c; }
+      #log .ng { color: #c4321a; }
+      #status {
+        font-size: 0.85rem;
+        color: #555;
+        margin-top: 0.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>kakitori block demo</h1>
+      <a href="./index.html">← demo</a>
+      <a href="./debug.html">debug</a>
+      <a href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">GitHub</a>
+    </header>
+    <p class="desc">
+      <code>block.create()</code> で「ガイド付き cell + 自由欄 (free) cell + ふりがな annotation」 を組み合わせた 1 ブロックを表示する。
+      ユースケースをセレクタで切り替えて挙動を確認できる。
+    </p>
+    <div id="controls">
+      <label for="usecase">Use case:</label>
+      <select id="usecase">
+        <option value="1">1: 学校 (guided + guided, write)</option>
+        <option value="2">2: [_]校 (write 学 / show 校)</option>
+        <option value="3">3: がっこう (free, write)</option>
+        <option value="4">4: がっ + 校 (free write + guided show)</option>
+        <option value="5" selected>5: 学校 + ふりがな がっこう (guided + furigana)</option>
+        <option value="6">6: [_]校 + ふりがな がっこう</option>
+        <option value="7">7: 学校 (both show) + ふりがな のみ書く</option>
+        <option value="8">8: 学校 (write, お手本 outline 非表示)</option>
+      </select>
+      <button id="reset">Reset</button>
+    </div>
+    <div id="stage">
+      <div id="block-host"></div>
+      <pre id="log"></pre>
+    </div>
+    <div id="status"></div>
+    <script type="module" src="./src/block.ts"></script>
+  </body>
+</html>
