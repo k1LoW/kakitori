@@ -60,10 +60,16 @@ export interface PageCreateOptions {
   showSegmentBoxes?: boolean;
   segmentBoxColor?: string;
   blocks: ReadonlyArray<PageBlockEntry>;
-  /** Fired for every cell or annotation completion within any block. */
+  /**
+   * Fired for every cell or annotation completion within any block.
+   *
+   * `index` is the cell index in `blocks[blockIndex].spec.cells` when
+   * `kind === "cell"`, and the annotation index in
+   * `blocks[blockIndex].spec.annotations` when `kind === "annotation"`.
+   */
   onCellComplete?: (
     blockIndex: number,
-    cellIndex: number,
+    index: number,
     kind: "cell" | "annotation",
     result: CellResult | AnnotationResult,
   ) => void;

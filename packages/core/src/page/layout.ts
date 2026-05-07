@@ -51,11 +51,11 @@ export function layoutPage(
 ): LayoutResult {
   const { columns, cellsPerColumn } = opts;
   if (!Number.isInteger(columns) || columns <= 0) {
-    throw new Error(`page.create(): columns must be a positive integer (got ${columns}).`);
+    throw new Error(`layoutPage(): columns must be a positive integer (got ${columns}).`);
   }
   if (!Number.isInteger(cellsPerColumn) || cellsPerColumn <= 0) {
     throw new Error(
-      `page.create(): cellsPerColumn must be a positive integer (got ${cellsPerColumn}).`,
+      `layoutPage(): cellsPerColumn must be a positive integer (got ${cellsPerColumn}).`,
     );
   }
 
@@ -68,7 +68,7 @@ export function layoutPage(
     const cellSpans = spec.cells.map((c, j) => cellSlotSpan(c, i, j));
     const totalSpan = cellSpans.reduce((a, b) => a + b, 0);
     if (totalSpan <= 0) {
-      throw new Error(`page.create(): blocks[${i}] has 0 slot span (no cells).`);
+      throw new Error(`layoutPage(): blocks[${i}] has 0 slot span (no cells).`);
     }
 
     // Greedy split at column boundaries. Whether the block has annotations
@@ -82,7 +82,7 @@ export function layoutPage(
     while (cellIdx < spec.cells.length) {
       if (curColumn >= columns) {
         throw new Error(
-          `page.create(): blocks[${i}] would overflow past column=${columns - 1} (only ${columns} column(s) available).`,
+          `layoutPage(): blocks[${i}] would overflow past column=${columns - 1} (only ${columns} column(s) available).`,
         );
       }
       const remainInCol = cellsPerColumn - curCell;
@@ -92,7 +92,7 @@ export function layoutPage(
         const s = cellSpans[cellIdx + takeCells];
         if (s > cellsPerColumn) {
           throw new Error(
-            `page.create(): blocks[${i}].cells[${cellIdx + takeCells}] (${s} slots) exceeds cellsPerColumn=${cellsPerColumn}.`,
+            `layoutPage(): blocks[${i}].spec.cells[${cellIdx + takeCells}] (${s} slots) exceeds cellsPerColumn=${cellsPerColumn}.`,
           );
         }
         if (takeSpan + s > remainInCol) {
@@ -144,12 +144,12 @@ function cellSlotSpan(cell: Cell, blockIndex = -1, cellIndex = -1): number {
   if (cell.span != null) {
     if (!Number.isInteger(cell.span) || cell.span <= 0) {
       throw new Error(
-        `page.create(): ${cellLocation(blockIndex, cellIndex)} span must be a positive integer (got ${cell.span}).`,
+        `layoutPage(): ${cellLocation(blockIndex, cellIndex)} span must be a positive integer (got ${cell.span}).`,
       );
     }
     if (cell.span < longest) {
       throw new Error(
-        `page.create(): ${cellLocation(blockIndex, cellIndex)} span (${cell.span}) is smaller than the longest expected candidate length (${longest}).`,
+        `layoutPage(): ${cellLocation(blockIndex, cellIndex)} span (${cell.span}) is smaller than the longest expected candidate length (${longest}).`,
       );
     }
     return cell.span;
@@ -161,7 +161,7 @@ function cellLocation(blockIndex: number, cellIndex: number): string {
   if (blockIndex < 0 || cellIndex < 0) {
     return "free cell";
   }
-  return `blocks[${blockIndex}].cells[${cellIndex}]`;
+  return `blocks[${blockIndex}].spec.cells[${cellIndex}]`;
 }
 
 /**
@@ -179,12 +179,12 @@ function validateFreeExpected(
   const at = cellLocation(blockIndex, cellIndex);
   if (Array.isArray(expected)) {
     if (expected.length === 0) {
-      throw new Error(`page.create(): ${at} expected must be a non-empty string array.`);
+      throw new Error(`layoutPage(): ${at} expected must be a non-empty string array.`);
     }
     expected.forEach((s, k) => {
       if (typeof s !== "string" || s.length === 0) {
         throw new Error(
-          `page.create(): ${at} expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
+          `layoutPage(): ${at} expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
         );
       }
     });
@@ -192,7 +192,7 @@ function validateFreeExpected(
   }
   if (typeof expected !== "string" || expected.length === 0) {
     throw new Error(
-      `page.create(): ${at} expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
+      `layoutPage(): ${at} expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
     );
   }
 }

@@ -85,13 +85,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       `page.create(): cellSize must be a finite positive number (got ${cellSize}).`,
     );
   }
-  validateAnnotations(opts.blocks);
   const writingMode: WritingMode = opts.writingMode ?? "vertical-rl";
   if (writingMode !== "vertical-rl" && writingMode !== "horizontal-tb") {
     throw new Error(
       `page.create(): writingMode must be "vertical-rl" or "horizontal-tb" (got ${JSON.stringify(writingMode)}).`,
     );
   }
+  validateAnnotations(opts.blocks, writingMode);
 
   const layout = layoutPage(opts.blocks, {
     columns: opts.columns,
@@ -429,11 +429,15 @@ function noopHandle(): FreeCellHandle {
  * non-positive sizeRatio, or unsupported placement would either silently
  * misrender or fail later with less actionable errors.
  */
-function validateAnnotations(blocks: ReadonlyArray<PageBlockEntry>): void {
+function validateAnnotations(
+  blocks: ReadonlyArray<PageBlockEntry>,
+  writingMode: WritingMode,
+): void {
+  const expectedPlacement = writingMode === "vertical-rl" ? "right" : "top";
   blocks.forEach((entry, i) => {
     const cells = entry.spec.cells;
     (entry.spec.annotations ?? []).forEach((a, j) => {
-      const at = `blocks[${i}].annotations[${j}]`;
+      const at = `blocks[${i}].spec.annotations[${j}]`;
       if (a.mode !== "write" && a.mode !== "show") {
         throw new Error(
           `page.create(): ${at}.mode must be "write" or "show" (got ${JSON.stringify(a.mode)}).`,
@@ -473,12 +477,13 @@ function validateAnnotations(blocks: ReadonlyArray<PageBlockEntry>): void {
           `page.create(): ${at}.sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
         );
       }
-      if (a.placement != null && a.placement !== "right" && a.placement !== "top") {
-        // page only positions strips on the cell side of each segment
+      if (a.placement != null && a.placement !== expectedPlacement) {
+        // page only positions strips on the writingMode-specific side
         // (right of cells in vertical-rl, top of cells in horizontal-tb);
-        // other placements would render outside the reserved strip area.
+        // any other placement would render outside the reserved strip
+        // area, so reject up front rather than silently ignoring it.
         throw new Error(
-          `page.create(): ${at}.placement="${a.placement}" is not supported (only "right" / "top" align with the per-line strip).`,
+          `page.create(): ${at}.placement="${a.placement}" is not supported for writingMode="${writingMode}" (only "${expectedPlacement}" aligns with the per-line strip).`,
         );
       }
     });
