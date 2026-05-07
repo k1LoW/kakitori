@@ -16,6 +16,22 @@
 ### Other Changes
 - chore: introduce oxlint by @k1LoW in https://github.com/k1LoW/kakitori/pull/49
 
+## [v0.7.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.0...packages/data/v0.7.1) - 2026-05-07
+### Breaking Changes 🛠
+- fix(core)!: keep the grid visible while animate() is running by @k1LoW in https://github.com/k1LoW/kakitori/pull/50
+- feat(core)!: replace Kakitori class with char namespace by @k1LoW in https://github.com/k1LoW/kakitori/pull/53
+- feat(core)!: headless-first Char with judge/result + method chaining by @k1LoW in https://github.com/k1LoW/kakitori/pull/56
+- feat!: unified TimedPoint API + mount/judge convergence debug page by @k1LoW in https://github.com/k1LoW/kakitori/pull/57
+### New Features 🚀
+- feat(core): always derive animate duration from stroke length by @k1LoW in https://github.com/k1LoW/kakitori/pull/51
+- feat(core): add reset() and cross-cancel between start/animate by @k1LoW in https://github.com/k1LoW/kakitori/pull/54
+- feat(core): block primitive with guided + free cells by @k1LoW in https://github.com/k1LoW/kakitori/pull/60
+### Fix bug 🐛
+- fix(core): prevent overlay stacking on rapid animate() calls by @k1LoW in https://github.com/k1LoW/kakitori/pull/48
+- feat(data): add stroke configs for small kana by @k1LoW in https://github.com/k1LoW/kakitori/pull/61
+### Other Changes
+- chore: introduce oxlint by @k1LoW in https://github.com/k1LoW/kakitori/pull/49
+
 ## [v0.7.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.6.0...packages/data/v0.7.0) - 2026-05-04
 ### New Features 🚀
 - feat(core): redefine tome/hane/harai judgment criteria by @k1LoW in https://github.com/k1LoW/kakitori/pull/44
