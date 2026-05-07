@@ -385,13 +385,20 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         for (const h of s.annotationHandles) {
           h.result = null;
           h.handle.reset();
+        }
+        // Reset the underlying sub-blocks first — block.reset() queues
+        // show-mode cell completions in microtasks, so we want those
+        // queued ahead of the annotation re-emits below to keep cell
+        // callbacks ahead of annotation callbacks (matches the initial
+        // create() ordering).
+        for (const b of s.segmentBlocks) {
+          b.reset();
+        }
+        for (const h of s.annotationHandles) {
           // Show-mode annotations don't have an interactive handle that
           // re-fires onCellComplete; re-emit the synthetic matched
           // result so block completion can fire again.
           h.emitSynthetic?.();
-        }
-        for (const b of s.segmentBlocks) {
-          b.reset();
         }
         s.done = false;
         s.result = null;

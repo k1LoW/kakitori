@@ -158,8 +158,14 @@ function cellSlotSpan(cell: Cell, blockIndex = -1, cellIndex = -1): number {
 }
 
 function cellLocation(blockIndex: number, cellIndex: number): string {
-  if (blockIndex < 0 || cellIndex < 0) {
+  if (cellIndex < 0) {
     return "free cell";
+  }
+  if (blockIndex < 0) {
+    // Direct computeBlockSpan caller (one-off spec, no blocks-array
+    // context); use the more local path so the error still points at
+    // the offending cell index.
+    return `cells[${cellIndex}]`;
   }
   return `blocks[${blockIndex}].spec.cells[${cellIndex}]`;
 }
@@ -199,5 +205,19 @@ function validateFreeExpected(
 
 /** Total slot span occupied by a block (sum across its cells). */
 export function computeBlockSpan(spec: BlockSpec): number {
-  return spec.cells.reduce((acc, c) => acc + cellSlotSpan(c), 0);
+  // cellSlotSpan() throws errors prefixed with "layoutPage():" by default
+  // (and uses a generic "free cell" location when called without
+  // indices). Catch + rethrow so direct computeBlockSpan() callers see a
+  // matching prefix and a path that points at the cell index they
+  // passed in.
+  return spec.cells.reduce((acc, c, j) => {
+    try {
+      return acc + cellSlotSpan(c, -1, j);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(message.replace(/^layoutPage\(\): /, "computeBlockSpan(): "), {
+        cause: err,
+      });
+    }
+  }, 0);
 }
