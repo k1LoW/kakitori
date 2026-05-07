@@ -93,10 +93,22 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
   validateAnnotations(opts.blocks, writingMode);
 
-  const layout = layoutPage(opts.blocks, {
-    columns: opts.columns,
-    cellsPerColumn: opts.cellsPerColumn,
-  });
+  // page.create() is the public entrypoint, so rethrow layoutPage's
+  // errors under the same prefix the rest of this function uses —
+  // callers shouldn't need to know layoutPage exists to read the
+  // message.
+  let layout;
+  try {
+    layout = layoutPage(opts.blocks, {
+      columns: opts.columns,
+      cellsPerColumn: opts.cellsPerColumn,
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(message.replace(/^layoutPage\(\): /, "page.create(): "), {
+      cause: err,
+    });
+  }
 
   // Default: every cell on the page gets a paired furigana strip frame
   // sized to fit any block's annotations (or DEFAULT_ANNOTATION_RATIO *
