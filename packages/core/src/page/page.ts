@@ -234,11 +234,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
-        // `block.showGrid` controls the cross-grid INSIDE guided cells (not
-        // the page's cell-boundary background grid the page already draws),
-        // so we leave it at the block default — callers wanting that
-        // overlay shouldn't lose it just because their block lives inside
-        // a page.
+        // Forward the page's showGrid so guided cells inside blocks draw
+        // (or hide) their cross-grid in lockstep with the page-level
+        // background grid — `page.showGrid` is the single switch.
+        showGrid: opts.showGrid ?? true,
         onCellComplete: (subIndex, kind, result) => {
           // Translate sub-spec cell index back to original block cell index.
           const origIndex = seg.cellFrom + subIndex;
@@ -722,6 +721,7 @@ function drawGrid(parent: HTMLElement, opts: GridDrawOptions): void {
   svg.style.display = "block";
 
   const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  // Cell-axis row/column boundaries (full page width/height).
   if (opts.writingMode === "vertical-rl") {
     for (let c = 0; c <= opts.cellsPerColumn; c++) {
       const y = c * opts.cellSize;
@@ -749,6 +749,38 @@ function drawGrid(parent: HTMLElement, opts: GridDrawOptions): void {
       }
     }
   }
+  // Per-cell cross-grid (the + inside every cell). Mirrors a 練習帳
+  // page so empty / free cells get the same placement guides guided
+  // cells already paint via block.showGrid.
+  const crossLines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
+  const half = opts.cellSize / 2;
+  for (let l = 0; l < opts.columns; l++) {
+    for (let c = 0; c < opts.cellsPerColumn; c++) {
+      let cellX: number;
+      let cellY: number;
+      if (opts.writingMode === "vertical-rl") {
+        cellX = opts.pageWidth - (l + 1) * opts.lineThickness;
+        cellY = c * opts.cellSize;
+      } else {
+        cellX = c * opts.cellSize;
+        cellY = l * opts.lineThickness + (opts.lineThickness - opts.cellSize);
+      }
+      // Horizontal middle line.
+      crossLines.push({
+        x1: cellX,
+        y1: cellY + half,
+        x2: cellX + opts.cellSize,
+        y2: cellY + half,
+      });
+      // Vertical middle line.
+      crossLines.push({
+        x1: cellX + half,
+        y1: cellY,
+        x2: cellX + half,
+        y2: cellY + opts.cellSize,
+      });
+    }
+  }
 
   for (const ln of lines) {
     const el = document.createElementNS(SVG_NS, "line");
@@ -761,6 +793,21 @@ function drawGrid(parent: HTMLElement, opts: GridDrawOptions): void {
     if (opts.dashArray) {
       el.setAttribute("stroke-dasharray", opts.dashArray);
     }
+    svg.appendChild(el);
+  }
+  // Cross-grid uses the same color/width but a default dashed pattern so
+  // it reads as a placement guide rather than a hard cell boundary.
+  // Caller-supplied dashArray wins (matches the boundary style instead).
+  const crossDash = opts.dashArray ?? "3,3";
+  for (const ln of crossLines) {
+    const el = document.createElementNS(SVG_NS, "line");
+    el.setAttribute("x1", String(ln.x1));
+    el.setAttribute("y1", String(ln.y1));
+    el.setAttribute("x2", String(ln.x2));
+    el.setAttribute("y2", String(ln.y2));
+    el.setAttribute("stroke", opts.color);
+    el.setAttribute("stroke-width", String(opts.width));
+    el.setAttribute("stroke-dasharray", crossDash);
     svg.appendChild(el);
   }
   parent.appendChild(svg);
