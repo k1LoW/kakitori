@@ -324,10 +324,18 @@ export function createFreeCell(
         );
         const attempts: CandidateMatch[] = [];
         for (const candidate of eligible) {
-          if (taskSession !== sessionId || status !== "drawing") {
+          if (taskSession !== sessionId || status !== "drawing" || destroyed) {
             return;
           }
           const match = await tryCandidate(candidate);
+          // tryCandidate awaits per-stroke judge() calls; reset()/destroy()
+          // (which bump sessionId / set destroyed) may have raced in during
+          // any of those awaits, so the result we just collected belongs to
+          // a stale session and must be discarded before we touch shared
+          // state (bestAttempt) or DOM (drawSegmentBoxes / commitMatch).
+          if (taskSession !== sessionId || status !== "drawing" || destroyed) {
+            return;
+          }
           log?.(
             `try "${candidate.text}" → matched=${match.matchedAll} sim=${match.similarity.toFixed(
               2,
