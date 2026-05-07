@@ -246,17 +246,35 @@ describe("page.create — mount layout", () => {
     expect(surfaces.length).toBeGreaterThanOrEqual(2);
     // surfaces[0] is the freeCell of block 0 (first placed at top of
     // column). surfaces[1] is block 1's freeCell.
-    strokeAt(surfaces[0] as SVGElement, [[10, 10], [70, 70]], 1);
-    strokeAt(surfaces[1] as SVGElement, [[10, 10], [70, 70]], 2);
-    strokeAt(surfaces[0] as SVGElement, [[20, 20], [60, 60]], 3);
+    const s0 = surfaces[0] as SVGElement;
+    const s1 = surfaces[1] as SVGElement;
+    strokeAt(s0, [[10, 10], [70, 70]], 1);
+    strokeAt(s1, [[10, 10], [70, 70]], 2);
+    strokeAt(s0, [[20, 20], [60, 60]], 3);
+    // freeCell draws one polyline per buffered stroke on the surface
+    // SVG, so the polyline count is the per-surface stroke buffer
+    // size — observable proof that strokes landed where expected.
+    const polyCount = (el: SVGElement) =>
+      el.querySelectorAll("polyline").length;
+    expect(polyCount(s0)).toBe(2); // initial + re-touch
+    expect(polyCount(s1)).toBe(1);
 
-    // First undo reverts block 0 (most recent), block 0's stack still
-    // empty afterwards because re-touch deduped to a single entry.
+    // First undo reverts block 0 (most recent touch). Block 0's stack
+    // had a single entry (re-touch deduped), so this clears both
+    // strokes on s0.
     handle.undo();
+    expect(polyCount(s0)).toBe(0);
+    expect(polyCount(s1)).toBe(1);
+
     // Second undo reverts block 1.
     handle.undo();
-    // Third undo: nothing left — all stacks drained.
+    expect(polyCount(s0)).toBe(0);
+    expect(polyCount(s1)).toBe(0);
+
+    // Third undo: nothing left — both surfaces stay empty.
     handle.undo();
+    expect(polyCount(s0)).toBe(0);
+    expect(polyCount(s1)).toBe(0);
     handle.undo(); // safe no-op
     handle.destroy();
     parent.remove();
@@ -287,17 +305,17 @@ describe("page.create — mount layout", () => {
     await flushMicrotasks();
     // The page commits the show cell synchronously but the write cell
     // stays open until the user matches. Touch the write cell (no
-    // match expected with the stub stroke), then undo. After undo
-    // the page's done flag must be cleared so a future commit can
-    // re-fire onPageComplete.
+    // match expected with the stub stroke), then undo. After undo:
+    // (a) the surface SVG is cleared (no polylines), proving the
+    //     freeCell handle was reset, and
+    // (b) reset() still works without throwing, proving the page-level
+    //     done flag isn't stuck.
     const surfaces = handle.el.querySelectorAll<SVGSVGElement>("svg");
     const writeSurface = surfaces[surfaces.length - 1] as SVGElement;
     strokeAt(writeSurface, [[10, 10], [70, 70]], 1);
+    expect(writeSurface.querySelectorAll("polyline").length).toBe(1);
     handle.undo();
-    // Page-level done flag should have been cleared, so it isn't
-    // visibly stuck. We can't easily synthesize a successful match
-    // here, but we at least verify the page accepts further work
-    // without throwing.
+    expect(writeSurface.querySelectorAll("polyline").length).toBe(0);
     expect(() => handle.reset()).not.toThrow();
     handle.destroy();
     parent.remove();
