@@ -7,7 +7,7 @@ import {
 } from "../recognition/normalize.js";
 import { projectClientToCell } from "../recognition/projectClientToCell.js";
 import { segmentByStrokeCounts } from "../recognition/segmentation.js";
-import { getJudgeChar } from "./charCache.js";
+import { getJudgeChar, runWithJudgeLock, type JudgeCharEntry } from "./charCache.js";
 import type {
   BlockLoaders,
   Expected,
@@ -80,6 +80,9 @@ interface CandidateInfo {
     logicalStrokeCount: number;
     instance: Char;
     normalizeTarget: NormalizeTarget;
+    /** Cache entry held so `runWithJudgeLock` can serialize judge() calls
+     * across cells that share this character's cached Char. */
+    entry: JudgeCharEntry;
   }>;
   totalStrokes: number;
 }
@@ -170,6 +173,7 @@ export function createFreeCell(
                 logicalStrokeCount: entry.logicalStrokeCount,
                 instance: entry.char,
                 normalizeTarget: entry.normalizeTarget,
+                entry,
               };
             }),
           );
@@ -385,25 +389,29 @@ export function createFreeCell(
         charInfo.normalizeTarget,
       );
       // Each character's strokes drive judge() in logical order. The Char
-      // instance is shared across cells via charCache, so reading
-      // `instance.result()` later would race with other cells / candidates
-      // overwriting `perStroke`. Collect each judge() return value locally
-      // and assemble the per-character result from those snapshots — that
-      // way concurrent cells can interleave on the same Char without
-      // corrupting each other's verdicts.
+      // instance is shared across cells via charCache; `runWithJudgeLock`
+      // serializes the entire per-character sequence so the shared
+      // hanzi-writer quiz state (`_currentStrokeIndex`, `_userStroke`,
+      // `capture`) and the awaits inside ending judgment can't interleave
+      // with another cell judging the same character. Per-stroke results
+      // are still collected from the awaited returns instead of reading
+      // `instance.result()` later, in case a different candidate locks the
+      // entry between this and the post-loop bookkeeping.
       const perStroke: CharJudgeStrokeResult[] = [];
       let charMatched = normalized.length > 0;
       let charSimSum = 0;
-      for (let j = 0; j < normalized.length; j++) {
-        const stroke = await charInfo.instance.judge(j, normalized[j]);
-        perStroke.push(stroke);
-        if (!stroke.matched) {
-          charMatched = false;
+      await runWithJudgeLock(charInfo.entry, async () => {
+        for (let j = 0; j < normalized.length; j++) {
+          const stroke = await charInfo.instance.judge(j, normalized[j]);
+          perStroke.push(stroke);
+          if (!stroke.matched) {
+            charMatched = false;
+          }
+          similaritySum += stroke.similarity;
+          similarityCount++;
+          charSimSum += stroke.similarity;
         }
-        similaritySum += stroke.similarity;
-        similarityCount++;
-        charSimSum += stroke.similarity;
-      }
+      });
       const result: CharJudgeResult = { matched: charMatched, perStroke };
       perCharacter.push(result);
       const charAvgSim = perStroke.length > 0 ? charSimSum / perStroke.length : 0;

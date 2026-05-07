@@ -34,6 +34,15 @@ export interface JudgeCharEntry {
    * character.
    */
   normalizeTarget: NormalizeTarget;
+  /**
+   * Mutex tail for {@link runWithJudgeLock}. `Char.judge()` mutates
+   * hanzi-writer's shared quiz state (`_currentStrokeIndex`,
+   * `_userStroke`, `capture`) and awaits during stroke-ending judgment,
+   * so concurrent callers against the same cached instance would
+   * interleave and corrupt each other's per-stroke results. Hidden from
+   * external callers; use `runWithJudgeLock` instead of touching it.
+   */
+  judgeLock: Promise<void>;
 }
 
 const cache = new Map<string, JudgeCharEntry>();
@@ -91,6 +100,7 @@ export function getJudgeChar(
         dataStrokeCount: meta.dataStrokeCount,
         logicalStrokeCount,
         normalizeTarget: meta.normalizeTarget,
+        judgeLock: Promise.resolve(),
       };
       cache.set(key, entry);
       return entry;
@@ -197,6 +207,30 @@ function loadCharMeta(
         ),
     );
   });
+}
+
+/**
+ * Serialize an async section against a cached `Char` so concurrent free
+ * cells judging the same character don't interleave on the shared
+ * hanzi-writer quiz state. Holds the entry's `judgeLock` for the duration
+ * of `fn`; `fn` is responsible for issuing every `judge()` call against
+ * `entry.char` that needs to see consistent state.
+ */
+export async function runWithJudgeLock<T>(
+  entry: JudgeCharEntry,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = entry.judgeLock;
+  let release!: () => void;
+  entry.judgeLock = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  try {
+    await previous;
+    return await fn();
+  } finally {
+    release();
+  }
 }
 
 /**
