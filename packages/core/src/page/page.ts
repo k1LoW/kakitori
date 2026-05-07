@@ -98,9 +98,21 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     cellsPerColumn: opts.cellsPerColumn,
   });
 
+  // Default: every cell on the page gets a paired furigana strip frame
+  // sized to fit any block's annotations (or DEFAULT_ANNOTATION_RATIO *
+  // cellSize when there are none, so the strip stays visible even if no
+  // block carries furigana). Pass `showAnnotationStrip: false` (or
+  // `annotationStripThickness: 0`) to turn the strip off page-wide.
   const requiredStrip = blocksRequireStrip(opts.blocks, cellSize);
-  const annotationStripThickness =
-    opts.annotationStripThickness ?? requiredStrip;
+  const showAnnotationStrip = opts.showAnnotationStrip ?? true;
+  let annotationStripThickness: number;
+  if (showAnnotationStrip === false) {
+    annotationStripThickness = 0;
+  } else if (opts.annotationStripThickness !== undefined) {
+    annotationStripThickness = opts.annotationStripThickness;
+  } else {
+    annotationStripThickness = Math.max(requiredStrip, DEFAULT_ANNOTATION_RATIO * cellSize);
+  }
   if (
     !Number.isFinite(annotationStripThickness) ||
     annotationStripThickness < 0

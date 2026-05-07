@@ -35,10 +35,18 @@ export interface PageCreateOptions {
   /** Layout direction. Defaults to `'vertical-rl'` (Japanese practice book convention). */
   writingMode?: WritingMode;
   /**
+   * Page-wide on/off switch for the furigana strip alongside every cell.
+   * Defaults to `true`: every cell on the page gets a paired strip
+   * frame, regardless of whether any block places annotation content
+   * there. Set to `false` to remove the strip from every cell at once.
+   */
+  showAnnotationStrip?: boolean;
+  /**
    * Width (vertical-rl) / height (horizontal-tb) reserved per column for
-   * annotations (ふりがな等). When omitted, derived from the largest
-   * `sizeRatio * cellSize` across the page's blocks (0 if no block has
-   * annotations).
+   * annotations (ふりがな等). When omitted (and `showAnnotationStrip`
+   * is left at the default), the page falls back to
+   * `max(largest block annotation thickness, DEFAULT cell ratio)` so
+   * even an annotation-free page still shows the strip.
    */
   annotationStripThickness?: number;
   /**
