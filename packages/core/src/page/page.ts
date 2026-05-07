@@ -498,8 +498,35 @@ function validateAnnotations(
           `page.create(): ${at}.placement="${a.placement}" is not supported for writingMode="${writingMode}" (only "${expectedPlacement}" aligns with the per-line strip).`,
         );
       }
+      // block.mountAnnotation paints one cellSize-thick sub-strip per
+      // covered cell, so a cell with slot span > 1 would leave its
+      // trailing slots uncovered and dividers misaligned with the empty
+      // strip frames below. Reject up front; v1 expects annotations to
+      // pair with span-1 cells (guided cells, in practice).
+      for (let k = from; k <= to; k++) {
+        const slotSpan = annotatedCellSpan(cells[k]);
+        if (slotSpan > 1) {
+          throw new Error(
+            `page.create(): ${at}.cellRange covers blocks[${i}].spec.cells[${k}] with span=${slotSpan}; annotated cells must have span 1.`,
+          );
+        }
+      }
     });
   });
+}
+
+function annotatedCellSpan(cell: import("../block/types.js").Cell): number {
+  if (cell.kind === "guided") {
+    return 1;
+  }
+  if (cell.kind === "blank") {
+    return cell.span ?? 1;
+  }
+  if (cell.span != null) {
+    return cell.span;
+  }
+  const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
+  return Math.max(...candidates.map((c) => Array.from(c).length));
 }
 
 function blocksRequireStrip(

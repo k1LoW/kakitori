@@ -1099,6 +1099,20 @@ function validateBlockSpec(
         `block.create(): annotations[${i}].placement="${a.placement}" is not supported for writingMode="vertical-rl" (only "right" is supported in v1).`,
       );
     }
+    // mountAnnotation builds one cellSize-thick sub-strip per covered cell;
+    // a span>1 cell would leave the trailing slots uncovered (and the
+    // dividers misaligned with the cells/empty strip frames below). v1
+    // rejects this up front rather than silently misrendering — annotated
+    // cells must be span 1 (guided cells, or free/blank without an
+    // explicit span override that exceeds 1).
+    for (let k = from; k <= to; k++) {
+      const slotSpan = cellSlotSpan(cells[k]);
+      if (slotSpan > 1) {
+        throw new Error(
+          `block.create(): annotations[${i}].cellRange covers cells[${k}] with span=${slotSpan}; annotated cells must have span 1.`,
+        );
+      }
+    }
   });
 }
 
