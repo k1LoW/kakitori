@@ -1,0 +1,24 @@
+{
+  "character": "ょ",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ],
+  "strokeGroups": [
+    [
+      0
+    ],
+    [
+      1,
+      2
+    ]
+  ]
+}

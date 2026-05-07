@@ -1,0 +1,27 @@
+{
+  "character": "ゃ",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome",
+        "hane"
+      ],
+      "direction": [
+        -1,
+        0.04
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
+}
