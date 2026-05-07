@@ -129,6 +129,44 @@ describe("block.create input validation", () => {
     });
   });
 
+  describe("empty cells", () => {
+    it("rejects an empty cells array", () => {
+      expectCreateThrows(
+        { cells: [] },
+        /spec\.cells must contain at least one cell/,
+      );
+    });
+  });
+
+  describe("mode", () => {
+    it("rejects unsupported cell.mode", () => {
+      expectCreateThrows(
+        {
+          cells: [
+            { kind: "guided", char: "学", mode: "view" as unknown as "show" },
+          ],
+        },
+        /cells\[0\]\.mode must be "write" or "show"/,
+      );
+    });
+
+    it("rejects unsupported annotation.mode", () => {
+      expectCreateThrows(
+        {
+          cells: [{ kind: "guided", char: "学", mode: "show" }],
+          annotations: [
+            {
+              cellRange: [0, 0],
+              expected: "がく",
+              mode: "view" as unknown as "show",
+            },
+          ],
+        },
+        /annotations\[0\]\.mode must be "write" or "show"/,
+      );
+    });
+  });
+
   describe("writingMode", () => {
     it("rejects unsupported writingMode", () => {
       const parent = document.createElement("div");

@@ -728,7 +728,13 @@ function validateBlockSpec(
   annotations: ReadonlyArray<FuriganaAnnotation>,
   writingMode: WritingMode,
 ): void {
+  if (cells.length === 0) {
+    // Without cells there is no per-cell completion to await, so
+    // onBlockComplete would never fire and the block looks stuck.
+    throw new Error("block.create(): spec.cells must contain at least one cell.");
+  }
   cells.forEach((cell, i) => {
+    validateMode(cell.mode, `cells[${i}].mode`);
     if (cell.kind === "guided") {
       if (typeof cell.char !== "string" || cell.char.length === 0) {
         throw new Error(
@@ -755,6 +761,7 @@ function validateBlockSpec(
     }
   });
   annotations.forEach((a, i) => {
+    validateMode(a.mode, `annotations[${i}].mode`);
     validateExpected(a.expected, `annotations[${i}].expected`);
     // 0 produces a zero-sized SVG which has no usable interactive surface
     // (and divides by zero in projectClientToCell), so reject 0 as well as
@@ -791,6 +798,14 @@ function validateBlockSpec(
       );
     }
   });
+}
+
+function validateMode(mode: unknown, location: string): void {
+  if (mode !== "write" && mode !== "show") {
+    throw new Error(
+      `block.create(): ${location} must be "write" or "show" (got ${JSON.stringify(mode)}).`,
+    );
+  }
 }
 
 function validateExpected(expected: import("./types.js").Expected, location: string): void {
