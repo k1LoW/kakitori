@@ -452,51 +452,22 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cell: FreeCell,
     index: number,
   ): PerCellState {
-    // Per-cell-slot chrome: each slot in the span gets its own border +
-    // cross-grid so a free cell looks like the same row of cells a blank
-    // / guided cell would, while the freeCell input layer below treats
-    // them as one shared stroke buffer the user can write across.
-    const span = cellSlotSpan(cell);
-    const slotEls: HTMLDivElement[] = [];
-    for (let k = 0; k < span; k++) {
-      const slot = document.createElement("div");
-      slot.style.position = "absolute";
-      let sx: number;
-      let sy: number;
-      let sw: number;
-      let sh: number;
-      if (writingMode === "vertical-rl") {
-        sx = rect.x;
-        sy = rect.y + k * cellSize;
-        sw = cellSize;
-        sh = cellSize;
-      } else {
-        sx = rect.x + k * cellSize;
-        sy = rect.y;
-        sw = cellSize;
-        sh = cellSize;
-      }
-      slot.style.left = `${sx}px`;
-      slot.style.top = `${sy}px`;
-      slot.style.width = `${sw}px`;
-      slot.style.height = `${sh}px`;
-      slot.style.boxSizing = "border-box";
-      applyBorder(
-        slot,
-        resolvedCellBorder,
-        freeCellSlotEdgesToHide(index, cells.length, k, span, writingMode),
-      );
-      parentEl.appendChild(slot);
-      slotEls.push(slot);
-      // Free cells are a free-writing area — keep only the per-slot
-      // border (so the span is visually evident) and skip the cross
-      // grid that guided / blank cells use as a placement guide.
-    }
+    // A free cell is one writing area sized to span * cellSize. We do
+    // NOT subdivide it into per-slot sub-cells: the user writes the
+    // answer across the rectangle freely and the matcher segments by
+    // stroke counts.
+    const wrapperEl = document.createElement("div");
+    wrapperEl.style.position = "absolute";
+    wrapperEl.style.left = `${rect.x}px`;
+    wrapperEl.style.top = `${rect.y}px`;
+    wrapperEl.style.width = `${rect.w}px`;
+    wrapperEl.style.height = `${rect.h}px`;
+    wrapperEl.style.boxSizing = "border-box";
+    applyBorder(wrapperEl, resolvedCellBorder, NO_HIDE);
+    parentEl.appendChild(wrapperEl);
 
     if (cell.mode === "show") {
-      // Render the first candidate as static text spread across the
-      // sub-slots so it visually aligns with cell chrome.
-      renderShowText(parentEl, firstCandidate(cell.expected), rect, writingMode);
+      renderShowText(wrapperEl, firstCandidate(cell.expected), rect, writingMode);
       const state: PerCellState = { index, cell, result: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -509,11 +480,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     const handle = createFreeCell({
       expected: cell.expected,
-      surfaces: slotEls.map((el) => ({
-        parent: el,
-        width: cellSize,
-        height: cellSize,
-      })),
+      surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -845,16 +812,6 @@ function applyBorder(el: HTMLElement, border: string, hide: BorderHide): void {
 function cellEdgesToHide(
   _index: number,
   _total: number,
-  _writingMode: WritingMode,
-): BorderHide {
-  return { ...NO_HIDE };
-}
-
-function freeCellSlotEdgesToHide(
-  _cellIndex: number,
-  _cellTotal: number,
-  _slotIndex: number,
-  _slotTotal: number,
   _writingMode: WritingMode,
 ): BorderHide {
   return { ...NO_HIDE };
