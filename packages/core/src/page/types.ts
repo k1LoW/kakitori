@@ -104,7 +104,10 @@ export interface Page {
   /**
    * Cell-level undo at the page level. Walks down to the most recently
    * active block (or page-level annotation) and reverts just that
-   * unit. No-op when nothing has been touched since the last undo.
+   * unit. Repeated calls keep walking back through prior activity in
+   * LRU-on-touch order — same block's earlier cells first, then the
+   * next-most-recent block, and so on. No-op only when nothing is
+   * left to undo.
    */
   undo(): void;
   /** Destroy every child block and detach the page. */
