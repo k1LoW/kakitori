@@ -53,8 +53,11 @@ export interface PageCreateOptions {
    */
   annotationStripThickness?: number;
   /**
-   * Draw a faint cell-grid background. `true` uses the cell-border style;
-   * `false` disables it; an object overrides color / width.
+   * Forwarded to every per-segment `block.create()` call: controls the
+   * cross-grid drawn inside guided cells (and the matching dashed cross
+   * on blank cells). The page itself doesn't paint a separate grid
+   * background. `true` uses the cell-border style; `false` disables the
+   * cross-grid; an object overrides color / width / dashArray.
    */
   showGrid?: boolean | GridOptions;
   /** Loaders shared by every Char inside every block. */
