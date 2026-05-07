@@ -35,10 +35,13 @@ export interface PageCreateOptions {
   /** Layout direction. Defaults to `'vertical-rl'` (Japanese practice book convention). */
   writingMode?: WritingMode;
   /**
-   * Page-wide on/off switch for the furigana strip alongside every cell.
-   * Defaults to `true`: every cell on the page gets a paired strip
-   * frame, regardless of whether any block places annotation content
-   * there. Set to `false` to remove the strip from every cell at once.
+   * Page-wide on/off switch for the furigana strip alongside the cells
+   * that the user-supplied blocks render. Defaults to `true`: every
+   * rendered cell-slot (across all blocks placed on the page) gets a
+   * paired strip frame, regardless of whether any block places
+   * annotation content there. Empty grid slots between blocks stay
+   * blank either way (page draws no chrome of its own). Set to `false`
+   * to remove the strip from every rendered cell at once.
    */
   showAnnotationStrip?: boolean;
   /**
