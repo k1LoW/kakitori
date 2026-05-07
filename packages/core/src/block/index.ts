@@ -13,5 +13,4 @@ export type {
   FuriganaAnnotation,
   GuidedCell,
   GuidedCellResult,
-  RollbackScope,
 } from "./types.js";

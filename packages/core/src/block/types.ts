@@ -8,9 +8,6 @@ import type {
 /** Single string or list of acceptable answers for a free cell or annotation. */
 export type Expected = string | string[];
 
-/** When a stroke / cell / block is rejected, what should be reset. */
-export type RollbackScope = "stroke" | "character" | "block";
-
 /** A cell where the user is shown a character template (Char) and traces it. */
 export interface GuidedCell {
   kind: "guided";
@@ -54,17 +51,10 @@ export interface FuriganaAnnotation {
 }
 
 export interface BlockSpec {
-  id?: string;
   cells: Cell[];
   annotations?: FuriganaAnnotation[];
-  rollback?: RollbackScope;
   /** Per-cell side length in pixels. Defaults to the parent grid's cell size. */
   size?: number;
-  startLine?: number;
-  startCellInLine?: number;
-  break?: "before" | "after";
-  gap?: number;
-  label?: string;
 }
 
 /** Result for a `'guided'` cell. */
