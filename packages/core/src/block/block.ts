@@ -33,8 +33,10 @@ const DEFAULT_CELL_BORDER_COLOR = "#ddd";
  * annotation all use this, so adjust here to scale every cell at once.
  */
 const DEFAULT_BLOCK_DRAWING_WIDTH = 4;
-/** Shared dashArray for the cross-grid drawn inside every cell flavour
- * (guided / free / blank), so the visual is uniform across the block. */
+/** Shared dashArray for the cross-grid drawn inside guided cells (via
+ * char.mount) and blank cells (via drawBlankCrossGrid), so both kinds
+ * render the same dash style by default. Free cells don't draw a
+ * cross-grid. */
 const DEFAULT_GRID_DASH_ARRAY = "3,3";
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
