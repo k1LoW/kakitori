@@ -106,6 +106,12 @@ export interface BlockCreateOptions {
   ) => void;
   /** Fired once every cell and annotation has reported a result. */
   onBlockComplete?: (result: BlockResult) => void;
+  /**
+   * Fired whenever any cell or annotation in this block receives a stroke
+   * (correct or wrong). Lets a wrapping page track which block was most
+   * recently active so a delegated `page.undo()` can be routed here.
+   */
+  onActivity?: () => void;
 }
 
 export interface Block {
@@ -113,6 +119,18 @@ export interface Block {
   el: HTMLElement;
   /** Reset every cell and annotation to a clean writing state. */
   reset(): void;
+  /**
+   * Cell-level undo: revert just the cell or annotation that received
+   * the most recent stroke. Returns a descriptor of what was undone
+   * plus `hasMore` indicating whether another `undo()` call would still
+   * find earlier activity in this block. Returns `null` when nothing is
+   * left to undo (so a wrapping page can fall through to another block).
+   */
+  undo(): {
+    kind: "cell" | "annotation";
+    index: number;
+    hasMore: boolean;
+  } | null;
   /** Destroy every child Char / freeCell and detach the block. */
   destroy(): void;
 }
@@ -278,6 +296,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // queueMicrotask) can no-op instead of touching DOM / Char instances
   // that have already been torn down.
   let destroyed = false;
+
+  /**
+   * Activity history for {@link Block.undo}. Most recent target is at
+   * the end. We dedup by target so each cell / annotation appears at
+   * most once: re-touching a cell moves it to the top instead of
+   * piling duplicate entries that would later collapse to no-ops.
+   */
+  const activityStack: Array<{ kind: "cell" | "annotation"; index: number }> = [];
+  function markActive(kind: "cell" | "annotation", index: number): void {
+    const existing = activityStack.findIndex(
+      (t) => t.kind === kind && t.index === index,
+    );
+    if (existing >= 0) {
+      activityStack.splice(existing, 1);
+    }
+    activityStack.push({ kind, index });
+    opts.onActivity?.();
+  }
 
   // Reserve an empty annotation strip frame next to every cell-slot
   // (one per slot in the span) so block-stacking on a page stays
@@ -467,6 +503,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     } else if (kind === "ending-mistake") {
       state.strokeEndingMistakes = (state.strokeEndingMistakes ?? 0) + 1;
     }
+    markActive("cell", state.index);
   }
 
   function commitGuidedResult(state: PerCellState, matched: boolean): void {
@@ -534,6 +571,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         opts.onCellComplete?.(index, "cell", result);
         maybeCommitBlock();
       },
+      onStroke: () => markActive("cell", index),
     });
     const state: PerCellState = {
       index,
@@ -725,6 +763,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           opts.onCellComplete?.(index, "annotation", result);
           maybeCommitBlock();
         },
+        onStroke: () => markActive("annotation", index),
       }),
     };
     return state;
@@ -764,6 +803,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       if (destroyed) {
         return;
       }
+      activityStack.length = 0;
       for (const state of cellStates) {
         state.result = null;
         state.mistakes = 0;
@@ -822,6 +862,53 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           });
         }
       }
+    },
+    undo(): {
+      kind: "cell" | "annotation";
+      index: number;
+      hasMore: boolean;
+    } | null {
+      if (destroyed) {
+        return null;
+      }
+      const target = activityStack.pop();
+      if (!target) {
+        return null;
+      }
+      if (target.kind === "cell") {
+        const state = cellStates[target.index];
+        if (!state) {
+          return null;
+        }
+        // Drop any pending result so the block-level aggregate goes back
+        // to "still in progress"; matchUndo flows skip the
+        // onCellComplete re-fire (silent revert).
+        state.result = null;
+        state.mistakes = 0;
+        state.strokeEndingMistakes = 0;
+        if (state.cell.kind === "guided" && state.charInstance) {
+          state.charInstance.undo();
+        } else if (state.freeHandle) {
+          state.freeHandle.undo();
+        }
+        // blank / show-mode cells have nothing to undo (they don't
+        // accept strokes, so they should never have been the
+        // lastActiveTarget anyway).
+      } else {
+        const state = annotationStates[target.index];
+        if (!state) {
+          return null;
+        }
+        state.result = null;
+        if (state.freeHandle) {
+          state.freeHandle.undo();
+        }
+      }
+      return {
+        kind: target.kind,
+        index: target.index,
+        hasMore: activityStack.length > 0,
+      };
     },
     destroy(): void {
       destroyed = true;

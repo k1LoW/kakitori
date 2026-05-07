@@ -12,4 +12,5 @@ export type {
   PageBlockResult,
   PageCreateOptions,
   PageResult,
+  PageUndoResult,
 } from "./types.js";

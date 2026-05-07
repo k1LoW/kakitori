@@ -664,6 +664,45 @@ describe("char", () => {
     });
   });
 
+  describe("undo()", () => {
+    it("clears stroke colors like reset()", async () => {
+      const { k, paths } = createWithStrokePaths();
+      await k.ready();
+      k.setStrokeColor(0, "#c00");
+      expect(paths[0].style.stroke).toBe("#c00");
+
+      k.undo();
+      expect(paths[0].style.stroke).toBe("#555");
+    });
+
+    it("is safe to call before, during, and after start()", async () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      // Pre-start: undo behaves like reset().
+      expect(() => k.undo()).not.toThrow();
+
+      // Arm the quiz, then undo: must re-arm, observable via the queued
+      // startQuiz draining without throwing.
+      k.start();
+      for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+      }
+      expect(() => k.undo()).not.toThrow();
+      for (let i = 0; i < 20; i++) {
+        await Promise.resolve();
+      }
+
+      // After a fresh reset() the armed flag is cleared, so a subsequent
+      // undo() does not re-arm — verify by checking it still doesn't
+      // throw and that reset's stroke-color cleanup persists.
+      k.reset();
+      expect(() => k.undo()).not.toThrow();
+    });
+  });
+
   describe("showGrid option", () => {
     it("does not draw grid lines when showGrid is omitted", () => {
       createMounted(container, "あ", {

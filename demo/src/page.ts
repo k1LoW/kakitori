@@ -24,6 +24,7 @@ const hostEl = document.getElementById("page-host")!;
 const logEl = document.getElementById("log")!;
 const statusEl = document.getElementById("status")!;
 const resetBtn = document.getElementById("reset") as HTMLButtonElement;
+const undoBtn = document.getElementById("undo") as HTMLButtonElement;
 
 let currentPage: Page | null = null;
 
@@ -221,6 +222,23 @@ resetBtn.addEventListener("click", () => {
   log("reset");
   statusEl.textContent = "";
   currentPage.reset();
+});
+
+undoBtn.addEventListener("click", () => {
+  if (!currentPage) {
+    return;
+  }
+  const undone = currentPage.undo();
+  if (!undone) {
+    log("undo (nothing to undo)");
+    return;
+  }
+  if (undone.kind === "block-cell") {
+    log(`undo block#${undone.blockIndex} cell#${undone.cellIndex}`);
+  } else {
+    log(`undo block#${undone.blockIndex} annotation#${undone.annotationIndex}`);
+  }
+  statusEl.textContent = "";
 });
 
 rebuild();
