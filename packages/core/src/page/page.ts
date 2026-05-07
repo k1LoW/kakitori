@@ -271,10 +271,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     }
 
     // 2. Render annotations. Each annotation may span one or more
-    // segments. Build a list of surfaces (one strip per segment that the
-    // annotation's cellRange intersects) and create a single freeCell with
-    // those surfaces — they share a stroke buffer so the user can write
-    // the answer freely across segments at character boundaries.
+    // segments. Build a list of surfaces (one strip per cell that the
+    // annotation's cellRange overlaps with — sub-strip dividers line up
+    // with the cells underneath, even across segment boundaries) and
+    // create a single freeCell with those surfaces — they share a stroke
+    // buffer so the user can write the answer freely across segments at
+    // character boundaries.
     const annotations = entry.spec.annotations ?? [];
     annotations.forEach((annotation, annotationIndex) => {
       const surfaces = annotationSurfaces(
