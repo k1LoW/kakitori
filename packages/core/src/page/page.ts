@@ -20,8 +20,6 @@ import type {
 } from "./types.js";
 
 const DEFAULT_ANNOTATION_RATIO = 0.4;
-const DEFAULT_CELL_BORDER_WIDTH = 1;
-const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -288,8 +286,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         lineThickness,
         pageWidth,
         writingMode,
-        opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH,
-        opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR,
         state.blockIndex,
         annotationIndex,
       );
@@ -619,8 +615,6 @@ function annotationSurfaces(
   lineThickness: number,
   pageWidth: number,
   writingMode: WritingMode,
-  cellBorderWidth: number,
-  cellBorderColor: string,
   blockIndex: number,
   annotationIndex: number,
 ): AnnotationSurface[] {
@@ -672,13 +666,10 @@ function annotationSurfaces(
       stripDiv.style.width = `${width}px`;
       stripDiv.style.height = `${height}px`;
       stripDiv.style.boxSizing = "border-box";
-      // Every per-cell sub-strip draws its own complete border (no
-      // edge-hiding between adjacent cells).
-      const borderStr = `${cellBorderWidth}px solid ${cellBorderColor}`;
-      stripDiv.style.borderTop = borderStr;
-      stripDiv.style.borderRight = borderStr;
-      stripDiv.style.borderBottom = borderStr;
-      stripDiv.style.borderLeft = borderStr;
+      // No border here: the per-segment block.create call already paints
+      // an empty strip frame for every cell-slot (because
+      // annotationStripThickness > 0), and this overlay sits on top of
+      // that frame providing only the freeCell surface / show-mode SVG.
       wrapper.appendChild(stripDiv);
       surfaces.push({
         el: stripDiv,

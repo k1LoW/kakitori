@@ -679,11 +679,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       sub.style.width = `${sw}px`;
       sub.style.height = `${sh}px`;
       sub.style.boxSizing = "border-box";
-      applyBorder(
-        sub,
-        resolvedCellBorder,
-        annotationSubStripEdgesToHide(annotation, writingMode, k, cellCount),
-      );
+      // No border here: drawEmptyAnnotationStripFrame already paints the
+      // strip frame underneath every cell-slot when annotationThickness >
+      // 0, so the annotation overlay sits on top of that frame and only
+      // contributes the freeCell surface / show-mode SVG content.
       parentEl.appendChild(sub);
       subStrips.push({ el: sub, width: sw, height: sh, cellIndex: annFrom + k });
     }
@@ -874,15 +873,6 @@ function cellEdgesToHide(
   _index: number,
   _total: number,
   _writingMode: WritingMode,
-): BorderHide {
-  return { ...NO_HIDE };
-}
-
-function annotationSubStripEdgesToHide(
-  _annotation: FuriganaAnnotation,
-  _writingMode: WritingMode,
-  _index: number,
-  _total: number,
 ): BorderHide {
   return { ...NO_HIDE };
 }
