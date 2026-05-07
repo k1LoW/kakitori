@@ -392,7 +392,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       // result so block aggregation still completes.
       renderShowText(wrapperEl, firstCandidate(cell.expected), rect);
       const state: PerCellState = { index, cell, result: null };
-      queueMicrotask(() => commitFreeShowResult(state, "cell", cell.expected));
+      queueMicrotask(() => {
+        if (destroyed) {
+          return;
+        }
+        commitFreeShowResult(state, "cell", cell.expected);
+      });
       return state;
     }
 
@@ -464,7 +469,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     if (annotation.mode === "show") {
       renderShowText(wrapperEl, firstCandidate(annotation.expected), rect);
       const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
-      queueMicrotask(() => commitAnnotationShowResult(state));
+      queueMicrotask(() => {
+        if (destroyed) {
+          return;
+        }
+        commitAnnotationShowResult(state);
+      });
       return state;
     }
 
