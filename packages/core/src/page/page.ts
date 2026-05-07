@@ -223,9 +223,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       });
       slotEl.style.left = `${origin.x}px`;
       slotEl.style.top = `${origin.y}px`;
-      // Place a sub-wrapper that is exactly cellSize wide so the block's
-      // own layout (no annotation in sub-spec) sits at the cell side of
-      // the strip.
+      // The slotEl is the parent for one block.create call; that call's
+      // own wrapper is `cellSize + annotationStripThickness` along the
+      // perpendicular axis (because we pin annotationThickness so the
+      // block reserves the strip even though the sub-spec carries no
+      // annotations of its own).
       wrapper.appendChild(slotEl);
 
       const subSpec: BlockSpec = {
