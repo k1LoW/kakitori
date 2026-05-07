@@ -400,7 +400,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     if (cell.mode === "show") {
       // Render the first candidate as static text and synthesize a matched
       // result so block aggregation still completes.
-      renderShowText(wrapperEl, firstCandidate(cell.expected), rect);
+      renderShowText(wrapperEl, firstCandidate(cell.expected), rect, writingMode);
       const state: PerCellState = { index, cell, result: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -411,10 +411,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return state;
     }
 
-    const handle = createFreeCell(wrapperEl, {
+    const handle = createFreeCell({
       expected: cell.expected,
-      width: rect.w,
-      height: rect.h,
+      surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -477,7 +476,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     parentEl.appendChild(wrapperEl);
 
     if (annotation.mode === "show") {
-      renderShowText(wrapperEl, firstCandidate(annotation.expected), rect);
+      renderShowText(wrapperEl, firstCandidate(annotation.expected), rect, writingMode);
       const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -492,10 +491,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       index,
       annotation,
       result: null,
-      freeHandle: createFreeCell(wrapperEl, {
+      freeHandle: createFreeCell({
         expected: annotation.expected,
-        width: rect.w,
-        height: rect.h,
+        surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
         label: `annotation#${index}`,
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -686,28 +684,47 @@ function firstCandidate(expected: import("./types.js").Expected): string {
 }
 
 /** Render the expected text as static SVG so a `mode: "show"` free cell /
- * annotation displays the answer instead of an interactive surface. */
+ * annotation displays the answer instead of an interactive surface. Each
+ * character is dropped into its own slot along the writing axis (top→bottom
+ * for vertical-rl, left→right for horizontal-tb) so multi-char answers
+ * don't overflow a tall, narrow furigana strip. */
 function renderShowText(
   parentEl: HTMLElement,
   text: string,
   rect: { w: number; h: number },
+  writingMode: WritingMode,
 ): void {
+  const chars = Array.from(text);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", String(rect.w));
   svg.setAttribute("height", String(rect.h));
   svg.setAttribute("viewBox", `0 0 ${rect.w} ${rect.h}`);
   svg.style.display = "block";
-  const fontSize = Math.max(12, Math.min(rect.w, rect.h) * 0.6);
-  const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  t.setAttribute("x", String(rect.w / 2));
-  t.setAttribute("y", String(rect.h / 2));
-  t.setAttribute("text-anchor", "middle");
-  t.setAttribute("dominant-baseline", "central");
-  t.setAttribute("font-size", String(fontSize));
-  t.setAttribute("font-family", "serif");
-  t.setAttribute("fill", "#222");
-  t.textContent = text;
-  svg.appendChild(t);
+  if (chars.length === 0) {
+    parentEl.appendChild(svg);
+    return;
+  }
+  const isVertical = writingMode === "vertical-rl";
+  const slot = (isVertical ? rect.h : rect.w) / chars.length;
+  // Cap font-size so a single tall char doesn't blow past the perpendicular
+  // axis (otherwise a vertical-rl annotation strip would render furigana
+  // glyphs wider than the strip itself).
+  const cross = isVertical ? rect.w : rect.h;
+  const fontSize = Math.max(8, Math.min(slot, cross) * 0.8);
+  for (let i = 0; i < chars.length; i++) {
+    const x = isVertical ? rect.w / 2 : (i + 0.5) * slot;
+    const y = isVertical ? (i + 0.5) * slot : rect.h / 2;
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", String(x));
+    t.setAttribute("y", String(y));
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("dominant-baseline", "central");
+    t.setAttribute("font-size", String(fontSize));
+    t.setAttribute("font-family", "serif");
+    t.setAttribute("fill", "#222");
+    t.textContent = chars[i];
+    svg.appendChild(t);
+  }
   parentEl.appendChild(svg);
 }
 

@@ -31,12 +31,30 @@ const DEFAULT_SEGMENT_BOX_COLOR = "rgba(0, 100, 200, 0.7)";
  */
 const DEFAULT_FREE_CELL_LENIENCY = 1.5;
 
+/**
+ * One writable surface owned by a free cell. A single free cell may have
+ * multiple surfaces — used when {@link page} splits a single annotation
+ * across columns. All surfaces share the same stroke buffer / judging /
+ * candidate set, but each renders its own user input independently so the
+ * visual feedback stays attached to where the user actually drew.
+ */
+export interface FreeCellSurface {
+  /** Where the surface SVG should be appended. */
+  parent: HTMLElement;
+  /** Surface side lengths in display pixels. */
+  width: number;
+  height: number;
+}
+
 export interface FreeCellCreateOptions {
   expected: Expected;
-  /** Width in display pixels. */
-  width: number;
-  /** Height in display pixels. */
-  height: number;
+  /**
+   * One or more writable surfaces. Pointer events on each surface feed
+   * the same stroke buffer in time order; a single character must be
+   * drawn entirely on one surface for the matcher to accept it (we do
+   * not blend coordinates across surfaces).
+   */
+  surfaces: ReadonlyArray<FreeCellSurface>;
   drawingColor?: string;
   matchedColor?: string;
   failedColor?: string;
@@ -57,7 +75,9 @@ export interface FreeCellCreateOptions {
    * Debug overlay: when true, draws the per-character bbox the matcher
    * picked for the best candidate of every match attempt. Each box is
    * labelled with the character. Boxes are redrawn on every attempt and
-   * cleared on `reset()`.
+   * cleared on `reset()`. Only honoured when there is exactly one surface
+   * (boxes use surface-local coords; multi-surface overlays would need
+   * extra plumbing that callers don't currently need).
    */
   showSegmentBoxes?: boolean;
   /** Color for the segment bbox overlay (debug). */
@@ -66,8 +86,8 @@ export interface FreeCellCreateOptions {
 }
 
 export interface FreeCellHandle {
-  /** Underlying SVG element so the parent can position it in the layout. */
-  el: SVGSVGElement;
+  /** Underlying SVG elements (one per surface, in declaration order). */
+  els: SVGSVGElement[];
   reset(): void;
   destroy(): void;
 }
@@ -90,6 +110,8 @@ interface CandidateInfo {
 interface DrawnStroke {
   points: TimedPoint[];
   el: SVGPolylineElement;
+  /** Index into `surfaces` of the surface where this stroke was drawn. */
+  surfaceIndex: number;
 }
 
 /** Internal: the freeCell's view of a settled candidate match. */
@@ -103,15 +125,18 @@ interface CandidateMatch {
 }
 
 export function createFreeCell(
-  parent: HTMLElement,
   opts: FreeCellCreateOptions,
 ): FreeCellHandle {
+  if (opts.surfaces.length === 0) {
+    throw new Error("freeCell: at least one surface is required");
+  }
   const drawingColor = opts.drawingColor ?? DEFAULT_DRAWING_COLOR;
   const matchedColor = opts.matchedColor ?? DEFAULT_MATCHED_COLOR;
   const failedColor = opts.failedColor ?? DEFAULT_FAILED_COLOR;
   const strokeWidth = opts.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
   const segmentBoxColor = opts.segmentBoxColor ?? DEFAULT_SEGMENT_BOX_COLOR;
-  const showSegmentBoxes = opts.showSegmentBoxes === true;
+  const showSegmentBoxes =
+    opts.showSegmentBoxes === true && opts.surfaces.length === 1;
   const leniency = opts.leniency ?? DEFAULT_FREE_CELL_LENIENCY;
 
   const candidatesText = normalizeExpected(opts.expected);
@@ -120,15 +145,27 @@ export function createFreeCell(
     ? (msg: string) => opts.logger!(`${label} ${msg}`)
     : null;
 
-  const el = document.createElementNS(SVG_NS, "svg") as SVGSVGElement;
-  el.setAttribute("width", String(opts.width));
-  el.setAttribute("height", String(opts.height));
-  el.setAttribute("viewBox", `0 0 ${opts.width} ${opts.height}`);
-  el.style.touchAction = "none";
-  el.style.cursor = "crosshair";
-  el.style.display = "block";
-  el.style.background = "transparent";
-  parent.appendChild(el);
+  // One SVG per surface. Pointer events on each surface feed the shared
+  // stroke buffer in time order, so the matcher sees a single sequence of
+  // strokes regardless of which surface they originated on.
+  interface Surface {
+    el: SVGSVGElement;
+    width: number;
+    height: number;
+  }
+  const surfaces: Surface[] = opts.surfaces.map((s) => {
+    const svg = document.createElementNS(SVG_NS, "svg") as SVGSVGElement;
+    svg.setAttribute("width", String(s.width));
+    svg.setAttribute("height", String(s.height));
+    svg.setAttribute("viewBox", `0 0 ${s.width} ${s.height}`);
+    svg.style.touchAction = "none";
+    svg.style.cursor = "crosshair";
+    svg.style.display = "block";
+    svg.style.background = "transparent";
+    s.parent.appendChild(svg);
+    return { el: svg, width: s.width, height: s.height };
+  });
+  const els = surfaces.map((s) => s.el);
 
   let destroyed = false;
   let status: "drawing" | "matched" | "failed" = "drawing";
@@ -137,6 +174,8 @@ export function createFreeCell(
   let strokes: DrawnStroke[] = [];
   let activeStroke: DrawnStroke | null = null;
   let pointerActive = false;
+  /** Index of the surface that owns the in-flight stroke (-1 when idle). */
+  let activeSurfaceIndex = -1;
   let lastMoveTime = 0;
   let judgeQueue: Promise<void> = Promise.resolve();
   let sessionId = 0;
@@ -211,38 +250,42 @@ export function createFreeCell(
     log?.(`candidate load failed: ${errorMessage(err)}`);
   });
 
-  function projectEvent(e: PointerEvent): { x: number; y: number } {
-    const rect = el.getBoundingClientRect();
-    return projectClientToCell(
-      rect,
-      opts.width,
-      opts.height,
-      e.clientX,
-      e.clientY,
-    );
+  function projectEvent(surfaceIndex: number, e: PointerEvent): { x: number; y: number } {
+    const surface = surfaces[surfaceIndex];
+    const rect = surface.el.getBoundingClientRect();
+    return projectClientToCell(rect, surface.width, surface.height, e.clientX, e.clientY);
   }
 
-  function newStroke(p: { x: number; y: number; t: number }): DrawnStroke {
+  function newStroke(
+    surfaceIndex: number,
+    p: { x: number; y: number; t: number },
+  ): DrawnStroke {
+    const surface = surfaces[surfaceIndex];
     const poly = document.createElementNS(SVG_NS, "polyline") as SVGPolylineElement;
     poly.setAttribute("fill", "none");
     poly.setAttribute("stroke", drawingColor);
     poly.setAttribute("stroke-width", String(strokeWidth));
     poly.setAttribute("stroke-linecap", "round");
     poly.setAttribute("stroke-linejoin", "round");
-    el.appendChild(poly);
-    appendSvgPoint(poly, p.x, p.y);
-    return { points: [p], el: poly };
+    surface.el.appendChild(poly);
+    appendSvgPoint(surface.el, poly, p.x, p.y);
+    return { points: [p], el: poly, surfaceIndex };
   }
 
   function appendStrokePoint(s: DrawnStroke, p: { x: number; y: number; t: number }): void {
     s.points.push(p);
-    appendSvgPoint(s.el, p.x, p.y);
+    appendSvgPoint(surfaces[s.surfaceIndex].el, s.el, p.x, p.y);
   }
 
   /** Append a point to a polyline via SVGPointList — O(1) per call instead
    * of the O(n) read-and-rewrite of the `points` string attribute. */
-  function appendSvgPoint(poly: SVGPolylineElement, x: number, y: number): void {
-    const pt = el.createSVGPoint();
+  function appendSvgPoint(
+    svg: SVGSVGElement,
+    poly: SVGPolylineElement,
+    x: number,
+    y: number,
+  ): void {
+    const pt = svg.createSVGPoint();
     pt.x = x;
     pt.y = y;
     poly.points.appendItem(pt);
@@ -254,53 +297,61 @@ export function createFreeCell(
     }
   }
 
-  const onPointerDown = (e: PointerEvent) => {
-    if (destroyed || status !== "drawing") {
-      return;
-    }
-    pointerActive = true;
-    const t = performance.now();
-    lastMoveTime = t;
-    const p = projectEvent(e);
-    activeStroke = newStroke({ x: p.x, y: p.y, t });
-    el.setPointerCapture(e.pointerId);
-    log?.(`pointerdown stroke=${strokes.length} at=(${p.x.toFixed(0)},${p.y.toFixed(0)})`);
-  };
+  function makePointerHandlers(surfaceIndex: number) {
+    const onPointerDown = (e: PointerEvent) => {
+      if (destroyed || status !== "drawing") {
+        return;
+      }
+      pointerActive = true;
+      activeSurfaceIndex = surfaceIndex;
+      const t = performance.now();
+      lastMoveTime = t;
+      const p = projectEvent(surfaceIndex, e);
+      activeStroke = newStroke(surfaceIndex, { x: p.x, y: p.y, t });
+      surfaces[surfaceIndex].el.setPointerCapture(e.pointerId);
+      log?.(
+        `pointerdown surface=${surfaceIndex} stroke=${strokes.length} at=(${p.x.toFixed(0)},${p.y.toFixed(0)})`,
+      );
+    };
 
-  const onPointerMove = (e: PointerEvent) => {
-    if (!pointerActive || !activeStroke) {
-      return;
-    }
-    const t = performance.now();
-    lastMoveTime = t;
-    const p = projectEvent(e);
-    appendStrokePoint(activeStroke, { x: p.x, y: p.y, t });
-  };
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointerActive || !activeStroke || activeSurfaceIndex !== surfaceIndex) {
+        return;
+      }
+      const t = performance.now();
+      lastMoveTime = t;
+      const p = projectEvent(surfaceIndex, e);
+      appendStrokePoint(activeStroke, { x: p.x, y: p.y, t });
+    };
 
-  const onPointerUp = (e: PointerEvent) => {
-    if (!pointerActive || !activeStroke) {
-      return;
-    }
-    pointerActive = false;
-    const releaseTime = performance.now();
-    const pause = releaseTime - lastMoveTime;
-    // Append a synthetic release sample (same xy as the last move, t = release).
-    // judge() reads `last.t - prev.t` as the pause-before-release for tome.
-    const last = activeStroke.points[activeStroke.points.length - 1];
-    activeStroke.points.push({ x: last.x, y: last.y, t: releaseTime });
-    const finished = activeStroke;
-    activeStroke = null;
-    strokes.push(finished);
-    log?.(
-      `pointerup stroke=${strokes.length - 1} samples=${finished.points.length} pause=${pause.toFixed(0)}ms`,
-    );
-    try {
-      el.releasePointerCapture(e.pointerId);
-    } catch {
-      // ignore — pointer may already be released
-    }
-    enqueueMatch();
-  };
+    const onPointerUp = (e: PointerEvent) => {
+      if (!pointerActive || !activeStroke || activeSurfaceIndex !== surfaceIndex) {
+        return;
+      }
+      pointerActive = false;
+      activeSurfaceIndex = -1;
+      const releaseTime = performance.now();
+      const pause = releaseTime - lastMoveTime;
+      // Append a synthetic release sample (same xy as the last move, t = release).
+      // judge() reads `last.t - prev.t` as the pause-before-release for tome.
+      const last = activeStroke.points[activeStroke.points.length - 1];
+      activeStroke.points.push({ x: last.x, y: last.y, t: releaseTime });
+      const finished = activeStroke;
+      activeStroke = null;
+      strokes.push(finished);
+      log?.(
+        `pointerup surface=${surfaceIndex} stroke=${strokes.length - 1} samples=${finished.points.length} pause=${pause.toFixed(0)}ms`,
+      );
+      try {
+        surfaces[surfaceIndex].el.releasePointerCapture(e.pointerId);
+      } catch {
+        // ignore — pointer may already be released
+      }
+      enqueueMatch();
+    };
+
+    return { onPointerDown, onPointerMove, onPointerUp };
+  }
 
   function enqueueMatch(): void {
     if (status !== "drawing") {
@@ -468,6 +519,9 @@ export function createFreeCell(
     if (!showSegmentBoxes) {
       return;
     }
+    // Only enabled when there's exactly one surface (see option docs); the
+    // debug overlay is rendered into that single SVG.
+    const svg = surfaces[0].el;
     for (const b of boxes) {
       const rect = document.createElementNS(SVG_NS, "rect") as SVGRectElement;
       rect.setAttribute("x", String(b.x));
@@ -479,7 +533,7 @@ export function createFreeCell(
       rect.setAttribute("stroke-width", "2");
       rect.setAttribute("stroke-dasharray", "5,4");
       rect.setAttribute("pointer-events", "none");
-      el.appendChild(rect);
+      svg.appendChild(rect);
       segmentBoxEls.push(rect);
       const labelEl = document.createElementNS(SVG_NS, "text") as SVGTextElement;
       labelEl.setAttribute("x", String(b.x + 4));
@@ -489,7 +543,7 @@ export function createFreeCell(
       labelEl.setAttribute("fill", segmentBoxColor);
       labelEl.setAttribute("pointer-events", "none");
       labelEl.textContent = b.char;
-      el.appendChild(labelEl);
+      svg.appendChild(labelEl);
       segmentBoxEls.push(labelEl);
     }
   }
@@ -584,26 +638,36 @@ export function createFreeCell(
     }
   }
 
-  el.addEventListener("pointerdown", onPointerDown, true);
-  el.addEventListener("pointermove", onPointerMove, true);
-  el.addEventListener("pointerup", onPointerUp, true);
-  el.addEventListener("pointercancel", onPointerUp, true);
+  // Per-surface listeners. Each surface gets its own pointer handlers
+  // closed over the surface index so we know where pointer events came
+  // from (and where to attach the polylines visual feedback uses).
+  const surfaceHandlers = surfaces.map((_, i) => makePointerHandlers(i));
+  surfaces.forEach((s, i) => {
+    const h = surfaceHandlers[i];
+    s.el.addEventListener("pointerdown", h.onPointerDown, true);
+    s.el.addEventListener("pointermove", h.onPointerMove, true);
+    s.el.addEventListener("pointerup", h.onPointerUp, true);
+    s.el.addEventListener("pointercancel", h.onPointerUp, true);
+  });
 
   return {
-    el,
+    els,
     reset(): void {
       sessionId++;
       status = "drawing";
       pointerActive = false;
       activeStroke = null;
+      activeSurfaceIndex = -1;
       strokes = [];
       segmentBoxEls = [];
       bestAttempt = null;
       // Drop any pending judge tail so a stale match does not flip the new
       // session into matched/failed.
       judgeQueue = Promise.resolve();
-      while (el.firstChild) {
-        el.removeChild(el.firstChild);
+      for (const s of surfaces) {
+        while (s.el.firstChild) {
+          s.el.removeChild(s.el.firstChild);
+        }
       }
     },
     destroy(): void {
@@ -612,13 +676,16 @@ export function createFreeCell(
       }
       destroyed = true;
       sessionId++;
-      el.removeEventListener("pointerdown", onPointerDown, true);
-      el.removeEventListener("pointermove", onPointerMove, true);
-      el.removeEventListener("pointerup", onPointerUp, true);
-      el.removeEventListener("pointercancel", onPointerUp, true);
-      if (el.parentNode) {
-        el.parentNode.removeChild(el);
-      }
+      surfaces.forEach((s, i) => {
+        const h = surfaceHandlers[i];
+        s.el.removeEventListener("pointerdown", h.onPointerDown, true);
+        s.el.removeEventListener("pointermove", h.onPointerMove, true);
+        s.el.removeEventListener("pointerup", h.onPointerUp, true);
+        s.el.removeEventListener("pointercancel", h.onPointerUp, true);
+        if (s.el.parentNode) {
+          s.el.parentNode.removeChild(s.el);
+        }
+      });
     },
   };
 }

@@ -22,6 +22,11 @@
       "types": "./dist/block/index.d.ts",
       "import": "./dist/block/index.js",
       "require": "./dist/block/index.cjs"
+    },
+    "./page": {
+      "types": "./dist/page/index.d.ts",
+      "import": "./dist/page/index.js",
+      "require": "./dist/page/index.cjs"
     }
   },
   "files": [
