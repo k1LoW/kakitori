@@ -178,12 +178,19 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellBorderColor = opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
   const resolvedCellBorder = `${cellBorderWidth}px solid ${cellBorderColor}`;
 
-  // Compute the annotation strip thickness (max sizeRatio across annotations).
-  const annotationThickness = annotations.length === 0
-    ? 0
-    : Math.max(
-        ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
-      );
+  // Compute the annotation strip thickness. Caller (e.g. page) can pin
+  // it via `opts.annotationThickness`; otherwise it's derived from the
+  // largest annotation's sizeRatio (0 when there are no annotations).
+  // When > 0, the block reserves a strip alongside every cell — even
+  // those without annotation content — so block stacking on a page
+  // stays visually uniform.
+  const annotationThickness = opts.annotationThickness !== undefined
+    ? opts.annotationThickness
+    : annotations.length === 0
+      ? 0
+      : Math.max(
+          ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
+        );
 
   const cellsExtent = cells.reduce((acc, c) => acc + cellSlotSpan(c) * cellSize, 0);
 
