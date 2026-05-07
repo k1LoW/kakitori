@@ -65,12 +65,7 @@ export function layoutPage(
 
   for (let i = 0; i < entries.length; i++) {
     const { spec } = entries[i];
-    spec.cells.forEach((cell, j) => {
-      if (cell.kind === "free") {
-        validateFreeExpected(cell.expected, i, j);
-      }
-    });
-    const cellSpans = spec.cells.map((c) => cellSlotSpan(c));
+    const cellSpans = spec.cells.map((c, j) => cellSlotSpan(c, i, j));
     const totalSpan = cellSpans.reduce((a, b) => a + b, 0);
     if (totalSpan <= 0) {
       throw new Error(`page.create(): blocks[${i}] has 0 slot span (no cells).`);
@@ -139,15 +134,34 @@ export function layoutPage(
   return { segments };
 }
 
-function cellSlotSpan(cell: Cell): number {
-  if (cell.kind === "free") {
-    if (cell.span != null) {
-      return cell.span;
-    }
-    const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
-    return Math.max(...candidates.map((c) => Array.from(c).length));
+function cellSlotSpan(cell: Cell, blockIndex = -1, cellIndex = -1): number {
+  if (cell.kind !== "free") {
+    return 1;
   }
-  return 1;
+  validateFreeExpected(cell.expected, blockIndex, cellIndex);
+  const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
+  const longest = Math.max(...candidates.map((c) => Array.from(c).length));
+  if (cell.span != null) {
+    if (!Number.isInteger(cell.span) || cell.span <= 0) {
+      throw new Error(
+        `page.create(): ${cellLocation(blockIndex, cellIndex)} span must be a positive integer (got ${cell.span}).`,
+      );
+    }
+    if (cell.span < longest) {
+      throw new Error(
+        `page.create(): ${cellLocation(blockIndex, cellIndex)} span (${cell.span}) is smaller than the longest expected candidate length (${longest}).`,
+      );
+    }
+    return cell.span;
+  }
+  return longest;
+}
+
+function cellLocation(blockIndex: number, cellIndex: number): string {
+  if (blockIndex < 0 || cellIndex < 0) {
+    return "free cell";
+  }
+  return `blocks[${blockIndex}].cells[${cellIndex}]`;
 }
 
 /**
@@ -162,15 +176,15 @@ function validateFreeExpected(
   blockIndex: number,
   cellIndex: number,
 ): void {
-  const at = `blocks[${blockIndex}].cells[${cellIndex}]`;
+  const at = cellLocation(blockIndex, cellIndex);
   if (Array.isArray(expected)) {
     if (expected.length === 0) {
-      throw new Error(`page.create(): ${at} free cell expected must be a non-empty string array.`);
+      throw new Error(`page.create(): ${at} expected must be a non-empty string array.`);
     }
     expected.forEach((s, k) => {
       if (typeof s !== "string" || s.length === 0) {
         throw new Error(
-          `page.create(): ${at} free cell expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
+          `page.create(): ${at} expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
         );
       }
     });
@@ -178,7 +192,7 @@ function validateFreeExpected(
   }
   if (typeof expected !== "string" || expected.length === 0) {
     throw new Error(
-      `page.create(): ${at} free cell expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
+      `page.create(): ${at} expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
     );
   }
 }
