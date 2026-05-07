@@ -2,6 +2,8 @@ export { block, type Block, type BlockCreateOptions, type WritingMode } from "./
 export type { FreeCellLogger } from "./freeCell.js";
 export type {
   AnnotationResult,
+  BlankCell,
+  BlankCellResult,
   BlockLoaders,
   BlockResult,
   BlockSpec,

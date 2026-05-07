@@ -253,5 +253,106 @@ describe("block.create input validation", () => {
         }),
       ).toThrow(/placement="top" is not supported for writingMode="vertical-rl"/);
     });
+
+    it("rejects annotation covering a cell with span > 1", () => {
+      const annotation: FuriganaAnnotation = {
+        cellRange: [0, 1],
+        expected: "がっこう",
+        mode: "show",
+      };
+      expectCreateThrows(
+        {
+          cells: [
+            { kind: "guided", char: "学", mode: "show" },
+            { kind: "blank", span: 3 },
+          ],
+          annotations: [annotation],
+        },
+        /annotations\[0\]\.cellRange covers cells\[1\] with span=3/,
+      );
+    });
+  });
+
+  describe("blank cell span", () => {
+    it("accepts blank cells without mode", () => {
+      const parent = document.createElement("div");
+      const b = block.create(parent, {
+        spec: { cells: [{ kind: "blank" }] },
+      });
+      expect(parent.children.length).toBe(1);
+      b.destroy();
+    });
+
+    it("rejects non-integer blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: 1.5 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects zero blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: 0 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects negative blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: -2 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+  });
+
+  describe("annotationThickness", () => {
+    const baseSpec: BlockSpec = {
+      cells: [{ kind: "guided", char: "学", mode: "show" }],
+    };
+
+    it("rejects negative annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, { spec: baseSpec, annotationThickness: -10 }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects NaN annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, { spec: baseSpec, annotationThickness: NaN }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects Infinity annotationThickness", () => {
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, {
+          spec: baseSpec,
+          annotationThickness: Number.POSITIVE_INFINITY,
+        }),
+      ).toThrow(/annotationThickness must be a finite non-negative number/);
+      expect(parent.children.length).toBe(0);
+    });
+
+    it("rejects annotationThickness smaller than the largest annotation's required thickness", () => {
+      const annotation: FuriganaAnnotation = {
+        cellRange: [0, 0],
+        expected: "がく",
+        mode: "show",
+        sizeRatio: 0.5,
+      };
+      const parent = document.createElement("div");
+      expect(() =>
+        block.create(parent, {
+          spec: { ...baseSpec, annotations: [annotation] },
+          cellSize: 100,
+          annotationThickness: 10,
+        }),
+      ).toThrow(/annotationThickness=10 is smaller than the largest annotation's required thickness \(50\)/);
+      expect(parent.children.length).toBe(0);
+    });
   });
 });

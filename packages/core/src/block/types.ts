@@ -36,7 +36,22 @@ export interface FreeCell {
   span?: number;
 }
 
-export type Cell = GuidedCell | FreeCell;
+/**
+ * A cell that just draws the empty 練習帳-style chrome (border + cross-grid)
+ * with no interactive surface and no answer. Use it (in either a direct
+ * `block.create` spec or a block placed on a `page`) to reserve a visual
+ * slot that doesn't participate in matching. Nothing fills empty slots
+ * automatically — `page.create` renders only the user-supplied blocks,
+ * so callers who want chrome in those gaps must place blank-cell blocks
+ * explicitly.
+ */
+export interface BlankCell {
+  kind: "blank";
+  /** How many grid slots the cell occupies. Defaults to 1. */
+  span?: number;
+}
+
+export type Cell = GuidedCell | FreeCell | BlankCell;
 
 /** Furigana (or any text annotation) attached to a cell range in the block. */
 export interface FuriganaAnnotation {
@@ -89,7 +104,18 @@ export interface FreeCellResult {
   perCharacter: CharJudgeResult[];
 }
 
-export type CellResult = GuidedCellResult | FreeCellResult;
+/**
+ * Result for a `'blank'` cell. Blank cells have no answer, so the result
+ * is always `matched: true` once the chrome has rendered. Surfaced so
+ * block aggregation can produce a complete `perCell` array even when the
+ * spec contains visual-only cells.
+ */
+export interface BlankCellResult {
+  kind: "blank";
+  matched: true;
+}
+
+export type CellResult = GuidedCellResult | FreeCellResult | BlankCellResult;
 
 export type AnnotationResult = FreeCellResult;
 

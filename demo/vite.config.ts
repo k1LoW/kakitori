@@ -9,6 +9,10 @@ export default defineConfig({
         __dirname,
         "../packages/core/src/block/index.ts",
       ),
+      "@k1low/kakitori/page": resolve(
+        __dirname,
+        "../packages/core/src/page/index.ts",
+      ),
       "@k1low/kakitori": resolve(__dirname, "../packages/core/src/index.ts"),
       "@k1low/kakitori-data": resolve(
         __dirname,
@@ -22,6 +26,7 @@ export default defineConfig({
         main: resolve(__dirname, "index.html"),
         debug: resolve(__dirname, "debug.html"),
         block: resolve(__dirname, "block.html"),
+        page: resolve(__dirname, "page.html"),
       },
     },
   },

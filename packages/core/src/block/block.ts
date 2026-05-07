@@ -9,6 +9,8 @@ import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
   AnnotationResult,
+  BlankCell,
+  BlankCellResult,
   BlockLoaders,
   BlockResult,
   BlockSpec,
@@ -31,6 +33,11 @@ const DEFAULT_CELL_BORDER_COLOR = "#ddd";
  * annotation all use this, so adjust here to scale every cell at once.
  */
 const DEFAULT_BLOCK_DRAWING_WIDTH = 4;
+/** Shared dashArray for the cross-grid drawn inside guided cells (via
+ * char.mount) and blank cells (via drawBlankCrossGrid), so both kinds
+ * render the same dash style by default. Free cells don't draw a
+ * cross-grid. */
+const DEFAULT_GRID_DASH_ARRAY = "3,3";
 
 export type WritingMode = "vertical-rl" | "horizontal-tb";
 
@@ -54,6 +61,15 @@ export interface BlockCreateOptions {
    * overridden here.
    */
   annotationDrawingWidth?: number;
+  /**
+   * Reserve a furigana strip alongside every cell with this thickness in
+   * display pixels, even when the spec contains no annotations. Used by
+   * the page primitive to keep every block on a page the same width
+   * (cellSize + annotationThickness) so block stacking is uniform. When
+   * omitted, the block sizes its strip from the largest annotation's
+   * `sizeRatio * cellSize` (or 0 if there are no annotations).
+   */
+  annotationThickness?: number;
   /**
    * Cross-grid background for guided cells. Defaults to `true` (a練習帳-style
    * cross). Pass `false` to disable, or a `GridOptions` object to customize
@@ -167,12 +183,37 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellBorderColor = opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
   const resolvedCellBorder = `${cellBorderWidth}px solid ${cellBorderColor}`;
 
-  // Compute the annotation strip thickness (max sizeRatio across annotations).
-  const annotationThickness = annotations.length === 0
-    ? 0
-    : Math.max(
-        ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
+  // Compute the annotation strip thickness. Caller (e.g. page) can pin
+  // it via `opts.annotationThickness`; otherwise it's derived from the
+  // largest annotation's sizeRatio (0 when there are no annotations).
+  // When > 0, the block reserves a strip alongside every cell — even
+  // those without annotation content — so block stacking on a page
+  // stays visually uniform.
+  const requiredAnnotationThickness =
+    annotations.length === 0
+      ? 0
+      : Math.max(
+          ...annotations.map((a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize),
+        );
+  if (opts.annotationThickness !== undefined) {
+    if (
+      !Number.isFinite(opts.annotationThickness) ||
+      opts.annotationThickness < 0
+    ) {
+      throw new Error(
+        `block.create(): annotationThickness must be a finite non-negative number (got ${opts.annotationThickness}).`,
       );
+    }
+    if (opts.annotationThickness < requiredAnnotationThickness) {
+      throw new Error(
+        `block.create(): annotationThickness=${opts.annotationThickness} is smaller than the largest annotation's required thickness (${requiredAnnotationThickness}).`,
+      );
+    }
+  }
+  const annotationThickness =
+    opts.annotationThickness !== undefined
+      ? opts.annotationThickness
+      : requiredAnnotationThickness;
 
   const cellsExtent = cells.reduce((acc, c) => acc + cellSlotSpan(c) * cellSize, 0);
 
@@ -238,16 +279,32 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // that have already been torn down.
   let destroyed = false;
 
+  // Reserve an empty annotation strip frame next to every cell-slot
+  // (one per slot in the span) so block-stacking on a page stays
+  // visually uniform whether or not an annotation lands on that slot.
+  // mountAnnotation paints content on top of these frames where
+  // applicable.
+  if (annotationThickness > 0) {
+    for (let i = 0; i < cells.length; i++) {
+      const cell = cells[i];
+      const rect = cellRects[i];
+      const span = cellSlotSpan(cell);
+      for (let k = 0; k < span; k++) {
+        drawEmptyAnnotationStripFrame(rect, k);
+      }
+    }
+  }
+
   // Mount each cell.
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
     const rect = cellRects[i];
     if (cell.kind === "guided") {
-      const state = mountGuidedCell(wrapper, rect, cell, i);
-      cellStates.push(state);
+      cellStates.push(mountGuidedCell(wrapper, rect, cell, i));
+    } else if (cell.kind === "free") {
+      cellStates.push(mountFreeCell(wrapper, rect, cell, i));
     } else {
-      const state = mountFreeCell(wrapper, rect, cell, i);
-      cellStates.push(state);
+      cellStates.push(mountBlankCell(wrapper, rect, cell, i));
     }
   }
 
@@ -256,6 +313,37 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const rect = annotationRect(annotation);
     const state = mountAnnotation(wrapper, rect, annotation, i);
     annotationStates.push(state);
+  }
+
+  function drawEmptyAnnotationStripFrame(
+    cellRect: { x: number; y: number; w: number; h: number; spanCells: number },
+    slotIndex: number,
+  ): void {
+    const frame = document.createElement("div");
+    frame.style.position = "absolute";
+    frame.style.boxSizing = "border-box";
+    frame.style.pointerEvents = "none";
+    let x: number;
+    let y: number;
+    let w: number;
+    let h: number;
+    if (writingMode === "vertical-rl") {
+      x = cellRect.x + cellSize;
+      y = cellRect.y + slotIndex * cellSize;
+      w = annotationThickness;
+      h = cellSize;
+    } else {
+      x = cellRect.x + slotIndex * cellSize;
+      y = cellRect.y - annotationThickness;
+      w = cellSize;
+      h = annotationThickness;
+    }
+    frame.style.left = `${x}px`;
+    frame.style.top = `${y}px`;
+    frame.style.width = `${w}px`;
+    frame.style.height = `${h}px`;
+    applyBorder(frame, resolvedCellBorder, NO_HIDE);
+    wrapper.appendChild(frame);
   }
 
   function mountGuidedCell(
@@ -284,13 +372,28 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     // `showGrid: true` (default) means "draw the cross-grid in the cell-border
     // style". Plumb the cell-border width / color through so the grid lines
-    // inside guided cells visually match the wrapper border. Explicit
-    // `GridOptions` passed by the caller wins.
+    // inside guided cells visually match the wrapper border, and pin a
+    // shared default dashArray so guided/free/blank cross-grids are
+    // visually identical (char's own default is "10,10", which would
+    // diverge from the blank cell's "3,3" without this).
     const userShowGrid = opts.showGrid ?? true;
-    const blockShowGrid: NonNullable<MountOptions["showGrid"]> =
-      userShowGrid === true
-        ? { color: cellBorderColor, width: cellBorderWidth }
-        : userShowGrid;
+    let blockShowGrid: NonNullable<MountOptions["showGrid"]>;
+    if (userShowGrid === true) {
+      blockShowGrid = {
+        color: cellBorderColor,
+        width: cellBorderWidth,
+        dashArray: DEFAULT_GRID_DASH_ARRAY,
+      };
+    } else if (userShowGrid === false) {
+      blockShowGrid = false;
+    } else {
+      blockShowGrid = {
+        ...userShowGrid,
+        ...(userShowGrid.dashArray === undefined
+          ? { dashArray: DEFAULT_GRID_DASH_ARRAY }
+          : {}),
+      };
+    }
     // hanzi-writer's `drawingWidth` is interpreted in its internal coord
     // system (HANZI_COORD_SIZE). The character is rendered into the inner
     // padded area, so the display-px → internal-units factor is
@@ -387,6 +490,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cell: FreeCell,
     index: number,
   ): PerCellState {
+    // A free cell is one writing area sized to span * cellSize. We do
+    // NOT subdivide it into per-slot sub-cells: the user writes the
+    // answer across the rectangle freely and the matcher segments by
+    // stroke counts.
     const wrapperEl = document.createElement("div");
     wrapperEl.style.position = "absolute";
     wrapperEl.style.left = `${rect.x}px`;
@@ -394,13 +501,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     wrapperEl.style.width = `${rect.w}px`;
     wrapperEl.style.height = `${rect.h}px`;
     wrapperEl.style.boxSizing = "border-box";
-    applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode));
+    applyBorder(wrapperEl, resolvedCellBorder, NO_HIDE);
     parentEl.appendChild(wrapperEl);
 
     if (cell.mode === "show") {
-      // Render the first candidate as static text and synthesize a matched
-      // result so block aggregation still completes.
-      renderShowText(wrapperEl, firstCandidate(cell.expected), rect);
+      renderShowText(wrapperEl, firstCandidate(cell.expected), rect, writingMode);
       const state: PerCellState = { index, cell, result: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -411,10 +516,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return state;
     }
 
-    const handle = createFreeCell(wrapperEl, {
+    const handle = createFreeCell({
       expected: cell.expected,
-      width: rect.w,
-      height: rect.h,
+      surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -460,24 +564,135 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     maybeCommitBlock();
   }
 
+  function mountBlankCell(
+    parentEl: HTMLElement,
+    rect: { x: number; y: number; w: number; h: number },
+    cell: BlankCell,
+    _index: number,
+  ): PerCellState {
+    // Render one independent cell-slot per span unit so a span=5 blank
+    // shows up as 5 cells (each with its own border + cross-grid),
+    // matching how guided cells stack along the same axis.
+    const span = cellSlotSpan(cell);
+    const userShowGrid = opts.showGrid ?? true;
+    let color = cellBorderColor;
+    let width = cellBorderWidth;
+    let dashArray: string | undefined = DEFAULT_GRID_DASH_ARRAY;
+    if (userShowGrid !== false) {
+      const grid = (typeof userShowGrid === "object" ? userShowGrid : {});
+      color = grid.color ?? cellBorderColor;
+      width = grid.width ?? cellBorderWidth;
+      dashArray = grid.dashArray ?? DEFAULT_GRID_DASH_ARRAY;
+    }
+    for (let k = 0; k < span; k++) {
+      const slot = document.createElement("div");
+      slot.style.position = "absolute";
+      let sx: number;
+      let sy: number;
+      if (writingMode === "vertical-rl") {
+        sx = rect.x;
+        sy = rect.y + k * cellSize;
+      } else {
+        sx = rect.x + k * cellSize;
+        sy = rect.y;
+      }
+      slot.style.left = `${sx}px`;
+      slot.style.top = `${sy}px`;
+      slot.style.width = `${cellSize}px`;
+      slot.style.height = `${cellSize}px`;
+      slot.style.boxSizing = "border-box";
+      applyBorder(slot, resolvedCellBorder, NO_HIDE);
+      parentEl.appendChild(slot);
+      if (userShowGrid !== false) {
+        drawBlankCrossGrid(
+          slot,
+          { w: cellSize, h: cellSize },
+          1,
+          writingMode,
+          color,
+          width,
+          dashArray,
+        );
+      }
+    }
+    const state: PerCellState = { index: _index, cell, result: null };
+    queueMicrotask(() => {
+      if (destroyed) {
+        return;
+      }
+      commitBlankResult(state);
+    });
+    return state;
+  }
+
+  function commitBlankResult(state: PerCellState): void {
+    if (state.result) {
+      return;
+    }
+    const result: BlankCellResult = { kind: "blank", matched: true };
+    state.result = result;
+    opts.onCellComplete?.(state.index, "cell", result);
+    maybeCommitBlock();
+  }
+
   function mountAnnotation(
     parentEl: HTMLElement,
     rect: { x: number; y: number; w: number; h: number },
     annotation: FuriganaAnnotation,
     index: number,
   ): PerAnnotationState {
-    const wrapperEl = document.createElement("div");
-    wrapperEl.style.position = "absolute";
-    wrapperEl.style.left = `${rect.x}px`;
-    wrapperEl.style.top = `${rect.y}px`;
-    wrapperEl.style.width = `${rect.w}px`;
-    wrapperEl.style.height = `${rect.h}px`;
-    wrapperEl.style.boxSizing = "border-box";
-    applyBorder(wrapperEl, resolvedCellBorder, annotationEdgesToHide(annotation, writingMode));
-    parentEl.appendChild(wrapperEl);
+    // Split the annotation strip into one sub-strip per covered cell so
+    // the divider lines line up with the cell boundaries below — visually
+    // matches a 練習帳 page where every kanji has its own furigana row.
+    // For write mode the sub-strips become a multi-surface freeCell
+    // sharing one stroke buffer, so the user can still write the answer
+    // freely across them at character boundaries.
+    const [annFrom, annTo] = annotation.cellRange;
+    const cellCount = annTo - annFrom + 1;
+    interface SubStrip {
+      el: HTMLDivElement;
+      width: number;
+      height: number;
+      cellIndex: number;
+    }
+    const subStrips: SubStrip[] = [];
+    for (let k = 0; k < cellCount; k++) {
+      const sub = document.createElement("div");
+      sub.style.position = "absolute";
+      let sx: number;
+      let sy: number;
+      let sw: number;
+      let sh: number;
+      if (writingMode === "vertical-rl") {
+        sx = rect.x;
+        sy = rect.y + k * cellSize;
+        sw = rect.w;
+        sh = cellSize;
+      } else {
+        sx = rect.x + k * cellSize;
+        sy = rect.y;
+        sw = cellSize;
+        sh = rect.h;
+      }
+      sub.style.left = `${sx}px`;
+      sub.style.top = `${sy}px`;
+      sub.style.width = `${sw}px`;
+      sub.style.height = `${sh}px`;
+      sub.style.boxSizing = "border-box";
+      // No border here: drawEmptyAnnotationStripFrame already paints the
+      // strip frame underneath every cell-slot when annotationThickness >
+      // 0, so the annotation overlay sits on top of that frame and only
+      // contributes the freeCell surface / show-mode SVG content.
+      parentEl.appendChild(sub);
+      subStrips.push({ el: sub, width: sw, height: sh, cellIndex: annFrom + k });
+    }
 
     if (annotation.mode === "show") {
-      renderShowText(wrapperEl, firstCandidate(annotation.expected), rect);
+      renderShowAcrossSubStrips(
+        firstCandidate(annotation.expected),
+        subStrips,
+        writingMode,
+      );
       const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
       queueMicrotask(() => {
         if (destroyed) {
@@ -492,10 +707,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       index,
       annotation,
       result: null,
-      freeHandle: createFreeCell(wrapperEl, {
+      freeHandle: createFreeCell({
         expected: annotation.expected,
-        width: rect.w,
-        height: rect.h,
+        surfaces: subStrips.map((s) => ({ parent: s.el, width: s.width, height: s.height })),
         label: `annotation#${index}`,
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
@@ -583,6 +797,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
             }
             commitFreeShowResult(state, "cell", expected);
           });
+        } else if (state.cell.kind === "blank") {
+          // Blank cells are visual-only; re-emit the synthetic matched
+          // result so block aggregation completes again.
+          queueMicrotask(() => {
+            if (destroyed) {
+              return;
+            }
+            commitBlankResult(state);
+          });
         }
       }
       for (const state of annotationStates) {
@@ -638,47 +861,55 @@ function applyBorder(el: HTMLElement, border: string, hide: BorderHide): void {
   el.style.borderLeft = hide.left ? "none" : border;
 }
 
-/** Hide the edge a cell shares with the next cell so the neighbour's own
- * border draws the shared line — avoids the doubled-up 2px appearance.
- * Annotations handle their own touching edge in `annotationEdgesToHide`. */
+/**
+ * Edge-hiding stubs. Earlier versions hid the edges shared between
+ * adjacent cells / annotation sub-strips so two 1px borders wouldn't
+ * stack into a 2px line. The current model leaves every cell and strip
+ * to draw its own complete frame so the visual is consistent regardless
+ * of what (if anything) sits next to it; these functions stay around so
+ * existing callers keep compiling, but always return NO_HIDE.
+ */
 function cellEdgesToHide(
-  index: number,
-  total: number,
-  writingMode: WritingMode,
+  _index: number,
+  _total: number,
+  _writingMode: WritingMode,
 ): BorderHide {
-  const hide: BorderHide = { ...NO_HIDE };
-  const isLast = index === total - 1;
-  if (writingMode === "horizontal-tb" && !isLast) {
-    hide.right = true;
-  } else if (writingMode === "vertical-rl" && !isLast) {
-    hide.bottom = true;
-  }
-  return hide;
+  return { ...NO_HIDE };
 }
 
-/** Hide the annotation's edge that touches the covered cells so only one
- * 1px line shows on the shared boundary. */
-function annotationEdgesToHide(
-  annotation: FuriganaAnnotation,
+interface SubStripView {
+  el: HTMLDivElement;
+  width: number;
+  height: number;
+}
+
+/** Distribute a show-mode annotation's text across per-cell sub-strips
+ * proportional to each sub-strip's cell coverage. Uses cumulative
+ * rounding so the per-strip chunk is always non-negative even when the
+ * reading has fewer characters than there are strips (e.g. 2-char reading
+ * across 4 cells). For uniform readings (学校 → がっこう, 2 chars per
+ * cell) the split lands cleanly on char boundaries; non-uniform readings
+ * (大人 → おとな) hit a small visual quirk that explicit per-cell
+ * expected strings would resolve in a future revision. */
+function renderShowAcrossSubStrips(
+  text: string,
+  subStrips: ReadonlyArray<SubStripView>,
   writingMode: WritingMode,
-): BorderHide {
-  const hide: BorderHide = { ...NO_HIDE };
-  if (writingMode === "vertical-rl") {
-    const placement = annotation.placement ?? "right";
-    if (placement === "right") {
-      hide.left = true;
-    } else if (placement === "left") {
-      hide.right = true;
-    }
-  } else {
-    const placement = annotation.placement ?? "top";
-    if (placement === "top") {
-      hide.bottom = true;
-    } else if (placement === "bottom") {
-      hide.top = true;
-    }
+): void {
+  const chars = Array.from(text);
+  const total = subStrips.length;
+  let prevEnd = 0;
+  for (let i = 0; i < total; i++) {
+    const isLast = i === total - 1;
+    const targetEnd = isLast
+      ? chars.length
+      : Math.round(((i + 1) * chars.length) / total);
+    const end = Math.min(chars.length, Math.max(prevEnd, targetEnd));
+    const slice = chars.slice(prevEnd, end).join("");
+    prevEnd = end;
+    const s = subStrips[i];
+    renderShowText(s.el, slice, { w: s.width, h: s.height }, writingMode);
   }
-  return hide;
 }
 
 function firstCandidate(expected: import("./types.js").Expected): string {
@@ -686,28 +917,113 @@ function firstCandidate(expected: import("./types.js").Expected): string {
 }
 
 /** Render the expected text as static SVG so a `mode: "show"` free cell /
- * annotation displays the answer instead of an interactive surface. */
+ * annotation displays the answer instead of an interactive surface. Each
+ * character is dropped into its own slot along the writing axis (top→bottom
+ * for vertical-rl, left→right for horizontal-tb) so multi-char answers
+ * don't overflow a tall, narrow furigana strip. */
 function renderShowText(
   parentEl: HTMLElement,
   text: string,
   rect: { w: number; h: number },
+  writingMode: WritingMode,
 ): void {
+  const chars = Array.from(text);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("width", String(rect.w));
   svg.setAttribute("height", String(rect.h));
   svg.setAttribute("viewBox", `0 0 ${rect.w} ${rect.h}`);
   svg.style.display = "block";
-  const fontSize = Math.max(12, Math.min(rect.w, rect.h) * 0.6);
-  const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
-  t.setAttribute("x", String(rect.w / 2));
-  t.setAttribute("y", String(rect.h / 2));
-  t.setAttribute("text-anchor", "middle");
-  t.setAttribute("dominant-baseline", "central");
-  t.setAttribute("font-size", String(fontSize));
-  t.setAttribute("font-family", "serif");
-  t.setAttribute("fill", "#222");
-  t.textContent = text;
-  svg.appendChild(t);
+  if (chars.length === 0) {
+    parentEl.appendChild(svg);
+    return;
+  }
+  const isVertical = writingMode === "vertical-rl";
+  const slot = (isVertical ? rect.h : rect.w) / chars.length;
+  // Cap font-size so a single tall char doesn't blow past the perpendicular
+  // axis (otherwise a vertical-rl annotation strip would render furigana
+  // glyphs wider than the strip itself).
+  const cross = isVertical ? rect.w : rect.h;
+  const fontSize = Math.max(8, Math.min(slot, cross) * 0.8);
+  for (let i = 0; i < chars.length; i++) {
+    const x = isVertical ? rect.w / 2 : (i + 0.5) * slot;
+    const y = isVertical ? (i + 0.5) * slot : rect.h / 2;
+    const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    t.setAttribute("x", String(x));
+    t.setAttribute("y", String(y));
+    t.setAttribute("text-anchor", "middle");
+    t.setAttribute("dominant-baseline", "central");
+    t.setAttribute("font-size", String(fontSize));
+    t.setAttribute("font-family", "serif");
+    t.setAttribute("fill", "#222");
+    t.textContent = chars[i];
+    svg.appendChild(t);
+  }
+  parentEl.appendChild(svg);
+}
+
+/**
+ * Draw the cell-centred cross-grid (mid horizontal + mid vertical lines)
+ * inside a blank cell wrapper. Mirrors the visual hanzi-writer paints
+ * inside guided cells when their `showGrid` is enabled, so blank cells
+ * sit visually flush with their guided neighbours.
+ */
+function drawBlankCrossGrid(
+  parentEl: HTMLElement,
+  rect: { w: number; h: number },
+  span: number,
+  writingMode: WritingMode,
+  color: string,
+  width: number,
+  dashArray: string | undefined,
+): void {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", String(rect.w));
+  svg.setAttribute("height", String(rect.h));
+  svg.setAttribute("viewBox", `0 0 ${rect.w} ${rect.h}`);
+  svg.style.position = "absolute";
+  svg.style.left = "0";
+  svg.style.top = "0";
+  svg.style.pointerEvents = "none";
+  svg.style.display = "block";
+  // Each grid slot in the span gets its own +.
+  const slotSize = (writingMode === "vertical-rl" ? rect.h : rect.w) / span;
+  const cross = writingMode === "vertical-rl" ? rect.w : rect.h;
+  for (let k = 0; k < span; k++) {
+    let cellX: number;
+    let cellY: number;
+    let cw: number;
+    let ch: number;
+    if (writingMode === "vertical-rl") {
+      cellX = 0;
+      cellY = k * slotSize;
+      cw = cross;
+      ch = slotSize;
+    } else {
+      cellX = k * slotSize;
+      cellY = 0;
+      cw = slotSize;
+      ch = cross;
+    }
+    const lines = [
+      // horizontal middle
+      { x1: cellX, y1: cellY + ch / 2, x2: cellX + cw, y2: cellY + ch / 2 },
+      // vertical middle
+      { x1: cellX + cw / 2, y1: cellY, x2: cellX + cw / 2, y2: cellY + ch },
+    ];
+    for (const ln of lines) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width", String(width));
+      if (dashArray) {
+        el.setAttribute("stroke-dasharray", dashArray);
+      }
+      svg.appendChild(el);
+    }
+  }
   parentEl.appendChild(svg);
 }
 
@@ -719,6 +1035,9 @@ function cellSlotSpan(cell: Cell): number {
     }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
     return Math.max(...candidates.map((c) => Array.from(c).length));
+  }
+  if (cell.kind === "blank") {
+    return cell.span ?? 1;
   }
   return 1;
 }
@@ -734,6 +1053,14 @@ function validateBlockSpec(
     throw new Error("block.create(): spec.cells must contain at least one cell.");
   }
   cells.forEach((cell, i) => {
+    if (cell.kind === "blank") {
+      if (cell.span !== undefined && (!Number.isInteger(cell.span) || cell.span <= 0)) {
+        throw new Error(
+          `block.create(): cells[${i}].span must be a positive integer (got ${cell.span}).`,
+        );
+      }
+      return;
+    }
     validateMode(cell.mode, `cells[${i}].mode`);
     if (cell.kind === "guided") {
       if (typeof cell.char !== "string" || cell.char.length === 0) {
@@ -796,6 +1123,20 @@ function validateBlockSpec(
       throw new Error(
         `block.create(): annotations[${i}].placement="${a.placement}" is not supported for writingMode="vertical-rl" (only "right" is supported in v1).`,
       );
+    }
+    // mountAnnotation builds one cellSize-thick sub-strip per covered cell;
+    // a span>1 cell would leave the trailing slots uncovered (and the
+    // dividers misaligned with the cells/empty strip frames below). v1
+    // rejects this up front rather than silently misrendering — annotated
+    // cells must be span 1 (guided cells, or free/blank without an
+    // explicit span override that exceeds 1).
+    for (let k = from; k <= to; k++) {
+      const slotSpan = cellSlotSpan(cells[k]);
+      if (slotSpan > 1) {
+        throw new Error(
+          `block.create(): annotations[${i}].cellRange covers cells[${k}] with span=${slotSpan}; annotated cells must have span 1.`,
+        );
+      }
     }
   });
 }
