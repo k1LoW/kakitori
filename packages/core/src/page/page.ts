@@ -68,6 +68,12 @@ interface PerBlockState {
   spec: BlockSpec;
   /** Sub-blocks placed for each segment of cells. */
   segmentBlocks: Block[];
+  /**
+   * `cellFrom` of each segment in `segmentBlocks` order. Lets undo()
+   * map a sub-spec cell index back to the user-block's original cell
+   * index without re-filtering `layout.segments` each step.
+   */
+  segmentCellFroms: number[];
   /** Multi-surface freeCells for each original annotation. */
   annotationHandles: AnnotationHandleState[];
   /** Per-cell results aligned to original spec.cells indices. */
@@ -202,6 +208,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       ...(id !== undefined ? { id } : {}),
       spec: entry.spec,
       segmentBlocks: [],
+      segmentCellFroms: [],
       annotationHandles: [],
       cellResults: entry.spec.cells.map(() => null),
       done: false,
@@ -309,6 +316,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       };
       const b = block.create(slotEl, blockOpts);
       state.segmentBlocks.push(b);
+      state.segmentCellFroms.push(seg.cellFrom);
     }
 
     // 2. Render annotations. Each annotation may span one or more
@@ -498,11 +506,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         if (undone && undone.kind === "cell") {
           // Map the sub-spec cell index back to the user-block's
           // original index so cellResults aggregation stays in sync.
-          const blockSegments = layout.segments.filter(
-            (s) => s.blockIndex === target.blockIndex,
-          );
-          const seg = blockSegments[target.segmentIndex];
-          const origIndex = (seg?.cellFrom ?? 0) + undone.index;
+          // Use the per-block segmentCellFroms cached at placeBlock
+          // time so undo() stays O(1) regardless of layout size.
+          const cellFrom = state.segmentCellFroms[target.segmentIndex] ?? 0;
+          const origIndex = cellFrom + undone.index;
           state.cellResults[origIndex] = null;
         }
         // Re-push the same target so a follow-up page.undo() keeps
