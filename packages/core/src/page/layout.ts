@@ -65,6 +65,11 @@ export function layoutPage(
 
   for (let i = 0; i < entries.length; i++) {
     const { spec } = entries[i];
+    spec.cells.forEach((cell, j) => {
+      if (cell.kind === "free") {
+        validateFreeExpected(cell.expected, i, j);
+      }
+    });
     const cellSpans = spec.cells.map((c) => cellSlotSpan(c));
     const totalSpan = cellSpans.reduce((a, b) => a + b, 0);
     if (totalSpan <= 0) {
@@ -140,18 +145,42 @@ function cellSlotSpan(cell: Cell): number {
       return cell.span;
     }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
-    if (candidates.length === 0) {
-      // Math.max(...[]) is -Infinity, which would propagate negative spans
-      // into the layout and surface as confusing downstream errors. Reject
-      // up front; block.create's validation will reject the same input
-      // for callers that go through it directly.
-      throw new Error(
-        `page.create(): free cell expected must be a non-empty string array.`,
-      );
-    }
     return Math.max(...candidates.map((c) => Array.from(c).length));
   }
   return 1;
+}
+
+/**
+ * Reject misshapen free-cell expected entries up front so the layout
+ * pass produces predictable errors with the offending block/cell index,
+ * rather than letting downstream `Math.max([]) === -Infinity` (or
+ * 0-stroke segmentation) surface as confusing aggregate errors. block.ts
+ * applies the same rule for direct block.create callers.
+ */
+function validateFreeExpected(
+  expected: string | ReadonlyArray<string>,
+  blockIndex: number,
+  cellIndex: number,
+): void {
+  const at = `blocks[${blockIndex}].cells[${cellIndex}]`;
+  if (Array.isArray(expected)) {
+    if (expected.length === 0) {
+      throw new Error(`page.create(): ${at} free cell expected must be a non-empty string array.`);
+    }
+    expected.forEach((s, k) => {
+      if (typeof s !== "string" || s.length === 0) {
+        throw new Error(
+          `page.create(): ${at} free cell expected[${k}] must be a non-empty string (got ${JSON.stringify(s)}).`,
+        );
+      }
+    });
+    return;
+  }
+  if (typeof expected !== "string" || expected.length === 0) {
+    throw new Error(
+      `page.create(): ${at} free cell expected must be a non-empty string (got ${JSON.stringify(expected)}).`,
+    );
+  }
 }
 
 /** Total slot span occupied by a block (sum across its cells). */

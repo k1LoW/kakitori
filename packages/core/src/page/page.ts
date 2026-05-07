@@ -182,6 +182,17 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     placeBlock(state, entry, segments);
   }
 
+  // An empty page has nothing to commit — fire onPageComplete via a
+  // microtask so the lifecycle still resolves deterministically.
+  if (blockStates.length === 0) {
+    queueMicrotask(() => {
+      if (destroyed) {
+        return;
+      }
+      opts.onPageComplete?.({ matched: true, perBlock: [] });
+    });
+  }
+
   function placeBlock(
     state: PerBlockState,
     entry: PageBlockEntry,
