@@ -9,13 +9,16 @@ import type {
 } from "../block/index.js";
 import type { GridOptions } from "../charOptions.js";
 
-/** A block plus optional id / label surfaced through callbacks. */
+/** A block plus an optional identifier echoed back through {@link PageResult}. */
 export interface PageBlockEntry {
   spec: BlockSpec;
-  /** Identifier echoed back to callbacks and result aggregation. */
+  /**
+   * Optional identifier surfaced as `PageResult.perBlock[i].id` so callers
+   * can correlate aggregated results with their original input without
+   * indexing into the blocks array. Not passed through `onCellComplete` /
+   * `onBlockComplete`, which only receive `blockIndex`.
+   */
   id?: string;
-  /** Free-form label (e.g. "問1") forwarded only for display / debugging. */
-  label?: string;
 }
 
 export interface PageCreateOptions {

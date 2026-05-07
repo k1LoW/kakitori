@@ -238,8 +238,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
-        // Page draws its own grid; suppress per-block grid overlays.
-        showGrid: false,
+        // `block.showGrid` controls the cross-grid INSIDE guided cells (not
+        // the page's cell-boundary background grid the page already draws),
+        // so we leave it at the block default — callers wanting that
+        // overlay shouldn't lose it just because their block lives inside
+        // a page.
         onCellComplete: (subIndex, kind, result) => {
           // Translate sub-spec cell index back to original block cell index.
           const origIndex = seg.cellFrom + subIndex;
