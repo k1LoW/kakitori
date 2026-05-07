@@ -9,6 +9,8 @@ import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
   AnnotationResult,
+  BlankCell,
+  BlankCellResult,
   BlockLoaders,
   BlockResult,
   BlockSpec,
@@ -243,11 +245,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const cell = cells[i];
     const rect = cellRects[i];
     if (cell.kind === "guided") {
-      const state = mountGuidedCell(wrapper, rect, cell, i);
-      cellStates.push(state);
+      cellStates.push(mountGuidedCell(wrapper, rect, cell, i));
+    } else if (cell.kind === "free") {
+      cellStates.push(mountFreeCell(wrapper, rect, cell, i));
     } else {
-      const state = mountFreeCell(wrapper, rect, cell, i);
-      cellStates.push(state);
+      cellStates.push(mountBlankCell(wrapper, rect, cell, i));
     }
   }
 
@@ -459,6 +461,54 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     maybeCommitBlock();
   }
 
+  function mountBlankCell(
+    parentEl: HTMLElement,
+    rect: { x: number; y: number; w: number; h: number },
+    cell: BlankCell,
+    index: number,
+  ): PerCellState {
+    const wrapperEl = document.createElement("div");
+    wrapperEl.style.position = "absolute";
+    wrapperEl.style.left = `${rect.x}px`;
+    wrapperEl.style.top = `${rect.y}px`;
+    wrapperEl.style.width = `${rect.w}px`;
+    wrapperEl.style.height = `${rect.h}px`;
+    wrapperEl.style.boxSizing = "border-box";
+    applyBorder(wrapperEl, resolvedCellBorder, cellEdgesToHide(index, cells.length, writingMode));
+    parentEl.appendChild(wrapperEl);
+    // Optional cross-grid (matches the guided cell cross-grid drawn by
+    // hanzi-writer when block.showGrid is enabled). Each grid slot in the
+    // span gets its own +. Dashes by default so the placement guide
+    // reads visually distinct from the solid cell border.
+    const userShowGrid = opts.showGrid ?? true;
+    if (userShowGrid !== false) {
+      const grid = (typeof userShowGrid === "object" ? userShowGrid : {});
+      const color = grid.color ?? cellBorderColor;
+      const width = grid.width ?? cellBorderWidth;
+      const dashArray = grid.dashArray ?? "3,3";
+      const span = cellSlotSpan(cell);
+      drawBlankCrossGrid(wrapperEl, rect, span, writingMode, color, width, dashArray);
+    }
+    const state: PerCellState = { index, cell, result: null };
+    queueMicrotask(() => {
+      if (destroyed) {
+        return;
+      }
+      commitBlankResult(state);
+    });
+    return state;
+  }
+
+  function commitBlankResult(state: PerCellState): void {
+    if (state.result) {
+      return;
+    }
+    const result: BlankCellResult = { kind: "blank", matched: true };
+    state.result = result;
+    opts.onCellComplete?.(state.index, "cell", result);
+    maybeCommitBlock();
+  }
+
   function mountAnnotation(
     parentEl: HTMLElement,
     rect: { x: number; y: number; w: number; h: number },
@@ -621,6 +671,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
               return;
             }
             commitFreeShowResult(state, "cell", expected);
+          });
+        } else if (state.cell.kind === "blank") {
+          // Blank cells are visual-only; re-emit the synthetic matched
+          // result so block aggregation completes again.
+          queueMicrotask(() => {
+            if (destroyed) {
+              return;
+            }
+            commitBlankResult(state);
           });
         }
       }
@@ -824,6 +883,72 @@ function renderShowText(
   parentEl.appendChild(svg);
 }
 
+/**
+ * Draw the cell-centred cross-grid (mid horizontal + mid vertical lines)
+ * inside a blank cell wrapper. Mirrors the visual hanzi-writer paints
+ * inside guided cells when their `showGrid` is enabled, so blank cells
+ * sit visually flush with their guided neighbours.
+ */
+function drawBlankCrossGrid(
+  parentEl: HTMLElement,
+  rect: { w: number; h: number },
+  span: number,
+  writingMode: WritingMode,
+  color: string,
+  width: number,
+  dashArray: string | undefined,
+): void {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", String(rect.w));
+  svg.setAttribute("height", String(rect.h));
+  svg.setAttribute("viewBox", `0 0 ${rect.w} ${rect.h}`);
+  svg.style.position = "absolute";
+  svg.style.left = "0";
+  svg.style.top = "0";
+  svg.style.pointerEvents = "none";
+  svg.style.display = "block";
+  // Each grid slot in the span gets its own +.
+  const slotSize = (writingMode === "vertical-rl" ? rect.h : rect.w) / span;
+  const cross = writingMode === "vertical-rl" ? rect.w : rect.h;
+  for (let k = 0; k < span; k++) {
+    let cellX: number;
+    let cellY: number;
+    let cw: number;
+    let ch: number;
+    if (writingMode === "vertical-rl") {
+      cellX = 0;
+      cellY = k * slotSize;
+      cw = cross;
+      ch = slotSize;
+    } else {
+      cellX = k * slotSize;
+      cellY = 0;
+      cw = slotSize;
+      ch = cross;
+    }
+    const lines = [
+      // horizontal middle
+      { x1: cellX, y1: cellY + ch / 2, x2: cellX + cw, y2: cellY + ch / 2 },
+      // vertical middle
+      { x1: cellX + cw / 2, y1: cellY, x2: cellX + cw / 2, y2: cellY + ch },
+    ];
+    for (const ln of lines) {
+      const el = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      el.setAttribute("x1", String(ln.x1));
+      el.setAttribute("y1", String(ln.y1));
+      el.setAttribute("x2", String(ln.x2));
+      el.setAttribute("y2", String(ln.y2));
+      el.setAttribute("stroke", color);
+      el.setAttribute("stroke-width", String(width));
+      if (dashArray) {
+        el.setAttribute("stroke-dasharray", dashArray);
+      }
+      svg.appendChild(el);
+    }
+  }
+  parentEl.appendChild(svg);
+}
+
 /** How many cell slots a cell occupies along the main axis. */
 function cellSlotSpan(cell: Cell): number {
   if (cell.kind === "free") {
@@ -832,6 +957,9 @@ function cellSlotSpan(cell: Cell): number {
     }
     const candidates = Array.isArray(cell.expected) ? cell.expected : [cell.expected];
     return Math.max(...candidates.map((c) => Array.from(c).length));
+  }
+  if (cell.kind === "blank") {
+    return cell.span ?? 1;
   }
   return 1;
 }
@@ -847,6 +975,14 @@ function validateBlockSpec(
     throw new Error("block.create(): spec.cells must contain at least one cell.");
   }
   cells.forEach((cell, i) => {
+    if (cell.kind === "blank") {
+      if (cell.span !== undefined && (!Number.isInteger(cell.span) || cell.span <= 0)) {
+        throw new Error(
+          `block.create(): cells[${i}].span must be a positive integer (got ${cell.span}).`,
+        );
+      }
+      return;
+    }
     validateMode(cell.mode, `cells[${i}].mode`);
     if (cell.kind === "guided") {
       if (typeof cell.char !== "string" || cell.char.length === 0) {

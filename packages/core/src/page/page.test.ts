@@ -45,13 +45,13 @@ describe("page.create — mount layout", () => {
     });
     // Layout: 学校 spans col 0 cells 0-1 (1 segment) -> 1 slot + 2 strips
     //         春夏秋冬 splits col 0 cell 2 + col 1 cells 0-2 (2 segments)
-    //         -> 2 slots + 4 strips.
-    // Plus the page's own background-grid SVG = 1.
+    //         -> 2 slots + 4 strips. Together they cover the whole 2×3
+    //         grid, so no padding blocks are generated. Page no longer
+    //         draws its own grid SVG (every visible cell is rendered by a
+    //         block — see placePaddingBlocks).
     const svgGrids = handle.el.querySelectorAll(":scope > svg").length;
     const placedDivs = handle.el.querySelectorAll(":scope > div").length;
-    expect(svgGrids).toBe(1);
-    // 1 slot for 学校 + 2 slots for 春夏秋冬 segments = 3
-    // 2 strips for 学校 annotation + 4 strips for 春夏秋冬 annotation = 6
+    expect(svgGrids).toBe(0);
     expect(placedDivs).toBe(3 + 6);
     handle.destroy();
     parent.remove();

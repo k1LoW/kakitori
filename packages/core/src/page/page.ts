@@ -20,8 +20,6 @@ import type {
 } from "./types.js";
 
 const DEFAULT_ANNOTATION_RATIO = 0.4;
-const DEFAULT_CELL_BORDER_WIDTH = 1;
-const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
@@ -133,22 +131,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   wrapper.style.height = `${pageHeight}px`;
   parent.appendChild(wrapper);
 
-  const showGrid = opts.showGrid ?? true;
-  if (showGrid !== false) {
-    const overrides = typeof showGrid === "object" ? showGrid : {};
-    drawGrid(wrapper, {
-      pageWidth,
-      pageHeight,
-      cellSize,
-      lineThickness,
-      columns: opts.columns,
-      cellsPerColumn: opts.cellsPerColumn,
-      writingMode,
-      color: overrides.color ?? opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR,
-      width: overrides.width ?? opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH,
-      ...(overrides.dashArray !== undefined ? { dashArray: overrides.dashArray } : {}),
-    });
-  }
+  // The page is "blocks all the way down": every visible cell on the
+  // grid is rendered by a block, including the empty slots between
+  // user-supplied blocks. We don't draw any page-level grid here — the
+  // padding blocks generated below paint cell borders + cross-grid in
+  // exactly the same style guided cells do.
 
   let destroyed = false;
   const blockStates: PerBlockState[] = opts.blocks.map((entry, i) => {
@@ -179,6 +166,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     placeBlock(state, entry, segments);
   }
 
+  // Fill every cell the user blocks didn't cover with a 1-cell blank
+  // block. The page is then literally a stack of blocks (user blocks +
+  // padding blocks), and the cross-grid / cell border that block.ts
+  // already paints for blank cells gives empty cells the same chrome
+  // guided / free cells get — no separate page-level grid to maintain.
+  const paddingBlocks: Block[] = placePaddingBlocks(layout.segments);
+
   // An empty page has nothing to commit — fire onPageComplete via a
   // microtask so the lifecycle still resolves deterministically.
   if (blockStates.length === 0) {
@@ -188,6 +182,73 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       }
       opts.onPageComplete?.({ matched: true, perBlock: [] });
     });
+  }
+
+  function placePaddingBlocks(userSegments: ReadonlyArray<BlockSegment>): Block[] {
+    // Mark every (column, cellInColumn) slot that a user block covers, so
+    // the rest can get padding blanks.
+    const covered = new Set<string>();
+    for (const seg of userSegments) {
+      for (let cell = 0; cell < seg.span; cell++) {
+        covered.add(`${seg.column}:${seg.cellInColumn + cell}`);
+      }
+    }
+    const blocks: Block[] = [];
+    for (let column = 0; column < opts.columns; column++) {
+      // Merge consecutive uncovered cells in the same column into a single
+      // multi-span blank block to keep the DOM lean.
+      let runStart = -1;
+      const flush = (endExclusive: number) => {
+        if (runStart < 0) {
+          return;
+        }
+        const span = endExclusive - runStart;
+        const slotEl = document.createElement("div");
+        slotEl.style.position = "absolute";
+        const origin = segmentOrigin(
+          {
+            blockIndex: -1,
+            segmentIndex: 0,
+            segmentCount: 1,
+            column,
+            cellInColumn: runStart,
+            cellFrom: 0,
+            cellTo: span - 1,
+            span,
+          },
+          {
+            cellSize,
+            lineThickness,
+            pageWidth,
+            writingMode,
+            annotationStripThickness,
+          },
+        );
+        slotEl.style.left = `${origin.x}px`;
+        slotEl.style.top = `${origin.y}px`;
+        wrapper.appendChild(slotEl);
+        const b = block.create(slotEl, {
+          spec: { cells: [{ kind: "blank", span }] },
+          cellSize,
+          writingMode,
+          ...(opts.cellBorderWidth !== undefined ? { cellBorderWidth: opts.cellBorderWidth } : {}),
+          ...(opts.cellBorderColor ? { cellBorderColor: opts.cellBorderColor } : {}),
+          showGrid: opts.showGrid ?? true,
+        });
+        blocks.push(b);
+        runStart = -1;
+      };
+      for (let cellInColumn = 0; cellInColumn < opts.cellsPerColumn; cellInColumn++) {
+        const isFilled = covered.has(`${column}:${cellInColumn}`);
+        if (isFilled) {
+          flush(cellInColumn);
+        } else if (runStart < 0) {
+          runStart = cellInColumn;
+        }
+      }
+      flush(opts.cellsPerColumn);
+    }
+    return blocks;
   }
 
   function placeBlock(
@@ -401,6 +462,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         s.done = false;
         s.result = null;
       }
+      // Padding blocks are visual-only but their reset() also re-emits
+      // the synthetic blank-cell results — harmless, and keeps any
+      // listener that observes the underlying blocks consistent.
+      for (const b of paddingBlocks) {
+        b.reset();
+      }
     },
     destroy(): void {
       destroyed = true;
@@ -411,6 +478,9 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         for (const h of s.annotationHandles) {
           h.handle.destroy();
         }
+      }
+      for (const b of paddingBlocks) {
+        b.destroy();
       }
       if (wrapper.parentNode) {
         wrapper.parentNode.removeChild(wrapper);
@@ -690,125 +760,3 @@ function firstCandidate(expected: import("../block/types.js").Expected): string 
   return Array.isArray(expected) ? expected[0] : expected;
 }
 
-interface GridDrawOptions {
-  pageWidth: number;
-  pageHeight: number;
-  cellSize: number;
-  lineThickness: number;
-  columns: number;
-  cellsPerColumn: number;
-  writingMode: WritingMode;
-  color: string;
-  width: number;
-  /** Optional SVG `stroke-dasharray` value. */
-  dashArray?: string;
-}
-
-/**
- * Faint guide grid for empty cells. Block borders cover the grid where
- * blocks are mounted, so the grid only "shows through" in unfilled slots
- * — same visual you'd see in a blank 練習帳 page.
- */
-function drawGrid(parent: HTMLElement, opts: GridDrawOptions): void {
-  const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("width", String(opts.pageWidth));
-  svg.setAttribute("height", String(opts.pageHeight));
-  svg.setAttribute("viewBox", `0 0 ${opts.pageWidth} ${opts.pageHeight}`);
-  svg.style.position = "absolute";
-  svg.style.left = "0";
-  svg.style.top = "0";
-  svg.style.pointerEvents = "none";
-  svg.style.display = "block";
-
-  const lines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-  // Cell-axis row/column boundaries (full page width/height).
-  if (opts.writingMode === "vertical-rl") {
-    for (let c = 0; c <= opts.cellsPerColumn; c++) {
-      const y = c * opts.cellSize;
-      lines.push({ x1: 0, y1: y, x2: opts.pageWidth, y2: y });
-    }
-    for (let l = 0; l <= opts.columns; l++) {
-      const xStrip = opts.pageWidth - l * opts.lineThickness;
-      lines.push({ x1: xStrip, y1: 0, x2: xStrip, y2: opts.pageHeight });
-      if (opts.lineThickness > opts.cellSize && l < opts.columns) {
-        const xCell = xStrip - opts.lineThickness + opts.cellSize;
-        lines.push({ x1: xCell, y1: 0, x2: xCell, y2: opts.pageHeight });
-      }
-    }
-  } else {
-    for (let c = 0; c <= opts.cellsPerColumn; c++) {
-      const x = c * opts.cellSize;
-      lines.push({ x1: x, y1: 0, x2: x, y2: opts.pageHeight });
-    }
-    for (let l = 0; l <= opts.columns; l++) {
-      const yStrip = l * opts.lineThickness;
-      lines.push({ x1: 0, y1: yStrip, x2: opts.pageWidth, y2: yStrip });
-      if (opts.lineThickness > opts.cellSize && l < opts.columns) {
-        const yCell = yStrip + opts.lineThickness - opts.cellSize;
-        lines.push({ x1: 0, y1: yCell, x2: opts.pageWidth, y2: yCell });
-      }
-    }
-  }
-  // Per-cell cross-grid (the + inside every cell). Mirrors a 練習帳
-  // page so empty / free cells get the same placement guides guided
-  // cells already paint via block.showGrid.
-  const crossLines: Array<{ x1: number; y1: number; x2: number; y2: number }> = [];
-  const half = opts.cellSize / 2;
-  for (let l = 0; l < opts.columns; l++) {
-    for (let c = 0; c < opts.cellsPerColumn; c++) {
-      let cellX: number;
-      let cellY: number;
-      if (opts.writingMode === "vertical-rl") {
-        cellX = opts.pageWidth - (l + 1) * opts.lineThickness;
-        cellY = c * opts.cellSize;
-      } else {
-        cellX = c * opts.cellSize;
-        cellY = l * opts.lineThickness + (opts.lineThickness - opts.cellSize);
-      }
-      // Horizontal middle line.
-      crossLines.push({
-        x1: cellX,
-        y1: cellY + half,
-        x2: cellX + opts.cellSize,
-        y2: cellY + half,
-      });
-      // Vertical middle line.
-      crossLines.push({
-        x1: cellX + half,
-        y1: cellY,
-        x2: cellX + half,
-        y2: cellY + opts.cellSize,
-      });
-    }
-  }
-
-  for (const ln of lines) {
-    const el = document.createElementNS(SVG_NS, "line");
-    el.setAttribute("x1", String(ln.x1));
-    el.setAttribute("y1", String(ln.y1));
-    el.setAttribute("x2", String(ln.x2));
-    el.setAttribute("y2", String(ln.y2));
-    el.setAttribute("stroke", opts.color);
-    el.setAttribute("stroke-width", String(opts.width));
-    if (opts.dashArray) {
-      el.setAttribute("stroke-dasharray", opts.dashArray);
-    }
-    svg.appendChild(el);
-  }
-  // Cross-grid uses the same color/width but a default dashed pattern so
-  // it reads as a placement guide rather than a hard cell boundary.
-  // Caller-supplied dashArray wins (matches the boundary style instead).
-  const crossDash = opts.dashArray ?? "3,3";
-  for (const ln of crossLines) {
-    const el = document.createElementNS(SVG_NS, "line");
-    el.setAttribute("x1", String(ln.x1));
-    el.setAttribute("y1", String(ln.y1));
-    el.setAttribute("x2", String(ln.x2));
-    el.setAttribute("y2", String(ln.y2));
-    el.setAttribute("stroke", opts.color);
-    el.setAttribute("stroke-width", String(opts.width));
-    el.setAttribute("stroke-dasharray", crossDash);
-    svg.appendChild(el);
-  }
-  parent.appendChild(svg);
-}
