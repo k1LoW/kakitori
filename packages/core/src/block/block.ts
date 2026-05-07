@@ -148,6 +148,11 @@ interface PerAnnotationState {
 
 function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellSize = opts.spec.size ?? opts.cellSize ?? DEFAULT_CELL_SIZE;
+  if (!Number.isFinite(cellSize) || cellSize <= 0) {
+    throw new Error(
+      `block.create(): cellSize must be a finite positive number (got ${cellSize}).`,
+    );
+  }
   const writingMode = opts.writingMode ?? "vertical-rl";
   const annotations = opts.spec.annotations ?? [];
   const cells = opts.spec.cells;
@@ -719,7 +724,12 @@ function validateBlockSpec(
   writingMode: WritingMode,
 ): void {
   cells.forEach((cell, i) => {
-    if (cell.kind !== "free") {
+    if (cell.kind === "guided") {
+      if (typeof cell.char !== "string" || cell.char.length === 0) {
+        throw new Error(
+          `block.create(): cells[${i}].char must be a non-empty string (got ${JSON.stringify(cell.char)}).`,
+        );
+      }
       return;
     }
     validateExpected(cell.expected, `cells[${i}].expected`);
@@ -736,6 +746,11 @@ function validateBlockSpec(
   });
   annotations.forEach((a, i) => {
     validateExpected(a.expected, `annotations[${i}].expected`);
+    if (a.sizeRatio !== undefined && (!Number.isFinite(a.sizeRatio) || a.sizeRatio < 0)) {
+      throw new Error(
+        `block.create(): annotations[${i}].sizeRatio must be a finite non-negative number (got ${a.sizeRatio}).`,
+      );
+    }
     const [from, to] = a.cellRange;
     if (
       !Number.isInteger(from) ||
