@@ -253,5 +253,56 @@ describe("block.create input validation", () => {
         }),
       ).toThrow(/placement="top" is not supported for writingMode="vertical-rl"/);
     });
+
+    it("rejects annotation covering a cell with span > 1", () => {
+      const annotation: FuriganaAnnotation = {
+        cellRange: [0, 1],
+        expected: "がっこう",
+        mode: "show",
+      };
+      expectCreateThrows(
+        {
+          cells: [
+            { kind: "guided", char: "学", mode: "show" },
+            { kind: "blank", span: 3 },
+          ],
+          annotations: [annotation],
+        },
+        /annotations\[0\]\.cellRange covers cells\[1\] with span=3/,
+      );
+    });
   });
+
+  describe("blank cell span", () => {
+    it("accepts blank cells without mode", () => {
+      const parent = document.createElement("div");
+      const b = block.create(parent, {
+        spec: { cells: [{ kind: "blank" }] },
+      });
+      expect(parent.children.length).toBe(1);
+      b.destroy();
+    });
+
+    it("rejects non-integer blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: 1.5 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects zero blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: 0 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+
+    it("rejects negative blank span", () => {
+      expectCreateThrows(
+        { cells: [{ kind: "blank", span: -2 }] },
+        /cells\[0\]\.span must be a positive integer/,
+      );
+    });
+  });
+
 });
