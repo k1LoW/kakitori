@@ -572,12 +572,17 @@ interface PageGeometry {
 }
 
 /**
- * Top-left corner of a segment's CELL area on the page (where the
- * sub-block lays out cells starting at its (0, 0)). The annotation strips
- * page builds separately sit on the perpendicular side, anchored to this
- * origin: in vertical-rl they extend right of `origin.x + cellSize`; in
- * horizontal-tb they extend up from `origin.y` into the strip space
- * reserved at the top of the row.
+ * Top-left of a segment's full sub-block wrapper on the page (the same
+ * origin block.create receives). Inside that wrapper block.ts places
+ * the cells and the empty strip frames itself; page.ts overlays its own
+ * annotation surfaces using the same origin so they line up with the
+ * empty strip frames underneath.
+ *
+ * In vertical-rl the wrapper is `lineThickness` wide (= cellSize +
+ * annotationStripThickness): cells at relative `x = 0`, strip on the
+ * right at `x = cellSize`. In horizontal-tb the wrapper is
+ * `lineThickness` tall: strip on top at `y = 0`, cells underneath at
+ * `y = annotationStripThickness`.
  */
 function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: number } {
   if (geo.writingMode === "vertical-rl") {
@@ -585,11 +590,13 @@ function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: nu
     const y = seg.cellInColumn * geo.cellSize;
     return { x, y };
   }
-  // horizontal-tb: a row's strip space sits ABOVE its cells, so cells of
-  // row N start at y = N*lineThickness + stripThickness. Without this
-  // offset the first row's annotation would land at a negative y.
+  // horizontal-tb: row N's wrapper top-left = (cellInColumn*cellSize,
+  // column*lineThickness). block.create offsets cells inside the
+  // wrapper by annotationThickness so the strip space sits above; the
+  // page wrapper origin must be the strip-top, not the cell-top, or the
+  // sub-block ends up shifted down by an extra strip thickness.
   const x = seg.cellInColumn * geo.cellSize;
-  const y = seg.column * geo.lineThickness + geo.annotationStripThickness;
+  const y = seg.column * geo.lineThickness;
   return { x, y };
 }
 
@@ -649,13 +656,16 @@ function annotationSurfaces(
       let width: number;
       let height: number;
       if (writingMode === "vertical-rl") {
+        // wrapper origin = cell-area top-left; strip on the right
         stripDiv.style.left = `${segOrigin.x + cellSize}px`;
         stripDiv.style.top = `${segOrigin.y + localOffset * cellSize}px`;
         width = annotationStripThickness;
         height = cellSize;
       } else {
+        // wrapper origin = strip-top; strip occupies the top of the
+        // wrapper and cells sit underneath at +annotationStripThickness
         stripDiv.style.left = `${segOrigin.x + localOffset * cellSize}px`;
-        stripDiv.style.top = `${segOrigin.y - annotationStripThickness}px`;
+        stripDiv.style.top = `${segOrigin.y}px`;
         width = cellSize;
         height = annotationStripThickness;
       }

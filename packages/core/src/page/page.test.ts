@@ -106,6 +106,42 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("places horizontal-tb sub-blocks at the wrapper top, not double-offset by the strip", async () => {
+    // Regression: segmentOrigin used to add annotationStripThickness in
+    // horizontal-tb, which combined with block.create's own
+    // annotationThickness offset shifted cells down by 2 strip
+    // thicknesses. Verify the per-block slotEl `top` matches the
+    // wrapper top of its row (column index × lineThickness).
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const cellSize = 80;
+    const handle = page.create(parent, {
+      writingMode: "horizontal-tb",
+      columns: 2,
+      cellsPerColumn: 3,
+      cellSize,
+      blocks: [{ spec: showSpec("学校", "がっこう") }],
+      annotationStripThickness: 32,
+    });
+    await flushMicrotasks();
+    const lineThickness = cellSize + 32;
+    const slotEls = handle.el.querySelectorAll<HTMLDivElement>(":scope > div");
+    // First child is the sub-block slotEl for the only block (placed in
+    // row 0). Its absolute `top` should equal the wrapper top of row 0
+    // (=0), not row 0 + stripThickness.
+    expect(slotEls[0].style.top).toBe("0px");
+    // Annotation strip surface must align with the row's strip area
+    // (top of the wrapper).
+    const annotationSurfaces = Array.from(slotEls).filter(
+      (el) => el.style.height === `32px`,
+    );
+    for (const s of annotationSurfaces) {
+      expect(parseInt(s.style.top, 10) % lineThickness).toBe(0);
+    }
+    handle.destroy();
+    parent.remove();
+  });
+
   it("fires onPageComplete for an empty page", async () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
