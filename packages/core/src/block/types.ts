@@ -98,7 +98,13 @@ export interface BlockAnnotationSnapshot {
 export interface BlockSnapshot {
   /** Every cell + annotation has reported a complete `CharResult`. */
   complete: boolean;
-  /** Every observed character matched (vacuous true before the first stroke). */
+  /**
+   * Every **completed** character (`CharResult.complete === true`)
+   * matched. In-progress chars are excluded from this rollup, so
+   * `matched: true` with `complete: false` means "no failures yet"
+   * rather than "all characters matched". Vacuously `true` until the
+   * first character settles.
+   */
   matched: boolean;
   cells: BlockCellSnapshot[];
   annotations: BlockAnnotationSnapshot[];

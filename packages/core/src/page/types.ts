@@ -152,7 +152,13 @@ export interface PageBlockSnapshot {
 export interface PageSnapshot {
   /** Every cell + annotation across every block has settled. */
   complete: boolean;
-  /** Every observed character matched (vacuous true before any stroke). */
+  /**
+   * Every **completed** character (`CharResult.complete === true`)
+   * across every block matched. In-progress chars are excluded, so
+   * `matched: true` with `complete: false` means "no failures yet"
+   * rather than "everything matched". Vacuously `true` until the
+   * first character settles anywhere on the page.
+   */
   matched: boolean;
   blocks: PageBlockSnapshot[];
 }

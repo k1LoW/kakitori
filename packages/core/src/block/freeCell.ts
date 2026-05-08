@@ -674,8 +674,21 @@ export function createFreeCell(
       opts.onCellComplete?.(settledChars);
     } else {
       log?.(`commit fail (no candidate matched)`);
-      settledChars = [];
-      opts.onCellComplete?.([]);
+      // Emit a synthetic failure snapshot keyed to the first candidate
+      // so block / page aggregation can tell this apart from a blank
+      // cell (which is genuinely empty + vacuously complete + matched).
+      // matched: false on every entry forces the rolled-up
+      // BlockSnapshot.matched / PageSnapshot.matched to be false too.
+      const fallbackCandidate = candidatesText[0] ?? "";
+      settledChars = Array.from(fallbackCandidate).map<CharResult>((ch) => ({
+        character: ch,
+        complete: true,
+        matched: false,
+        perStroke: [],
+        similarity: 0,
+        candidate: fallbackCandidate,
+      }));
+      opts.onCellComplete?.(settledChars);
     }
   }
 
