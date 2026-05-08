@@ -320,6 +320,16 @@ interface MountState {
    * the value `onMistake` deliveries report, summed across all strokes.
    */
   totalMistakes: number;
+  /**
+   * When `strokeEndingAsMiss` is on, an ending-judgment failure fires
+   * `onStrokeEndingMistake` (matched: true + ending info) AND
+   * hanzi-writer's underlying `onMistake` (matched: false). The ending
+   * path records the stroke first; this slot tells the upcoming
+   * `onMistake` handler "skip the perStroke overwrite for this logical
+   * stroke" so the ending data isn't clobbered. Cleared after one
+   * onMistake event.
+   */
+  skipNextOnMistakeStroke: number | null;
   // pointer timing
   isPointerDown: boolean;
   lastMoveTime: number;
@@ -613,6 +623,22 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           ),
           strokeEnding: judgment,
         };
+        // Record the matcher's view (matched=true with ending judgment)
+        // before hanzi-writer's own onMistake handler runs and would
+        // otherwise overwrite this slot with matched=false. Tag the
+        // stroke so that next onMistake skips the overwrite. Only
+        // applies when strokeEndingAsMiss is on — otherwise hanzi-writer
+        // doesn't fire onMistake for an ending-only failure, so no
+        // skipping is needed.
+        m.perStroke[logicalStrokeNum] = {
+          matched: true,
+          similarity: charData.similarity,
+          strokeEnding: judgment,
+        };
+        m.totalMistakes = hwData.totalMistakes;
+        if (m.options.strokeEndingAsMiss) {
+          m.skipNextOnMistakeStroke = logicalStrokeNum;
+        }
         m.options.onStrokeEndingMistake?.(charData);
       },
       onResolved: (j) => {
@@ -628,6 +654,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
     m.perStroke = [];
+    m.skipNextOnMistakeStroke = null;
     m.pendingEndingJudgment = null;
 
     // Pre-load character data for direction auto-computation
@@ -718,14 +745,25 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           strokesRemaining: logicalStrokesRemaining(hwData.strokeNum, hwData.strokesRemaining, false),
         };
         log?.(`mistake: data=${hwData.strokeNum} logical=${logicalStrokeNum}`);
-        // A miss leaves perStroke[logicalStrokeNum] flagged as
-        // unmatched until the user retries and lands a correct stroke,
-        // which overwrites this entry from the onCorrectStroke path.
-        m.perStroke[logicalStrokeNum] = {
-          matched: false,
-          similarity: charData.similarity,
-        };
-        m.totalMistakes = hwData.totalMistakes;
+        // Skip the perStroke overwrite when this onMistake is the
+        // strokeEndingAsMiss=true follow-up of an ending-judgment
+        // failure that already wrote { matched: true, strokeEnding } to
+        // the same logical stroke. Without this guard the ending data
+        // would be clobbered with matched=false.
+        if (m.skipNextOnMistakeStroke === logicalStrokeNum) {
+          m.skipNextOnMistakeStroke = null;
+          m.totalMistakes = hwData.totalMistakes;
+        } else {
+          // A miss leaves perStroke[logicalStrokeNum] flagged as
+          // unmatched until the user retries and lands a correct
+          // stroke, which overwrites this entry from the
+          // onCorrectStroke path.
+          m.perStroke[logicalStrokeNum] = {
+            matched: false,
+            similarity: charData.similarity,
+          };
+          m.totalMistakes = hwData.totalMistakes;
+        }
         m.options.onMistake?.(charData);
       },
 
@@ -944,6 +982,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
     m.perStroke = [];
+    m.skipNextOnMistakeStroke = null;
     m.pendingEndingJudgment = null;
     if (wasActive) {
       m.hw.setCharacter(currentCharacter).catch((err: unknown) => {
@@ -1211,13 +1250,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
     const matched = perStroke.every((r) => r.matched);
     // `complete` flips true once every logical stroke has been observed.
-    // getLogicalStrokeCount() returns the right number once the data /
-    // group config is loaded (see its docstring). Before that it returns
-    // 0, in which case `complete` is false for everything but a vacuous
-    // empty `perStroke` we treat as "still pending".
+    // Count *real* entries in the source array — out-of-order judge()
+    // calls grow `perStrokeSrc.length` past the index that was just
+    // judged, leaving sparse undefined slots. Comparing the real-entry
+    // count against `totalLogicalStrokes` avoids reporting `complete`
+    // before every logical stroke has actually been observed.
     const totalLogicalStrokes = getLogicalStrokeCount();
-    const complete =
-      totalLogicalStrokes > 0 && perStroke.length === totalLogicalStrokes;
+    let observed = 0;
+    for (let i = 0; i < totalLogicalStrokes; i++) {
+      if (perStrokeSrc[i] !== undefined) {
+        observed++;
+      }
+    }
+    const complete = totalLogicalStrokes > 0 && observed === totalLogicalStrokes;
     const out: CharResult = {
       character: currentCharacter,
       complete,
@@ -1343,6 +1388,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       strokeEndingMistakes: 0,
       perStroke: [],
       totalMistakes: 0,
+      skipNextOnMistakeStroke: null,
       isPointerDown: false,
       lastMoveTime: 0,
       releaseTime: 0,
