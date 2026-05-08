@@ -719,7 +719,11 @@ export function createFreeCell(
   }
 
   function snapshotResults(): CharResult[] {
-    if (settledChars) {
+    // Compare against null explicitly — an empty array is intentionally
+    // settled (commitFail's no-bestAttempt path), and JS's `if ([])` is
+    // truthy so the runtime behaviour is the same, but the explicit
+    // null check makes the "settled vs not" distinction obvious.
+    if (settledChars !== null) {
       return settledChars;
     }
     if (bestAttempt) {
