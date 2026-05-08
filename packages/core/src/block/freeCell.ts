@@ -518,9 +518,15 @@ export function createFreeCell(
         }
       });
       const charAvgSim = perStroke.length > 0 ? charSimSum / perStroke.length : 0;
+      // `complete` stays false during candidate exploration. Free cells
+      // declare a character "complete" only when the matcher locks the
+      // candidate in via commitMatch / commitFail; until then,
+      // bestAttempt.chars may flip back to a different candidate as the
+      // user keeps drawing. commitMatch / commitFail rewrite the final
+      // settled chars with complete:true.
       const result: CharResult = {
         character: charInfo.key,
-        complete: perStroke.length === charInfo.logicalStrokeCount,
+        complete: false,
         matched: charMatched,
         perStroke,
         similarity: charAvgSim,
@@ -642,10 +648,10 @@ export function createFreeCell(
       return;
     }
     status = "matched";
-    settledChars = m.chars;
+    settledChars = lockChars(m.chars);
     paintAll(matchedColor);
     log?.(`commit match "${m.candidateText}" sim=${m.similarity.toFixed(2)}`);
-    opts.onCellComplete?.(m.chars);
+    opts.onCellComplete?.(settledChars);
   }
 
   function commitFail(): void {
@@ -658,13 +664,24 @@ export function createFreeCell(
       log?.(
         `commit fail (best attempt "${bestAttempt.candidateText}" sim=${bestAttempt.similarity.toFixed(2)})`,
       );
-      settledChars = bestAttempt.chars;
-      opts.onCellComplete?.(bestAttempt.chars);
+      settledChars = lockChars(bestAttempt.chars);
+      opts.onCellComplete?.(settledChars);
     } else {
       log?.(`commit fail (no candidate matched)`);
       settledChars = [];
       opts.onCellComplete?.([]);
     }
+  }
+
+  /**
+   * Returns a copy of the candidate's per-character results with
+   * `complete: true`. Used at commit time so `tryCandidate` can leave
+   * mid-exploration entries with `complete: false` (preventing
+   * snapshot-level `complete` from flipping true while the freeCell is
+   * still drawing).
+   */
+  function lockChars(chars: CharResult[]): CharResult[] {
+    return chars.map((c) => ({ ...c, complete: true }));
   }
 
   // Per-surface listeners. Each surface gets its own pointer handlers
