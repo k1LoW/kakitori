@@ -1248,7 +1248,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     for (let i = 0; i < perStrokeSrc.length; i++) {
       perStroke.push(perStrokeSrc[i] ?? { matched: false, similarity: 0 });
     }
-    const matched = perStroke.every((r) => r.matched);
+    // `matched` is rolled up only across observed (real) entries — gaps
+    // from out-of-order judge() calls are placeholder slots that exist
+    // for indexing convenience and shouldn't drag the rollup to false.
+    // Vacuously true when no strokes have been observed yet.
+    let matched = true;
+    for (let i = 0; i < perStrokeSrc.length; i++) {
+      const real = perStrokeSrc[i];
+      if (real !== undefined && !real.matched) {
+        matched = false;
+        break;
+      }
+    }
     // `complete` flips true once every logical stroke has been observed.
     // Count *real* entries in the source array — out-of-order judge()
     // calls grow `perStrokeSrc.length` past the index that was just

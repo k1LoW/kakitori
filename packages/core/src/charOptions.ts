@@ -148,9 +148,11 @@ export interface CharResult {
    */
   complete: boolean;
   /**
-   * Every observed stroke matched (vacuously `true` before the first
-   * stroke). Pair with `complete` to distinguish "still in progress" /
-   * "done and correct" / "done with failures".
+   * Every **observed** stroke matched. Out-of-order judge() calls that
+   * leave gaps don't drag this rollup to `false` — only real per-stroke
+   * results count. Vacuously `true` before any stroke has been observed.
+   * Pair with `complete` to distinguish "still in progress" / "done and
+   * correct" / "done with failures".
    */
   matched: boolean;
   /**
