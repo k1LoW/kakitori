@@ -85,6 +85,14 @@ interface PerBlockState {
    * index without re-filtering `layout.segments` each step.
    */
   segmentCellFroms: number[];
+  /**
+   * Original-cell-index → segmentBlocks index. Built once at placeBlock
+   * time so `Page.results()` can resolve "which segment owns this
+   * cell?" in O(1) per cell instead of O(segments) — matters when a
+   * page has many cells across many segments and the host polls
+   * snapshots frequently.
+   */
+  cellToSegmentIndex: number[];
   /** Multi-surface freeCells for each original annotation. */
   annotationHandles: AnnotationHandleState[];
   /**
@@ -230,6 +238,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       spec: entry.spec,
       segmentBlocks: [],
       segmentCellFroms: [],
+      cellToSegmentIndex: Array.from({ length: entry.spec.cells.length }, () => -1),
       annotationHandles: [],
       cellChars: entry.spec.cells.map(() => null),
       cellKinds: entry.spec.cells.map((c) => c.kind),
@@ -336,8 +345,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         },
       };
       const b = block.create(slotEl, blockOpts);
+      const segArrIndex = state.segmentBlocks.length;
       state.segmentBlocks.push(b);
       state.segmentCellFroms.push(seg.cellFrom);
+      for (let cellIdx = seg.cellFrom; cellIdx <= seg.cellTo; cellIdx++) {
+        state.cellToSegmentIndex[cellIdx] = segArrIndex;
+      }
     }
 
     // 2. Render annotations. Each annotation may span one or more
@@ -462,7 +475,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       if (chars !== null) {
         return { kind, chars };
       }
-      const segIdx = findSegmentIndex(state, i);
+      const segIdx = state.cellToSegmentIndex[i];
       if (segIdx >= 0) {
         const subBlock = state.segmentBlocks[segIdx];
         const sub = subBlock?.results();
@@ -488,16 +501,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     return { complete, matched, cells, annotations };
   }
 
-  function findSegmentIndex(state: PerBlockState, origCellIndex: number): number {
-    for (let i = 0; i < state.segmentBlocks.length; i++) {
-      const start = state.segmentCellFroms[i];
-      const nextStart = state.segmentCellFroms[i + 1] ?? Infinity;
-      if (origCellIndex >= start && origCellIndex < nextStart) {
-        return i;
-      }
-    }
-    return -1;
-  }
 
   function buildPageSnapshot(): PageSnapshot {
     const blocks: PageBlockSnapshot[] = blockStates.map((s) => ({

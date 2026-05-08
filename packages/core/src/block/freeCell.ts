@@ -113,11 +113,17 @@ export interface FreeCellHandle {
    */
   undo(): void;
   /**
-   * Snapshot of the freeCell's per-character progress. Length matches
-   * `Array.from(candidate)` once a candidate is locked; before that the
-   * array is filled with placeholder `CharResult` entries (one per
-   * character of the *first* candidate, all with `complete: false` and
-   * `matched: true` vacuously).
+   * Snapshot of the freeCell's per-character progress. Three cases:
+   * 1. The freeCell has settled (matched or failed): returns the
+   *    locked candidate's `CharResult[]` with `complete: true` on
+   *    every entry (length = `Array.from(candidate)`).
+   * 2. Mid-drawing with `bestAttempt` populated: returns the most
+   *    recent partial-attempt's `CharResult[]` — real per-stroke
+   *    history per character, but `complete: false` since the
+   *    candidate isn't locked yet.
+   * 3. No strokes / no `bestAttempt` yet: returns a placeholder array
+   *    sized to the *first* candidate (one entry per character with
+   *    `complete: false`, `matched: true` vacuously, `perStroke: []`).
    */
   results(): CharResult[];
   destroy(): void;
