@@ -29,10 +29,11 @@ describe("FreeCellHandle.results", () => {
     parent.remove();
   });
 
-  it("returns an empty array when expected has no candidate (defensive)", () => {
-    // freeCell currently rejects empty expected at construction time,
-    // so this case is mainly defensive — but it pins down what the
-    // placeholder helper does when candidatesText[0] is missing.
+  it("rejects an empty expected[] at construction time", () => {
+    // No candidate means there's no character to write — the
+    // placeholder helper would have nothing to size against, so
+    // construction throws before results() ever needs to handle the
+    // empty-candidate case.
     expect(() =>
       createFreeCell({
         expected: [],
