@@ -1,9 +1,9 @@
 import HanziWriter, { type HanziWriterOptions } from "hanzi-writer";
 import type {
   CharCreateOptions,
-  CharJudgeResult,
+  CharResult,
   CharJudgeStrokeOptions,
-  CharJudgeStrokeResult,
+  CharStrokeResult,
   CharLogger,
   GridOptions,
   MountOptions,
@@ -186,18 +186,23 @@ export interface Char {
     strokeNum: number,
     points: TimedPoint[],
     opts?: CharJudgeStrokeOptions,
-  ): Promise<CharJudgeStrokeResult>;
+  ): Promise<CharStrokeResult>;
   /**
-   * Cumulative judgment built up by previous {@link Char.judge} calls.
+   * Snapshot of this character's writing progress. Works in both
+   * directions:
+   * - **headless**: built from {@link Char.judge} calls so far. `mistakes`
+   *   / `strokeEndingMistakes` stay undefined since hanzi-writer's quiz
+   *   path isn't involved.
+   * - **mounted quiz**: built from `start()`'s in-flight per-stroke
+   *   callbacks (`onCorrectStroke` / `onMistake` /
+   *   `onStrokeEndingMistake`). `mistakes` / `strokeEndingMistakes`
+   *   reflect the cumulative counts that hanzi-writer reports.
    *
-   * `matched` is true when at least one stroke has been judged AND every
-   * judged stroke matched. Before any judge() call, `matched` is `false`
-   * (the call has nothing to attest to). Strokes that have not been judged
-   * are absent from `perStroke`; it has the highest index judged + 1
-   * entries with gaps filled by `{ matched: false, similarity: 0 }`
-   * placeholders.
+   * `matched` is true when every observed stroke matched (vacuous true
+   * before the first stroke). `complete` flips true once every logical
+   * stroke has been observed.
    */
-  result(): CharJudgeResult;
+  result(): CharResult;
 
   // ───── configuration (works headless) ─────
   /** Return the stroke endings loaded from config, or null if not loaded. */
@@ -303,6 +308,18 @@ interface MountState {
    */
   quizArmed: boolean;
   strokeEndingMistakes: number;
+  /**
+   * Per-logical-stroke results captured from the quiz callbacks while a
+   * write quiz is active. Lets `Char.result()` return a snapshot of the
+   * mounted-quiz progress without exposing hanzi-writer internals.
+   * Cleared on `start()`, `undo()`, `reset()`, and `unmount()`.
+   */
+  perStroke: CharStrokeResult[];
+  /**
+   * Cumulative miss count surfaced by hanzi-writer per-stroke. Mirrors
+   * the value `onMistake` deliveries report, summed across all strokes.
+   */
+  totalMistakes: number;
   // pointer timing
   isPointerDown: boolean;
   lastMoveTime: number;
@@ -327,7 +344,7 @@ interface JudgerState {
   // hanzi-writer's Character instance (`Stroke[]`)
   character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
   // accumulated per-stroke results, indexed by logical stroke num
-  perStroke: CharJudgeStrokeResult[];
+  perStroke: CharStrokeResult[];
   // patched-handler capture slot for the current judge() call
   capture: { matched: boolean; isBackwards: boolean } | null;
 }
@@ -609,6 +626,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   function startQuiz(m: MountState): void {
     m.quizActive = true;
     m.strokeEndingMistakes = 0;
+    m.totalMistakes = 0;
+    m.perStroke = [];
     m.pendingEndingJudgment = null;
 
     // Pre-load character data for direction auto-computation
@@ -664,6 +683,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         }
 
         if (isFirstInGroup(dataStrokeNum) || !strokeGroups) {
+          // Record the stroke for `Char.result()`: only the first
+          // data stroke of each logical group counts (matches what we
+          // surface to the public callback).
+          const stroke: CharStrokeResult = {
+            matched: true,
+            similarity: charData.similarity,
+          };
+          if (charData.strokeEnding !== undefined) {
+            stroke.strokeEnding = charData.strokeEnding;
+          }
+          m.perStroke[logicalStrokeNum] = stroke;
+          m.totalMistakes = hwData.totalMistakes;
           m.options.onCorrectStroke?.(charData);
         }
       },
@@ -687,6 +718,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           strokesRemaining: logicalStrokesRemaining(hwData.strokeNum, hwData.strokesRemaining, false),
         };
         log?.(`mistake: data=${hwData.strokeNum} logical=${logicalStrokeNum}`);
+        // A miss leaves perStroke[logicalStrokeNum] flagged as
+        // unmatched until the user retries and lands a correct stroke,
+        // which overwrites this entry from the onCorrectStroke path.
+        m.perStroke[logicalStrokeNum] = {
+          matched: false,
+          similarity: charData.similarity,
+        };
+        m.totalMistakes = hwData.totalMistakes;
         m.options.onMistake?.(charData);
       },
 
@@ -903,6 +942,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.hw.cancelQuiz();
     stopTimingTracking(m);
     m.strokeEndingMistakes = 0;
+    m.totalMistakes = 0;
+    m.perStroke = [];
     m.pendingEndingJudgment = null;
     if (wasActive) {
       m.hw.setCharacter(currentCharacter).catch((err: unknown) => {
@@ -1055,7 +1096,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     strokeNum: number,
     points: TimedPoint[],
     opts: CharJudgeStrokeOptions = {},
-  ): Promise<CharJudgeStrokeResult> {
+  ): Promise<CharStrokeResult> {
     assertNotDestroyed();
     if (mounted) {
       throw new Error(
@@ -1139,7 +1180,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
     }
 
-    const strokeResult: CharJudgeStrokeResult = strokeEnding
+    const strokeResult: CharStrokeResult = strokeEnding
       ? { matched: captured.matched, similarity, strokeEnding }
       : { matched: captured.matched, similarity };
 
@@ -1147,16 +1188,49 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return strokeResult;
   }
 
-  function result(): CharJudgeResult {
+  function result(): CharResult {
     assertNotDestroyed();
-    const perStroke: CharJudgeStrokeResult[] = [];
-    if (judger) {
-      for (let i = 0; i < judger.perStroke.length; i++) {
-        perStroke.push(judger.perStroke[i] ?? { matched: false, similarity: 0 });
-      }
+    // Pull per-stroke history from whichever path actually wrote to it.
+    // The mount path lights up while a quiz is active (or just settled);
+    // the headless path lights up after judge() runs. Mount and judge
+    // are exclusive on the same instance, so only one source can be
+    // populated at any time.
+    let perStrokeSrc: ReadonlyArray<CharStrokeResult | undefined> = [];
+    let mistakes: number | undefined;
+    let strokeEndingMistakes: number | undefined;
+    if (mounted && mounted.perStroke.length > 0) {
+      perStrokeSrc = mounted.perStroke;
+      mistakes = mounted.totalMistakes;
+      strokeEndingMistakes = mounted.strokeEndingMistakes;
+    } else if (judger) {
+      perStrokeSrc = judger.perStroke;
     }
-    const matched = perStroke.length > 0 && perStroke.every((r) => r.matched);
-    return { matched, perStroke };
+    const perStroke: CharStrokeResult[] = [];
+    for (let i = 0; i < perStrokeSrc.length; i++) {
+      perStroke.push(perStrokeSrc[i] ?? { matched: false, similarity: 0 });
+    }
+    const matched = perStroke.every((r) => r.matched);
+    // `complete` flips true once every logical stroke has been observed.
+    // getLogicalStrokeCount() returns the right number once the data /
+    // group config is loaded (see its docstring). Before that it returns
+    // 0, in which case `complete` is false for everything but a vacuous
+    // empty `perStroke` we treat as "still pending".
+    const totalLogicalStrokes = getLogicalStrokeCount();
+    const complete =
+      totalLogicalStrokes > 0 && perStroke.length === totalLogicalStrokes;
+    const out: CharResult = {
+      character: currentCharacter,
+      complete,
+      matched,
+      perStroke,
+    };
+    if (mistakes !== undefined) {
+      out.mistakes = mistakes;
+    }
+    if (strokeEndingMistakes !== undefined) {
+      out.strokeEndingMistakes = strokeEndingMistakes;
+    }
+    return out;
   }
 
   // ===== mount lifecycle =====
@@ -1267,6 +1341,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       quizActive: false,
       quizArmed: false,
       strokeEndingMistakes: 0,
+      perStroke: [],
+      totalMistakes: 0,
       isPointerDown: false,
       lastMoveTime: 0,
       releaseTime: 0,

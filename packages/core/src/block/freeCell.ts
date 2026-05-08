@@ -1,5 +1,5 @@
 import type { Char } from "../char.js";
-import type { CharJudgeResult, CharJudgeStrokeResult } from "../charOptions.js";
+import type { CharResult, CharStrokeResult } from "../charOptions.js";
 import type { TimedPoint } from "../types.js";
 import {
   normalizeCharacterSegment,
@@ -11,7 +11,6 @@ import { getJudgeChar, runWithJudgeLock, type JudgeCharEntry } from "./charCache
 import type {
   BlockLoaders,
   Expected,
-  FreeCellResult,
 } from "./types.js";
 
 export type FreeCellLogger = (msg: string) => void;
@@ -87,7 +86,14 @@ export interface FreeCellCreateOptions {
   showSegmentBoxes?: boolean;
   /** Color for the segment bbox overlay (debug). */
   segmentBoxColor?: string;
-  onCellComplete?: (result: FreeCellResult) => void;
+  /**
+   * Fires once a candidate match settles (matched-all, or all candidates
+   * exhausted with the user reaching the longest candidate's stroke
+   * count). `chars` is the per-character snapshot — `chars.length`
+   * matches `Array.from(candidate)` for the locked candidate, with
+   * `complete: true` on every entry.
+   */
+  onCellComplete?: (chars: CharResult[]) => void;
   /**
    * Fires after each stroke is buffered (pointerup). Lets the host
    * (block / page) record that this freeCell was the most recently
@@ -106,6 +112,14 @@ export interface FreeCellHandle {
    * the block / page undo() entry points.
    */
   undo(): void;
+  /**
+   * Snapshot of the freeCell's per-character progress. Length matches
+   * `Array.from(candidate)` once a candidate is locked; before that the
+   * array is filled with placeholder `CharResult` entries (one per
+   * character of the *first* candidate, all with `complete: false` and
+   * `matched: true` vacuously).
+   */
+  results(): CharResult[];
   destroy(): void;
 }
 
@@ -135,7 +149,8 @@ interface DrawnStroke {
 interface CandidateMatch {
   candidateText: string;
   similarity: number;
-  perCharacter: CharJudgeResult[];
+  /** Per-character snapshot — one CharResult per `Array.from(candidateText)`. */
+  chars: CharResult[];
   matchedAll: boolean;
   /** Per-character bbox in cell-local pixels (used for the debug overlay). */
   segmentBoxes: Array<{ char: string; x: number; y: number; w: number; h: number }>;
@@ -202,6 +217,13 @@ export function createFreeCell(
   // judge results instead of empty defaults — useful for callers wanting to
   // explain why a stroke sequence was rejected.
   let bestAttempt: CandidateMatch | null = null;
+  /**
+   * The chars array reported on the most recent commit (match or fail).
+   * `results()` falls back to this once status flips off "drawing", so
+   * external observers see the locked candidate's per-character status
+   * without re-running the matcher.
+   */
+  let settledChars: CharResult[] | null = null;
 
   function loadCandidates(): Promise<CandidateInfo[]> {
     if (candidates) {
@@ -458,7 +480,7 @@ export function createFreeCell(
   async function tryCandidate(candidate: CandidateInfo): Promise<CandidateMatch> {
     const counts = candidate.chars.map((c) => c.logicalStrokeCount);
     const segments = segmentByStrokeCounts(strokes.map((s) => s.points), counts);
-    const perCharacter: CharJudgeResult[] = [];
+    const chars: CharResult[] = [];
     const segmentBoxes: CandidateMatch["segmentBoxes"] = [];
     let matchedAll = true;
     let similaritySum = 0;
@@ -479,11 +501,8 @@ export function createFreeCell(
       // serializes the entire per-character sequence so the shared
       // hanzi-writer quiz state (`_currentStrokeIndex`, `_userStroke`,
       // `capture`) and the awaits inside ending judgment can't interleave
-      // with another cell judging the same character. Per-stroke results
-      // are still collected from the awaited returns instead of reading
-      // `instance.result()` later, in case a different candidate locks the
-      // entry between this and the post-loop bookkeeping.
-      const perStroke: CharJudgeStrokeResult[] = [];
+      // with another cell judging the same character.
+      const perStroke: CharStrokeResult[] = [];
       let charMatched = normalized.length > 0;
       let charSimSum = 0;
       await runWithJudgeLock(charInfo.entry, async () => {
@@ -498,9 +517,16 @@ export function createFreeCell(
           charSimSum += stroke.similarity;
         }
       });
-      const result: CharJudgeResult = { matched: charMatched, perStroke };
-      perCharacter.push(result);
       const charAvgSim = perStroke.length > 0 ? charSimSum / perStroke.length : 0;
+      const result: CharResult = {
+        character: charInfo.key,
+        complete: perStroke.length === charInfo.logicalStrokeCount,
+        matched: charMatched,
+        perStroke,
+        similarity: charAvgSim,
+        candidate: candidate.text,
+      };
+      chars.push(result);
       const perStrokeFlags = perStroke
         .map((s) => `${s.matched ? "✓" : "✗"}${s.similarity.toFixed(2)}`)
         .join(",");
@@ -517,7 +543,7 @@ export function createFreeCell(
     return {
       candidateText: candidate.text,
       similarity,
-      perCharacter,
+      chars,
       matchedAll,
       segmentBoxes,
     };
@@ -616,15 +642,10 @@ export function createFreeCell(
       return;
     }
     status = "matched";
+    settledChars = m.chars;
     paintAll(matchedColor);
     log?.(`commit match "${m.candidateText}" sim=${m.similarity.toFixed(2)}`);
-    opts.onCellComplete?.({
-      kind: "free",
-      matched: true,
-      candidate: m.candidateText,
-      similarity: m.similarity,
-      perCharacter: m.perCharacter,
-    });
+    opts.onCellComplete?.(m.chars);
   }
 
   function commitFail(): void {
@@ -637,22 +658,12 @@ export function createFreeCell(
       log?.(
         `commit fail (best attempt "${bestAttempt.candidateText}" sim=${bestAttempt.similarity.toFixed(2)})`,
       );
-      opts.onCellComplete?.({
-        kind: "free",
-        matched: false,
-        candidate: bestAttempt.candidateText,
-        similarity: bestAttempt.similarity,
-        perCharacter: bestAttempt.perCharacter,
-      });
+      settledChars = bestAttempt.chars;
+      opts.onCellComplete?.(bestAttempt.chars);
     } else {
       log?.(`commit fail (no candidate matched)`);
-      opts.onCellComplete?.({
-        kind: "free",
-        matched: false,
-        candidate: null,
-        similarity: 0,
-        perCharacter: [],
-      });
+      settledChars = [];
+      opts.onCellComplete?.([]);
     }
   }
 
@@ -677,6 +688,7 @@ export function createFreeCell(
     strokes = [];
     segmentBoxEls = [];
     bestAttempt = null;
+    settledChars = null;
     // Drop any pending judge tail so a stale match does not flip the new
     // session into matched/failed.
     judgeQueue = Promise.resolve();
@@ -687,10 +699,40 @@ export function createFreeCell(
     }
   }
 
+  function pendingCharsForFirstCandidate(): CharResult[] {
+    // Show a placeholder snapshot before the matcher has settled. We
+    // pick the first candidate's character list — it's the only stable
+    // "what should be written" descriptor the matcher cares about until
+    // strokes accumulate. `bestAttempt` may also exist before commit
+    // (the matcher records the best partial after each attempt); when
+    // present we prefer it because it carries real per-stroke history.
+    const candidate = candidatesText[0];
+    if (!candidate) {
+      return [];
+    }
+    return Array.from(candidate).map<CharResult>((ch) => ({
+      character: ch,
+      complete: false,
+      matched: true,
+      perStroke: [],
+    }));
+  }
+
+  function snapshotResults(): CharResult[] {
+    if (settledChars) {
+      return settledChars;
+    }
+    if (bestAttempt) {
+      return bestAttempt.chars;
+    }
+    return pendingCharsForFirstCandidate();
+  }
+
   return {
     els,
     reset: clearAll,
     undo: clearAll,
+    results: snapshotResults,
     destroy(): void {
       if (destroyed) {
         return;

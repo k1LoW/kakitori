@@ -1,22 +1,23 @@
 import {
   block,
-  type AnnotationResult,
   type Block,
+  type BlockAnnotationSnapshot,
+  type BlockCellSnapshot,
   type BlockCreateOptions,
-  type BlockResult,
+  type BlockSnapshot,
   type BlockSpec,
-  type CellResult,
-  type FreeCellResult,
   type FuriganaAnnotation,
   type WritingMode,
 } from "../block/index.js";
 import { createFreeCell, type FreeCellHandle } from "../block/freeCell.js";
+import type { CharResult } from "../charOptions.js";
 import { layoutPage, type BlockSegment } from "./layout.js";
 import type {
   Page,
   PageBlockEntry,
-  PageBlockResult,
+  PageBlockSnapshot,
   PageCreateOptions,
+  PageSnapshot,
   PageUndoResult,
 } from "./types.js";
 
@@ -53,7 +54,16 @@ function resolveTarget(target: HTMLElement | string): HTMLElement {
 interface AnnotationHandleState {
   annotationIndex: number;
   handle: FreeCellHandle;
-  result: AnnotationResult | null;
+  /**
+   * Synthetic CharResult[] for show-mode annotations. Live (write-mode)
+   * annotations get their snapshot from `handle.results()` instead.
+   */
+  syntheticChars?: CharResult[];
+  /**
+   * Flips true once the annotation has fired its onCellComplete (matched
+   * settlement, fail settlement, or show-mode synthetic).
+   */
+  committed: boolean;
   /**
    * For show-mode annotations there is no interactive freeCell, so
    * `handle` is a no-op and the synthetic matched result is committed via
@@ -77,10 +87,20 @@ interface PerBlockState {
   segmentCellFroms: number[];
   /** Multi-surface freeCells for each original annotation. */
   annotationHandles: AnnotationHandleState[];
-  /** Per-cell results aligned to original spec.cells indices. */
-  cellResults: Array<CellResult | null>;
+  /**
+   * Per-cell `CharResult[]` keyed by original `spec.cells` index. Each
+   * entry mirrors the `chars` of the cell's `BlockCellSnapshot`, so the
+   * page can rebuild a `BlockSnapshot` for a user-block whose cells span
+   * multiple segment sub-blocks.
+   */
+  cellChars: Array<CharResult[] | null>;
+  /**
+   * Cached cell kind per original `spec.cells` index, so we can rebuild
+   * `BlockCellSnapshot` without poking back into the user spec.
+   */
+  cellKinds: Array<"guided" | "free" | "blank">;
+  /** Flips true once `onBlockComplete` fired for this user-block. */
   done: boolean;
-  result: BlockResult | null;
 }
 
 function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
@@ -211,9 +231,9 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       segmentBlocks: [],
       segmentCellFroms: [],
       annotationHandles: [],
-      cellResults: entry.spec.cells.map(() => null),
+      cellChars: entry.spec.cells.map(() => null),
+      cellKinds: entry.spec.cells.map((c) => c.kind),
       done: false,
-      result: null,
     };
   });
 
@@ -238,7 +258,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       if (destroyed) {
         return;
       }
-      opts.onPageComplete?.({ matched: true, perBlock: [] });
+      opts.onPageComplete?.({ complete: true, matched: true, blocks: [] });
     });
   }
 
@@ -298,13 +318,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // empty strip frame is reserved alongside each cell, even when
         // the segment's sub-spec carries no annotations.
         annotationThickness: annotationStripThickness,
-        onCellComplete: (subIndex, kind, result) => {
+        onCellComplete: (subIndex, kind, chars) => {
           // Translate sub-spec cell index back to original block cell index.
           const origIndex = seg.cellFrom + subIndex;
           if (kind === "cell") {
-            state.cellResults[origIndex] = result as CellResult;
+            state.cellChars[origIndex] = chars;
           }
-          opts.onCellComplete?.(state.blockIndex, origIndex, kind, result);
+          opts.onCellComplete?.(state.blockIndex, origIndex, kind, chars);
           maybeCommitBlock(state);
         },
         onActivity: () => {
@@ -347,27 +367,34 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // horizontally) across surfaces, distributing chars proportional
         // to each surface's cell coverage.
         renderShowAnnotation(annotation, surfaces, writingMode);
-        const stub: FreeCellResult = {
-          kind: "free",
+        const synthetic: CharResult[] = Array.from(
+          firstCandidate(annotation.expected),
+        ).map<CharResult>((ch) => ({
+          character: ch,
+          complete: true,
           matched: true,
-          candidate: firstCandidate(annotation.expected),
-          similarity: 1,
-          perCharacter: [],
-        };
+          perStroke: [],
+        }));
         const slotState: AnnotationHandleState = {
           annotationIndex,
           // No interactive handle for show mode; we still need an entry so
           // result aggregation knows to expect this annotation.
           handle: noopHandle(),
-          result: null,
+          syntheticChars: synthetic,
+          committed: false,
         };
         const emitSynthetic = () => {
           queueMicrotask(() => {
-            if (destroyed) {
+            if (destroyed || slotState.committed) {
               return;
             }
-            slotState.result = stub;
-            opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", stub);
+            slotState.committed = true;
+            opts.onCellComplete?.(
+              state.blockIndex,
+              annotationIndex,
+              "annotation",
+              synthetic,
+            );
             maybeCommitBlock(state);
           });
         };
@@ -376,7 +403,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         emitSynthetic();
         return;
       }
-      const handle = createFreeCell({
+      const slotState: AnnotationHandleState = {
+        annotationIndex,
+        handle: noopHandle(),
+        committed: false,
+      };
+      slotState.handle = createFreeCell({
         expected: annotation.expected,
         surfaces: surfaces.map((s) => ({
           parent: s.el,
@@ -391,9 +423,17 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
-        onCellComplete: (result) => {
-          slotState.result = result;
-          opts.onCellComplete?.(state.blockIndex, annotationIndex, "annotation", result);
+        onCellComplete: (chars) => {
+          if (slotState.committed) {
+            return;
+          }
+          slotState.committed = true;
+          opts.onCellComplete?.(
+            state.blockIndex,
+            annotationIndex,
+            "annotation",
+            chars,
+          );
           maybeCommitBlock(state);
         },
         onStroke: () => {
@@ -404,33 +444,92 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           });
         },
       });
-      const slotState: AnnotationHandleState = {
-        annotationIndex,
-        handle,
-        result: null,
-      };
       state.annotationHandles.push(slotState);
     });
+  }
+
+  function annotationChars(slot: AnnotationHandleState): CharResult[] {
+    return slot.syntheticChars ?? slot.handle.results();
+  }
+
+  function buildBlockSnapshot(state: PerBlockState): BlockSnapshot {
+    const cells: BlockCellSnapshot[] = state.cellChars.map((chars, i) => {
+      const kind = state.cellKinds[i];
+      // Live (non-committed) cells fall back to whatever the segment
+      // sub-block currently reports, so the snapshot reflects in-flight
+      // strokes even before onCellComplete fires for that cell. Map the
+      // original cell index back to the segment that hosts it.
+      if (chars !== null) {
+        return { kind, chars };
+      }
+      const segIdx = findSegmentIndex(state, i);
+      if (segIdx >= 0) {
+        const subBlock = state.segmentBlocks[segIdx];
+        const sub = subBlock?.results();
+        if (sub) {
+          const subCellIdx = i - state.segmentCellFroms[segIdx];
+          return sub.cells[subCellIdx] ?? { kind, chars: [] };
+        }
+      }
+      return { kind, chars: [] };
+    });
+    const annotations: BlockAnnotationSnapshot[] = state.annotationHandles.map(
+      (slot) => ({ chars: annotationChars(slot) }),
+    );
+    const allChars: CharResult[] = [];
+    for (const c of cells) {
+      allChars.push(...c.chars);
+    }
+    for (const a of annotations) {
+      allChars.push(...a.chars);
+    }
+    const complete = allChars.every((c) => c.complete);
+    const matched = allChars.filter((c) => c.complete).every((c) => c.matched);
+    return { complete, matched, cells, annotations };
+  }
+
+  function findSegmentIndex(state: PerBlockState, origCellIndex: number): number {
+    for (let i = 0; i < state.segmentBlocks.length; i++) {
+      const start = state.segmentCellFroms[i];
+      const nextStart = state.segmentCellFroms[i + 1] ?? Infinity;
+      if (origCellIndex >= start && origCellIndex < nextStart) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  function buildPageSnapshot(): PageSnapshot {
+    const blocks: PageBlockSnapshot[] = blockStates.map((s) => ({
+      ...(s.id !== undefined ? { id: s.id } : {}),
+      snapshot: buildBlockSnapshot(s),
+    }));
+    const allChars: CharResult[] = [];
+    for (const b of blocks) {
+      for (const c of b.snapshot.cells) {
+        allChars.push(...c.chars);
+      }
+      for (const a of b.snapshot.annotations) {
+        allChars.push(...a.chars);
+      }
+    }
+    const complete = allChars.every((c) => c.complete);
+    const matched = allChars.filter((c) => c.complete).every((c) => c.matched);
+    return { complete, matched, blocks };
   }
 
   function maybeCommitBlock(state: PerBlockState): void {
     if (destroyed || state.done) {
       return;
     }
-    if (state.cellResults.some((r) => r === null)) {
+    if (state.cellChars.some((c) => c === null)) {
       return;
     }
-    if (state.annotationHandles.some((h) => h.result === null)) {
+    if (state.annotationHandles.some((h) => !h.committed)) {
       return;
     }
-    const perCell = state.cellResults.map((r) => r!);
-    const perAnnotation = state.annotationHandles.map((h) => h.result!);
-    const matched =
-      perCell.every((r) => r.matched) && perAnnotation.every((r) => r.matched);
-    const result: BlockResult = { matched, perCell, perAnnotation };
-    state.result = result;
     state.done = true;
-    opts.onBlockComplete?.(state.blockIndex, result);
+    opts.onBlockComplete?.(state.blockIndex, buildBlockSnapshot(state));
     maybeCommitPage();
   }
 
@@ -438,16 +537,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     if (destroyed) {
       return;
     }
-    if (blockStates.some((s) => s.result === null)) {
+    if (blockStates.some((s) => !s.done)) {
       return;
     }
-    const perBlock: PageBlockResult[] = blockStates.map((s) => ({
-      blockIndex: s.blockIndex,
-      ...(s.id !== undefined ? { id: s.id } : {}),
-      result: s.result!,
-    }));
-    const matched = perBlock.every((b) => b.result.matched);
-    opts.onPageComplete?.({ matched, perBlock });
+    opts.onPageComplete?.(buildPageSnapshot());
   }
 
   return {
@@ -457,11 +550,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         return;
       }
       for (const s of blockStates) {
-        for (let i = 0; i < s.cellResults.length; i++) {
-          s.cellResults[i] = null;
+        for (let i = 0; i < s.cellChars.length; i++) {
+          s.cellChars[i] = null;
         }
         for (const h of s.annotationHandles) {
-          h.result = null;
+          h.committed = false;
           h.handle.reset();
         }
         // Reset the underlying sub-blocks first — block.reset() queues
@@ -479,7 +572,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           h.emitSynthetic?.();
         }
         s.done = false;
-        s.result = null;
       }
       activityStack.length = 0;
     },
@@ -500,7 +592,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         const slotState = state.annotationHandles[target.annotationIndex];
         if (slotState) {
           slotState.handle.undo();
-          slotState.result = null;
+          slotState.committed = false;
           result = {
             kind: "annotation",
             blockIndex: target.blockIndex,
@@ -512,12 +604,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         const undone = segBlock?.undo();
         if (undone && undone.kind === "cell") {
           // Map the sub-spec cell index back to the user-block's
-          // original index so cellResults aggregation stays in sync.
-          // Use the per-block segmentCellFroms cached at placeBlock
-          // time so undo() stays O(1) regardless of layout size.
+          // original index so cellChars aggregation stays in sync.
           const cellFrom = state.segmentCellFroms[target.segmentIndex] ?? 0;
           const origIndex = cellFrom + undone.index;
-          state.cellResults[origIndex] = null;
+          state.cellChars[origIndex] = null;
           result = {
             kind: "block-cell",
             blockIndex: target.blockIndex,
@@ -533,8 +623,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         }
       }
       state.done = false;
-      state.result = null;
       return result;
+    },
+    results(): PageSnapshot {
+      return buildPageSnapshot();
     },
     destroy(): void {
       destroyed = true;
@@ -558,6 +650,7 @@ function noopHandle(): FreeCellHandle {
     els: [],
     reset(): void {},
     undo(): void {},
+    results: () => [],
     destroy(): void {},
   };
 }

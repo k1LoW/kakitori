@@ -70,7 +70,7 @@ export interface CharStrokeData {
    * `onCorrectStroke` and `onStrokeEndingMistake` both set this to `true`
    * (the matcher accepted the stroke; only the ending may have been wrong);
    * `onMistake` sets it to `false`.
-   * Mirrors {@link CharJudgeStrokeResult.matched} so the same shape applies
+   * Mirrors {@link CharStrokeResult.matched} so the same shape applies
    * to mount and headless judging.
    */
   matched: boolean;
@@ -79,7 +79,7 @@ export interface CharStrokeData {
    * with the same threshold {@link Char.judge} uses (1 at perfect match,
    * clamped to 0 once the average distance reaches the leniency-scaled
    * threshold).
-   * Mirrors {@link CharJudgeStrokeResult.similarity}.
+   * Mirrors {@link CharStrokeResult.similarity}.
    */
   similarity: number;
   /**
