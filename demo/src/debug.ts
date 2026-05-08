@@ -2,7 +2,7 @@ import { char, defaultCharDataLoader } from "@k1low/kakitori";
 import type {
   Char,
   CharDataLoaderFn,
-  CharJudgeStrokeResult,
+  CharStrokeResult,
   CharStrokeData,
 } from "@k1low/kakitori";
 
@@ -52,7 +52,7 @@ interface StrokeEvent {
   seq: number;
   source: "correct" | "mistake" | "ending-mistake";
   mount: CharStrokeData;
-  judgeResult: CharJudgeStrokeResult | null;
+  judgeResult: CharStrokeResult | null;
   judgeError: string | null;
 }
 
@@ -81,7 +81,7 @@ function fmtNum(n: number, digits = 3): string {
 function endingSummary(
   e:
     | CharStrokeData["strokeEnding"]
-    | CharJudgeStrokeResult["strokeEnding"],
+    | CharStrokeResult["strokeEnding"],
 ): string {
   if (!e) {
     return "—";

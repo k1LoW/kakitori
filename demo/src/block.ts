@@ -25,6 +25,7 @@ const logEl = document.getElementById("log")!;
 const statusEl = document.getElementById("status")!;
 const resetBtn = document.getElementById("reset") as HTMLButtonElement;
 const undoBtn = document.getElementById("undo") as HTMLButtonElement;
+const statusBtn = document.getElementById("status-btn") as HTMLButtonElement;
 const useCaseSelect = document.getElementById("usecase") as HTMLSelectElement;
 
 let currentBlock: Block | null = null;
@@ -129,26 +130,20 @@ function rebuild() {
     loaders: { charDataLoader: cachedCharDataLoader },
     logger: (msg) => log(msg),
     showSegmentBoxes: true,
-    onCellComplete: (index, kind, result) => {
-      const ok = result.matched;
-      if (result.kind === "guided") {
-        log(
-          `${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"} mistakes=${result.mistakes} endingMistakes=${result.strokeEndingMistakes}`,
-          ok ? "ok" : "ng",
-        );
-      } else if (result.kind === "free") {
-        log(
-          `${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"} candidate=${result.candidate ?? "-"} similarity=${result.similarity.toFixed(2)}`,
-          ok ? "ok" : "ng",
-        );
-      } else {
-        log(`${kind}#${index} ${result.kind} ${ok ? "OK" : "NG"}`, ok ? "ok" : "ng");
-      }
+    onCellComplete: (index, kind, chars) => {
+      const ok = chars.every((c) => c.matched);
+      const summary = chars
+        .map((c) => `${c.character}${c.matched ? "✓" : "✗"}`)
+        .join("");
+      log(
+        `${kind}#${index} ${ok ? "OK" : "NG"} chars=${summary || "-"}`,
+        ok ? "ok" : "ng",
+      );
     },
-    onBlockComplete: (result) => {
-      const summary = `block ${result.matched ? "OK" : "NG"} (cells=${result.perCell.length}, annotations=${result.perAnnotation.length})`;
+    onBlockComplete: (snapshot) => {
+      const summary = `block ${snapshot.matched ? "OK" : "NG"} (cells=${snapshot.cells.length}, annotations=${snapshot.annotations.length})`;
       statusEl.textContent = summary;
-      log(summary, result.matched ? "ok" : "ng");
+      log(summary, snapshot.matched ? "ok" : "ng");
     },
   });
 }
@@ -173,6 +168,13 @@ undoBtn.addEventListener("click", () => {
   } else {
     log("undo (nothing to undo)");
   }
+});
+
+statusBtn.addEventListener("click", () => {
+  if (!currentBlock) {
+    return;
+  }
+  log(`results: ${JSON.stringify(currentBlock.results())}`);
 });
 
 useCaseSelect.addEventListener("change", rebuild);

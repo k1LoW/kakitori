@@ -9,8 +9,8 @@ export {
 export type {
   Page,
   PageBlockEntry,
-  PageBlockResult,
+  PageBlockSnapshot,
   PageCreateOptions,
-  PageResult,
+  PageSnapshot,
   PageUndoResult,
 } from "./types.js";

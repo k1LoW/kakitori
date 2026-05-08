@@ -25,6 +25,7 @@ const logEl = document.getElementById("log")!;
 const statusEl = document.getElementById("status")!;
 const resetBtn = document.getElementById("reset") as HTMLButtonElement;
 const undoBtn = document.getElementById("undo") as HTMLButtonElement;
+const statusBtn = document.getElementById("status-btn") as HTMLButtonElement;
 
 let currentPage: Page | null = null;
 
@@ -185,32 +186,26 @@ function rebuild() {
     blocks: entries,
     loaders: { charDataLoader: cachedCharDataLoader },
     logger: (msg) => log(msg),
-    onCellComplete: (blockIndex, cellIndex, kind, result) => {
-      const ok = result.matched;
-      if (result.kind === "guided") {
-        log(
-          `block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"} mistakes=${result.mistakes}`,
-          ok ? "ok" : "ng",
-        );
-      } else if (result.kind === "free") {
-        log(
-          `block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"} candidate=${result.candidate ?? "-"} similarity=${result.similarity.toFixed(2)}`,
-          ok ? "ok" : "ng",
-        );
-      } else {
-        log(`block#${blockIndex} ${kind}#${cellIndex} ${result.kind} ${ok ? "OK" : "NG"}`, ok ? "ok" : "ng");
-      }
-    },
-    onBlockComplete: (blockIndex, result) => {
+    onCellComplete: (blockIndex, cellIndex, kind, chars) => {
+      const ok = chars.every((c) => c.matched);
+      const summary = chars
+        .map((c) => `${c.character}${c.matched ? "✓" : "✗"}`)
+        .join("");
       log(
-        `block#${blockIndex} ${result.matched ? "OK" : "NG"} (cells=${result.perCell.length}, annotations=${result.perAnnotation.length})`,
-        result.matched ? "ok" : "ng",
+        `block#${blockIndex} ${kind}#${cellIndex} ${ok ? "OK" : "NG"} chars=${summary || "-"}`,
+        ok ? "ok" : "ng",
       );
     },
-    onPageComplete: (result) => {
-      const summary = `page ${result.matched ? "OK" : "NG"} (blocks=${result.perBlock.length})`;
+    onBlockComplete: (blockIndex, snapshot) => {
+      log(
+        `block#${blockIndex} ${snapshot.matched ? "OK" : "NG"} (cells=${snapshot.cells.length}, annotations=${snapshot.annotations.length})`,
+        snapshot.matched ? "ok" : "ng",
+      );
+    },
+    onPageComplete: (snapshot) => {
+      const summary = `page ${snapshot.matched ? "OK" : "NG"} (blocks=${snapshot.blocks.length})`;
       statusEl.textContent = summary;
-      log(summary, result.matched ? "ok" : "ng");
+      log(summary, snapshot.matched ? "ok" : "ng");
     },
   });
 }
@@ -239,6 +234,13 @@ undoBtn.addEventListener("click", () => {
     log(`undo block#${undone.blockIndex} annotation#${undone.annotationIndex}`);
   }
   statusEl.textContent = "";
+});
+
+statusBtn.addEventListener("click", () => {
+  if (!currentPage) {
+    return;
+  }
+  log(`results: ${JSON.stringify(currentPage.results())}`);
 });
 
 rebuild();

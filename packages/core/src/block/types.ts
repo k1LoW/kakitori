@@ -1,7 +1,7 @@
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
-  CharJudgeResult,
+  CharResult,
   ConfigLoaderFn,
   MountOptions,
 } from "../charOptions.js";
@@ -72,57 +72,42 @@ export interface BlockSpec {
   size?: number;
 }
 
-/** Result for a `'guided'` cell. */
-export interface GuidedCellResult {
-  kind: "guided";
-  matched: boolean;
-  /** Mistakes reported by hanzi-writer's quiz path (only when `mode === 'write'`). */
-  mistakes: number;
-  /** Mistakes flagged by tome / hane / harai judgment. */
-  strokeEndingMistakes: number;
+/**
+ * Snapshot of a cell's progress. Same shape regardless of cell kind:
+ * - guided cells produce exactly one `CharResult` (the cell's character);
+ * - free cells produce one per character in the matched candidate;
+ * - blank cells produce zero (visual-only chrome).
+ */
+export interface BlockCellSnapshot {
+  kind: "guided" | "free" | "blank";
+  chars: CharResult[];
 }
 
-/** Result for a `'free'` cell or a furigana annotation. */
-export interface FreeCellResult {
-  kind: "free";
-  matched: boolean;
-  /**
-   * The expected candidate that matched. Set to the matched candidate when
-   * `matched === true`, the highest-similarity attempt when `matched === false`
-   * but the user exhausted candidates, or `null` when the cell never reached
-   * any candidate's stroke total (e.g. `mode: "show"` synthetic results
-   * always carry a candidate).
-   */
-  candidate: string | null;
-  /** Mean per-stroke similarity for the reported `candidate`. `0` when no attempt was made. */
-  similarity: number;
-  /**
-   * Per-character judgement aligned to `Array.from(candidate)` when
-   * `candidate != null`. Empty when `candidate === null` or for synthetic
-   * `mode: "show"` results.
-   */
-  perCharacter: CharJudgeResult[];
+/** Snapshot of a furigana annotation's progress. One `CharResult` per character in the candidate. */
+export interface BlockAnnotationSnapshot {
+  chars: CharResult[];
 }
 
 /**
- * Result for a `'blank'` cell. Blank cells have no answer, so the result
- * is always `matched: true` once the chrome has rendered. Surfaced so
- * block aggregation can produce a complete `perCell` array even when the
- * spec contains visual-only cells.
+ * Snapshot of a block's full progress. Returned by {@link Block.results}
+ * at any time and also passed verbatim to `onBlockComplete` (where
+ * `complete` is always `true`). Pair `complete` with `matched` to
+ * distinguish "still in progress" / "done and correct" / "done with
+ * failures".
  */
-export interface BlankCellResult {
-  kind: "blank";
-  matched: true;
-}
-
-export type CellResult = GuidedCellResult | FreeCellResult | BlankCellResult;
-
-export type AnnotationResult = FreeCellResult;
-
-export interface BlockResult {
+export interface BlockSnapshot {
+  /** Every cell + annotation has reported a complete `CharResult`. */
+  complete: boolean;
+  /**
+   * Every **completed** character (`CharResult.complete === true`)
+   * matched. In-progress chars are excluded from this rollup, so
+   * `matched: true` with `complete: false` means "no failures yet"
+   * rather than "all characters matched". Vacuously `true` until the
+   * first character settles.
+   */
   matched: boolean;
-  perCell: CellResult[];
-  perAnnotation: AnnotationResult[];
+  cells: BlockCellSnapshot[];
+  annotations: BlockAnnotationSnapshot[];
 }
 
 /** Loaders shared across all child Char instances inside a Block. */

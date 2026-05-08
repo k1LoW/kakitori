@@ -321,6 +321,45 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("results() snapshots reflect partial completion across blocks", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      writingMode: "vertical-rl",
+      columns: 1,
+      cellsPerColumn: 4,
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      blocks: [
+        // A show-mode block (immediately complete + matched).
+        { id: "b0", spec: showSpec("学", "がく") },
+        // A write-mode block (in progress until the user matches).
+        {
+          id: "b1",
+          spec: { cells: [{ kind: "free", expected: "あ", mode: "write" }] },
+        },
+      ],
+    });
+    await flushMicrotasks();
+    const snap = handle.results();
+    expect(snap.complete).toBe(false);
+    expect(snap.blocks).toHaveLength(2);
+    // b0: one show cell + one show annotation, both synthesized as
+    // complete + matched, so the per-block snapshot is complete.
+    expect(snap.blocks[0].id).toBe("b0");
+    expect(snap.blocks[0].snapshot.complete).toBe(true);
+    expect(snap.blocks[0].snapshot.matched).toBe(true);
+    expect(snap.blocks[0].snapshot.cells[0].chars[0].character).toBe("学");
+    // b1: write cell, no strokes yet → chars not complete.
+    expect(snap.blocks[1].id).toBe("b1");
+    expect(snap.blocks[1].snapshot.complete).toBe(false);
+    expect(snap.blocks[1].snapshot.cells[0].chars[0].complete).toBe(false);
+    // Page-level matched is the vacuous AND across observed completions.
+    expect(snap.matched).toBe(true);
+    handle.destroy();
+    parent.remove();
+  });
+
   it("fires onPageComplete for an empty page", async () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
@@ -334,7 +373,11 @@ describe("page.create — mount layout", () => {
     });
     await flushMicrotasks();
     expect(onPageComplete).toHaveBeenCalledTimes(1);
-    expect(onPageComplete.mock.calls[0][0]).toEqual({ matched: true, perBlock: [] });
+    expect(onPageComplete.mock.calls[0][0]).toEqual({
+      complete: true,
+      matched: true,
+      blocks: [],
+    });
     handle.destroy();
     parent.remove();
   });

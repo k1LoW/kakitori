@@ -115,20 +115,67 @@ export interface CharJudgeStrokeOptions {
 }
 
 /**
- * Per-stroke result from {@link Char.judge}. Indexed by logical stroke
- * number in {@link CharJudgeResult.perStroke}.
+ * Per-stroke result, indexed by logical stroke number in
+ * {@link CharResult.perStroke}. The same shape is used for both the
+ * headless judge ({@link Char.judge}) and the mounted quiz
+ * ({@link Char.start}) paths — a stroke result is a stroke result.
  */
-export interface CharJudgeStrokeResult {
+export interface CharStrokeResult {
   matched: boolean;
   similarity: number;
   strokeEnding?: StrokeEndingJudgment;
 }
 
 /**
- * Cumulative judge result returned by {@link Char.result}. `matched` is
- * true when every stroke that has been judged so far matched.
+ * Snapshot of a single character's writing progress — the leaf type for
+ * results across the whole stack. {@link Char.result} returns one of
+ * these; free cells / annotations expose `CharResult[]` (one per
+ * expected character); blocks / pages aggregate them in their snapshot
+ * trees.
+ *
+ * Same shape regardless of whether the data came from the headless
+ * judger or the mounted quiz, with `mistakes` / `strokeEndingMistakes`
+ * populated only on the guided (mount + quiz) path and `similarity` /
+ * `candidate` populated only inside a free cell or annotation.
  */
-export interface CharJudgeResult {
+export interface CharResult {
+  /** Which character was written (e.g. "学", "が"). */
+  character: string;
+  /**
+   * Every logical stroke for this character has been observed. For
+   * guided cells this means the quiz fired its completion; for free
+   * cells it means a candidate match locked this character in.
+   */
+  complete: boolean;
+  /**
+   * Every **observed** stroke matched. Out-of-order judge() calls that
+   * leave gaps don't drag this rollup to `false` — only real per-stroke
+   * results count. Vacuously `true` before any stroke has been observed.
+   * Pair with `complete` to distinguish "still in progress" / "done and
+   * correct" / "done with failures".
+   */
   matched: boolean;
-  perStroke: CharJudgeStrokeResult[];
+  /**
+   * Per-logical-stroke history. Length equals the highest observed
+   * stroke index + 1; gaps are filled with placeholder
+   * `{ matched: false, similarity: 0 }` entries (mirrors the shape the
+   * headless judger has always returned).
+   */
+  perStroke: CharStrokeResult[];
+  /** Guided-only: cumulative mistakes from hanzi-writer's quiz. */
+  mistakes?: number;
+  /** Guided-only: tome / hane / harai mistakes accumulated so far. */
+  strokeEndingMistakes?: number;
+  /**
+   * Free / annotation only: per-character similarity inside the
+   * candidate the matcher locked onto. Undefined while the freeCell is
+   * still searching.
+   */
+  similarity?: number;
+  /**
+   * Free / annotation only: which candidate text this character belongs
+   * to (e.g. `"がっこう"`). Undefined while the freeCell is still
+   * searching.
+   */
+  candidate?: string;
 }

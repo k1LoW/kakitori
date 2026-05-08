@@ -1,6 +1,7 @@
 import { char, type Char } from "../char.js";
 import type {
   CharCreateOptions,
+  CharResult,
   GridOptions,
   MountOptions,
 } from "../charOptions.js";
@@ -8,19 +9,16 @@ import { DEFAULT_PADDING, HANZI_COORD_SIZE } from "../constants.js";
 import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
-  AnnotationResult,
   BlankCell,
-  BlankCellResult,
+  BlockAnnotationSnapshot,
+  BlockCellSnapshot,
   BlockLoaders,
-  BlockResult,
+  BlockSnapshot,
   BlockSpec,
   Cell,
-  CellResult,
   FuriganaAnnotation,
   GuidedCell,
-  GuidedCellResult,
   FreeCell,
-  FreeCellResult,
 } from "./types.js";
 
 const DEFAULT_CELL_SIZE = 120;
@@ -98,14 +96,18 @@ export interface BlockCreateOptions {
    * than guided cells; see `freeCell.ts` for the default.
    */
   freeCellLeniency?: number;
-  /** Fired for every cell or annotation completion (matched or failed). */
+  /**
+   * Fired for every cell or annotation that finishes settling — `chars`
+   * is the per-character snapshot for that unit (length matches the
+   * corresponding `BlockCellSnapshot.chars` / `BlockAnnotationSnapshot.chars`).
+   */
   onCellComplete?: (
     index: number,
     kind: "cell" | "annotation",
-    result: CellResult | AnnotationResult,
+    chars: CharResult[],
   ) => void;
-  /** Fired once every cell and annotation has reported a result. */
-  onBlockComplete?: (result: BlockResult) => void;
+  /** Fired once every cell and annotation has finished settling. */
+  onBlockComplete?: (snapshot: BlockSnapshot) => void;
   /**
    * Fired whenever any cell or annotation in this block receives a stroke
    * (correct or wrong). Lets a wrapping page track which block was most
@@ -131,6 +133,12 @@ export interface Block {
     index: number;
     hasMore: boolean;
   } | null;
+  /**
+   * Snapshot of the block's progress at this exact moment — same shape
+   * as the value passed to `onBlockComplete` (where `complete` is always
+   * `true`). Pure getter; safe to poll at any time.
+   */
+  results(): BlockSnapshot;
   /** Destroy every child Char / freeCell and detach the block. */
   destroy(): void;
 }
@@ -163,21 +171,33 @@ function resolveTarget(target: HTMLElement | string): HTMLElement {
 interface PerCellState {
   index: number;
   cell: Cell;
-  result: CellResult | null;
+  /**
+   * Flips true once this cell has fired `onCellComplete`. Drives the
+   * one-shot completion callback semantics — completion is observable
+   * from the cell's `chars` snapshot too, but we don't want to re-emit
+   * the callback every time the user re-touches a finished cell.
+   */
+  committed: boolean;
+  /**
+   * Synthetic `chars` for show-mode / blank cells. Live (write-mode)
+   * cells get their snapshot from `charInstance.result()` /
+   * `freeHandle.results()` instead.
+   */
+  syntheticChars?: CharResult[];
   // Resources tied to this cell, depending on kind.
   charInstance?: Char;
   freeHandle?: FreeCellHandle;
   charCellEl?: HTMLDivElement;
-  // Cumulative mistake counts for guided cells (mirrors mount flow).
-  mistakes?: number;
-  strokeEndingMistakes?: number;
 }
 
 interface PerAnnotationState {
   index: number;
   annotation: FuriganaAnnotation;
   freeHandle: FreeCellHandle | null;
-  result: AnnotationResult | null;
+  /** Same role as `PerCellState.committed`. */
+  committed: boolean;
+  /** For show-mode annotations the chars are synthesized once and stay fixed. */
+  syntheticChars?: CharResult[];
 }
 
 function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
@@ -457,19 +477,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const state: PerCellState = {
       index,
       cell,
-      result: null,
+      committed: false,
       charInstance: c,
       charCellEl: cellEl,
-      mistakes: 0,
-      strokeEndingMistakes: 0,
     };
 
     if (cell.mode === "write") {
-      // Quiz mode: instrument callbacks for mistake counting + completion.
-      mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, "correct", data);
-      mountOpts.onMistake = (data) => handleGuidedStroke(state, "mistake", data);
-      mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, "ending-mistake", data);
-      mountOpts.onComplete = () => commitGuidedResult(state, true);
+      // Quiz mode: instrument callbacks for activity tracking + completion.
+      mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
+      mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
+      mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, data);
+      mountOpts.onComplete = () => commitGuidedCell(state);
       c.mount(cellEl, mountOpts);
       // Kick off the quiz once ready.
       void c.ready().then(() => {
@@ -479,15 +497,23 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         c.start();
       });
     } else {
-      // Show mode: just render the character — nothing to commit.
+      // Show mode: render the character and synthesize a complete
+      // CharResult so block aggregation can settle even though the user
+      // never writes anything.
       c.mount(cellEl, mountOpts);
-      // Show mode is informational; report a synthetic matched=true so the
-      // block can still tell when "everything writable is done".
+      state.syntheticChars = [
+        {
+          character: cell.char,
+          complete: true,
+          matched: true,
+          perStroke: [],
+        },
+      ];
       queueMicrotask(() => {
         if (destroyed) {
           return;
         }
-        commitGuidedResult(state, true);
+        commitGuidedCell(state);
       });
     }
     return state;
@@ -495,30 +521,29 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
   function handleGuidedStroke(
     state: PerCellState,
-    kind: "correct" | "mistake" | "ending-mistake",
     _data: CharStrokeData,
   ): void {
-    if (kind === "mistake") {
-      state.mistakes = (state.mistakes ?? 0) + 1;
-    } else if (kind === "ending-mistake") {
-      state.strokeEndingMistakes = (state.strokeEndingMistakes ?? 0) + 1;
-    }
     markActive("cell", state.index);
   }
 
-  function commitGuidedResult(state: PerCellState, matched: boolean): void {
-    if (state.result) {
+  function commitGuidedCell(state: PerCellState): void {
+    if (state.committed) {
       return;
     }
-    const r: GuidedCellResult = {
-      kind: "guided",
-      matched,
-      mistakes: state.mistakes ?? 0,
-      strokeEndingMistakes: state.strokeEndingMistakes ?? 0,
-    };
-    state.result = r;
-    opts.onCellComplete?.(state.index, "cell", r);
+    state.committed = true;
+    const chars = guidedCellChars(state);
+    opts.onCellComplete?.(state.index, "cell", chars);
     maybeCommitBlock();
+  }
+
+  function guidedCellChars(state: PerCellState): CharResult[] {
+    if (state.syntheticChars) {
+      return state.syntheticChars;
+    }
+    if (state.charInstance) {
+      return [state.charInstance.result()];
+    }
+    return [];
   }
 
   function mountFreeCell(
@@ -543,12 +568,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
     if (cell.mode === "show") {
       renderShowText(wrapperEl, firstCandidate(cell.expected), rect, writingMode);
-      const state: PerCellState = { index, cell, result: null };
+      const state: PerCellState = {
+        index,
+        cell,
+        committed: false,
+        syntheticChars: synthesizeShowChars(cell.expected),
+      };
       queueMicrotask(() => {
         if (destroyed) {
           return;
         }
-        commitFreeShowResult(state, "cell", cell.expected);
+        commitShowOrBlankCell(state, "cell");
       });
       return state;
     }
@@ -566,9 +596,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
       ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
       ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
-      onCellComplete: (result: FreeCellResult) => {
-        state.result = result;
-        opts.onCellComplete?.(index, "cell", result);
+      onCellComplete: (chars: CharResult[]) => {
+        if (state.committed) {
+          return;
+        }
+        state.committed = true;
+        opts.onCellComplete?.(index, "cell", chars);
         maybeCommitBlock();
       },
       onStroke: () => markActive("cell", index),
@@ -576,29 +609,31 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const state: PerCellState = {
       index,
       cell,
-      result: null,
+      committed: false,
       freeHandle: handle,
     };
     return state;
   }
 
-  function commitFreeShowResult(
+  function synthesizeShowChars(expected: import("./types.js").Expected): CharResult[] {
+    return Array.from(firstCandidate(expected)).map<CharResult>((ch) => ({
+      character: ch,
+      complete: true,
+      matched: true,
+      perStroke: [],
+    }));
+  }
+
+  function commitShowOrBlankCell(
     state: PerCellState,
     kind: "cell" | "annotation",
-    expected: import("./types.js").Expected,
   ): void {
-    if (state.result) {
+    if (state.committed) {
       return;
     }
-    const result: FreeCellResult = {
-      kind: "free",
-      matched: true,
-      candidate: firstCandidate(expected),
-      similarity: 1,
-      perCharacter: [],
-    };
-    state.result = result;
-    opts.onCellComplete?.(state.index, kind, result);
+    state.committed = true;
+    const chars = state.syntheticChars ?? [];
+    opts.onCellComplete?.(state.index, kind, chars);
     maybeCommitBlock();
   }
 
@@ -653,24 +688,21 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         );
       }
     }
-    const state: PerCellState = { index: _index, cell, result: null };
+    const state: PerCellState = {
+      index: _index,
+      cell,
+      committed: false,
+      // Blank cells have no characters to write; the empty array is
+      // vacuously complete + matched.
+      syntheticChars: [],
+    };
     queueMicrotask(() => {
       if (destroyed) {
         return;
       }
-      commitBlankResult(state);
+      commitShowOrBlankCell(state, "cell");
     });
     return state;
-  }
-
-  function commitBlankResult(state: PerCellState): void {
-    if (state.result) {
-      return;
-    }
-    const result: BlankCellResult = { kind: "blank", matched: true };
-    state.result = result;
-    opts.onCellComplete?.(state.index, "cell", result);
-    maybeCommitBlock();
   }
 
   function mountAnnotation(
@@ -731,12 +763,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         subStrips,
         writingMode,
       );
-      const state: PerAnnotationState = { index, annotation, result: null, freeHandle: null };
+      const state: PerAnnotationState = {
+        index,
+        annotation,
+        freeHandle: null,
+        committed: false,
+        syntheticChars: synthesizeShowChars(annotation.expected),
+      };
       queueMicrotask(() => {
         if (destroyed) {
           return;
         }
-        commitAnnotationShowResult(state);
+        commitShowAnnotation(state);
       });
       return state;
     }
@@ -744,7 +782,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const state: PerAnnotationState = {
       index,
       annotation,
-      result: null,
+      committed: false,
       freeHandle: createFreeCell({
         expected: annotation.expected,
         surfaces: subStrips.map((s) => ({ parent: s.el, width: s.width, height: s.height })),
@@ -758,9 +796,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
-        onCellComplete: (result: FreeCellResult) => {
-          state.result = result;
-          opts.onCellComplete?.(index, "annotation", result);
+        onCellComplete: (chars: CharResult[]) => {
+          if (state.committed) {
+            return;
+          }
+          state.committed = true;
+          opts.onCellComplete?.(index, "annotation", chars);
           maybeCommitBlock();
         },
         onStroke: () => markActive("annotation", index),
@@ -769,32 +810,62 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     return state;
   }
 
-  function commitAnnotationShowResult(state: PerAnnotationState): void {
-    if (state.result) {
+  function commitShowAnnotation(state: PerAnnotationState): void {
+    if (state.committed) {
       return;
     }
-    const result: FreeCellResult = {
-      kind: "free",
-      matched: true,
-      candidate: firstCandidate(state.annotation.expected),
-      similarity: 1,
-      perCharacter: [],
-    };
-    state.result = result;
-    opts.onCellComplete?.(state.index, "annotation", result);
+    state.committed = true;
+    const chars = state.syntheticChars ?? [];
+    opts.onCellComplete?.(state.index, "annotation", chars);
     maybeCommitBlock();
   }
 
+  function cellSnapshot(state: PerCellState): BlockCellSnapshot {
+    if (state.cell.kind === "guided") {
+      return { kind: "guided", chars: guidedCellChars(state) };
+    }
+    if (state.cell.kind === "free") {
+      const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
+      return { kind: "free", chars };
+    }
+    // blank
+    return { kind: "blank", chars: state.syntheticChars ?? [] };
+  }
+
+  function annotationSnapshot(
+    state: PerAnnotationState,
+  ): BlockAnnotationSnapshot {
+    const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
+    return { chars };
+  }
+
+  function buildBlockSnapshot(): BlockSnapshot {
+    const cellsSnap = cellStates.map(cellSnapshot);
+    const annotationsSnap = annotationStates.map(annotationSnapshot);
+    const allChars: CharResult[] = [];
+    for (const c of cellsSnap) {
+      allChars.push(...c.chars);
+    }
+    for (const a of annotationsSnap) {
+      allChars.push(...a.chars);
+    }
+    const complete = allChars.every((c) => c.complete);
+    const matched = allChars.filter((c) => c.complete).every((c) => c.matched);
+    return { complete, matched, cells: cellsSnap, annotations: annotationsSnap };
+  }
+
+  let blockCommitted = false;
   function maybeCommitBlock(): void {
-    const allCellResults = cellStates.every((s) => s.result !== null);
-    const allAnnotationResults = annotationStates.every((s) => s.result !== null);
-    if (!allCellResults || !allAnnotationResults) {
+    if (blockCommitted) {
       return;
     }
-    const perCell = cellStates.map((s) => s.result!);
-    const perAnnotation = annotationStates.map((s) => s.result!);
-    const matched = perCell.every((r) => r.matched) && perAnnotation.every((r) => r.matched);
-    opts.onBlockComplete?.({ matched, perCell, perAnnotation });
+    const allCellsCommitted = cellStates.every((s) => s.committed);
+    const allAnnotationsCommitted = annotationStates.every((s) => s.committed);
+    if (!allCellsCommitted || !allAnnotationsCommitted) {
+      return;
+    }
+    blockCommitted = true;
+    opts.onBlockComplete?.(buildBlockSnapshot());
   }
 
   return {
@@ -804,10 +875,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         return;
       }
       activityStack.length = 0;
+      blockCommitted = false;
       for (const state of cellStates) {
-        state.result = null;
-        state.mistakes = 0;
-        state.strokeEndingMistakes = 0;
+        state.committed = false;
         if (state.cell.kind === "guided" && state.charInstance && state.charCellEl) {
           state.charInstance.reset();
           if (state.cell.mode === "write") {
@@ -823,42 +893,37 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
               if (destroyed) {
                 return;
               }
-              commitGuidedResult(state, true);
+              commitGuidedCell(state);
             });
           }
         } else if (state.freeHandle) {
           state.freeHandle.reset();
         } else if (state.cell.kind === "free" && state.cell.mode === "show") {
-          // mode='show' free cell — re-emit the synthetic matched result.
-          const expected = state.cell.expected;
           queueMicrotask(() => {
             if (destroyed) {
               return;
             }
-            commitFreeShowResult(state, "cell", expected);
+            commitShowOrBlankCell(state, "cell");
           });
         } else if (state.cell.kind === "blank") {
-          // Blank cells are visual-only; re-emit the synthetic matched
-          // result so block aggregation completes again.
           queueMicrotask(() => {
             if (destroyed) {
               return;
             }
-            commitBlankResult(state);
+            commitShowOrBlankCell(state, "cell");
           });
         }
       }
       for (const state of annotationStates) {
-        state.result = null;
+        state.committed = false;
         if (state.freeHandle) {
           state.freeHandle.reset();
         } else {
-          // mode='show' annotation — re-emit the synthetic result.
           queueMicrotask(() => {
             if (destroyed) {
               return;
             }
-            commitAnnotationShowResult(state);
+            commitShowAnnotation(state);
           });
         }
       }
@@ -880,12 +945,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         if (!state) {
           return null;
         }
-        // Drop any pending result so the block-level aggregate goes back
-        // to "still in progress"; matchUndo flows skip the
-        // onCellComplete re-fire (silent revert).
-        state.result = null;
-        state.mistakes = 0;
-        state.strokeEndingMistakes = 0;
+        // Roll the cell back to "in progress" so block-level aggregation
+        // resets; the undo is silent (no callback re-fire).
+        state.committed = false;
+        blockCommitted = false;
         if (state.cell.kind === "guided" && state.charInstance) {
           state.charInstance.undo();
         } else if (state.freeHandle) {
@@ -899,7 +962,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         if (!state) {
           return null;
         }
-        state.result = null;
+        state.committed = false;
+        blockCommitted = false;
         if (state.freeHandle) {
           state.freeHandle.undo();
         }
@@ -909,6 +973,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         index: target.index,
         hasMore: activityStack.length > 0,
       };
+    },
+    results(): BlockSnapshot {
+      return buildBlockSnapshot();
     },
     destroy(): void {
       destroyed = true;
