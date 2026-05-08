@@ -91,10 +91,10 @@
       <a href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">GitHub</a>
     </header>
     <p class="desc">
-      <code>page.create()</code> で複数のブロックを縦書きグリッドに自動配置する。
-      ブロックは column 末をまたぐと cell 単位で分割され、 annotation 付きでも分割される。
-      分割後のふりがな欄の位置、 および multi-surface でストロークが共有 buffer として
-      判定されるかを確認できる。
+      <code>page.create()</code> lays out multiple blocks across a vertical-rl grid automatically.
+      A block crossing a column boundary is split per cell — even when it carries an annotation.
+      Check that the post-split furigana strip lands in the right place and that strokes drawn
+      across multiple surfaces are judged from a shared buffer.
     </p>
     <div id="controls">
       <button id="reset">Reset</button>
