@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.13.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.12.0...packages/core/v0.13.0) - 2026-05-12
+### Breaking Changes 🛠
+- feat(core)!: rename StrokeEndingJudgment to StrokeEndingResult by @k1LoW in https://github.com/k1LoW/kakitori/pull/70
+
 ## [v0.12.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.11.0...packages/core/v0.12.0) - 2026-05-12
 ### Breaking Changes 🛠
 - feat(core)!: enrich CharResult + result() singular + collectCharResults by @k1LoW in https://github.com/k1LoW/kakitori/pull/68
