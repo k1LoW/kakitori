@@ -125,10 +125,24 @@ export interface CharStrokeResult {
   similarity: number;
   strokeEnding?: StrokeEndingJudgment;
   /**
-   * Raw drawn samples for this stroke (cell-local coords + timestamps).
-   * Suitable as the second argument to {@link Char.judge} for replay
-   * or re-judging. Undefined for synthetic show-mode strokes (which
-   * have no user input) and for placeholder gap entries.
+   * Raw drawn samples for this stroke, with timestamps. Suitable as
+   * the second argument to {@link Char.judge} for replay / re-judging.
+   *
+   * **Coordinate space depends on the path that produced the result:**
+   *
+   * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): hanzi-writer
+   *   internal coords (Y-up, `[0, HANZI_COORD_SIZE]`). The capture
+   *   pipeline projects the user's client-space pointer events into
+   *   this space before storing them. Replay via `Char.judge` should
+   *   omit `opts.sourceBox`.
+   * - **Headless `Char.judge`**: exactly the points the caller passed
+   *   in. If the caller used `opts.sourceBox`, those are in the
+   *   caller's source space (Y-down browser convention); without
+   *   `sourceBox`, they are already in hanzi-writer internal coords.
+   *   Re-pass the same `sourceBox` (or none) to replay verbatim.
+   *
+   * Undefined for synthetic show-mode strokes (no user input) and for
+   * placeholder gap entries.
    */
   points?: TimedPoint[];
   /**
