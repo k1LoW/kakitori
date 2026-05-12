@@ -174,7 +174,7 @@ statusBtn.addEventListener("click", () => {
   if (!currentBlock) {
     return;
   }
-  log(`results: ${JSON.stringify(currentBlock.result())}`);
+  log(`result: ${JSON.stringify(currentBlock.result())}`);
 });
 
 useCaseSelect.addEventListener("change", rebuild);
