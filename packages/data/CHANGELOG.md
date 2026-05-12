@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.7.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.1...packages/data/v0.7.2) - 2026-05-12
+### Breaking Changes 🛠
+- feat(core)!: unified CharResult / BlockSnapshot / PageSnapshot by @k1LoW in https://github.com/k1LoW/kakitori/pull/66
+- feat(core)!: enrich CharResult + result() singular + collectCharResults by @k1LoW in https://github.com/k1LoW/kakitori/pull/68
+- feat(core)!: rename StrokeEndingJudgment to StrokeEndingResult by @k1LoW in https://github.com/k1LoW/kakitori/pull/70
+### New Features 🚀
+- feat(core): page primitive with column-flow + multi-surface annotation by @k1LoW in https://github.com/k1LoW/kakitori/pull/63
+- feat(core): cell-level undo across char / block / page by @k1LoW in https://github.com/k1LoW/kakitori/pull/65
+
 ## [v0.7.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.0...packages/data/v0.7.1) - 2026-05-07
 ### Breaking Changes 🛠
 - fix(core)!: keep the grid visible while animate() is running by @k1LoW in https://github.com/k1LoW/kakitori/pull/50
