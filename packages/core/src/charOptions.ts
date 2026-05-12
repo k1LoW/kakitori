@@ -1,4 +1,4 @@
-import type { CharStrokeData, StrokeEndingJudgment } from "./types.js";
+import type { CharStrokeData, StrokeEndingJudgment, TimedPoint } from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
 
 export type CharLogger = (msg: string) => void;
@@ -124,6 +124,24 @@ export interface CharStrokeResult {
   matched: boolean;
   similarity: number;
   strokeEnding?: StrokeEndingJudgment;
+  /**
+   * Raw drawn samples for this stroke (cell-local coords + timestamps).
+   * Suitable as the second argument to {@link Char.judge} for replay
+   * or re-judging. Undefined for synthetic show-mode strokes (which
+   * have no user input) and for placeholder gap entries.
+   */
+  points?: TimedPoint[];
+  /**
+   * Guided write only: how many misses occurred on this stroke before
+   * the matcher accepted it. `0` for first-try success. Undefined on
+   * the headless judge path and on synthetic show-mode strokes.
+   */
+  mistakesOnStroke?: number;
+  /**
+   * Guided write only: hanzi-writer's reverse-stroke detection (the
+   * user drew the stroke in the wrong direction). Undefined elsewhere.
+   */
+  isBackwards?: boolean;
 }
 
 /**
@@ -178,4 +196,22 @@ export interface CharResult {
    * searching.
    */
   candidate?: string;
+  /**
+   * Which cell flavour produced this result when it came through a
+   * Block / Page result tree. Undefined for {@link Char.result} called
+   * standalone (no enclosing cell context).
+   */
+  source?: "guided" | "free" | "annotation";
+  /**
+   * Whether this character was expected to be **written** (real
+   * practice input) or **shown** (display only, no user input). Set
+   * on every result that came through a Block / Page result tree.
+   * Undefined for {@link Char.result} called standalone.
+   *
+   * - `mode === "write"` + `complete === false`: in progress.
+   * - `mode === "write"` + `complete === true`: user finished writing.
+   * - `mode === "show"` + `complete === true`: display-only, no input
+   *   (`perStroke` is always empty).
+   */
+  mode?: "write" | "show";
 }

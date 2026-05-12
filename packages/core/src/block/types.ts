@@ -73,29 +73,37 @@ export interface BlockSpec {
 }
 
 /**
- * Snapshot of a cell's progress. Same shape regardless of cell kind:
+ * Result of a single cell. Same shape regardless of cell kind:
  * - guided cells produce exactly one `CharResult` (the cell's character);
  * - free cells produce one per character in the matched candidate;
  * - blank cells produce zero (visual-only chrome).
  */
-export interface BlockCellSnapshot {
+export interface BlockCellResult {
   kind: "guided" | "free" | "blank";
   chars: CharResult[];
 }
 
-/** Snapshot of a furigana annotation's progress. One `CharResult` per character in the candidate. */
-export interface BlockAnnotationSnapshot {
+/** Result of a furigana annotation. One `CharResult` per character in the candidate. */
+export interface BlockAnnotationResult {
   chars: CharResult[];
 }
 
 /**
- * Snapshot of a block's full progress. Returned by {@link Block.results}
- * at any time and also passed verbatim to `onBlockComplete` (where
- * `complete` is always `true`). Pair `complete` with `matched` to
- * distinguish "still in progress" / "done and correct" / "done with
- * failures".
+ * Result of a block — a composite of every cell + annotation it owns.
+ * Returned by {@link Block.result} at any time and also passed verbatim
+ * to `onBlockComplete` (where `complete` is always `true`). Pair
+ * `complete` with `matched` to distinguish "still in progress" / "done
+ * and correct" / "done with failures".
  */
-export interface BlockSnapshot {
+export interface BlockResult {
+  /**
+   * Identifier echoed from the wrapping `PageBlockEntry.id` when the
+   * block was placed via {@link page.create}. Standalone
+   * {@link block.create} returns a BlockResult with `id` undefined.
+   * Use this for stable correlation across `PageResult.blocks` /
+   * `onBlockComplete` callbacks instead of relying on array index.
+   */
+  id?: string;
   /** Every cell + annotation has reported a complete `CharResult`. */
   complete: boolean;
   /**
@@ -106,8 +114,8 @@ export interface BlockSnapshot {
    * first character settles.
    */
   matched: boolean;
-  cells: BlockCellSnapshot[];
-  annotations: BlockAnnotationSnapshot[];
+  cells: BlockCellResult[];
+  annotations: BlockAnnotationResult[];
 }
 
 /** Loaders shared across all child Char instances inside a Block. */
