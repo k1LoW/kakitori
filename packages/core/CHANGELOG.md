@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.12.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.11.0...packages/core/v0.12.0) - 2026-05-12
+### Breaking Changes 🛠
+- feat(core)!: enrich CharResult + result() singular + collectCharResults by @k1LoW in https://github.com/k1LoW/kakitori/pull/68
+
 ## [v0.11.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.10.0...packages/core/v0.11.0) - 2026-05-08
 ### Breaking Changes 🛠
 - feat!: unified TimedPoint API + mount/judge convergence debug page by @k1LoW in https://github.com/k1LoW/kakitori/pull/57
