@@ -327,9 +327,22 @@
         background: #f0f0f0;
         border-color: #999;
       }
-      @media (max-width: 800px) {
-        .hero-title { font-size: 2.5rem; }
-        #hero-a-wrap { margin-top: 0; }
+      @media (max-width: 960px) {
+        /* Below ~960px the 永 hero panel (480px tall) overflows the body.
+           Drop it on narrow viewports; keep kakitori + 書き取り which carry
+           the brand. Reset the row geometry that existed to make room for 永. */
+        #hero-a-wrap { display: none; }
+        .hero-row {
+          align-items: flex-start;
+          min-height: auto;
+        }
+        .hero-title {
+          font-size: 2.5rem;
+          /* center kakitori vertically with the first cell (書, 88 tall).
+             font-size: 2.5rem ≈ 40px line, offset (88-40)/2 = 24. */
+          margin-top: 24px;
+        }
+        #hero-block { transform: none; }
       }
 
       footer.site-footer {
