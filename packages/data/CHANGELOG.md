@@ -1,5 +1,7 @@
 # Changelog
 
+## [v0.7.3](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.2...packages/data/v0.7.3) - 2026-05-12
+
 ## [v0.7.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.1...packages/data/v0.7.2) - 2026-05-12
 ### Breaking Changes 🛠
 - feat(core)!: unified CharResult / BlockSnapshot / PageSnapshot by @k1LoW in https://github.com/k1LoW/kakitori/pull/66
