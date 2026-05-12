@@ -24,6 +24,12 @@ const cachedCharDataLoader: CharDataLoaderFn = (ch, onLoad, onError) => {
 };
 
 export function setupHero(root: HTMLElement): void {
+  const isOgp =
+    new URLSearchParams(window.location.search).get("ogp") !== null;
+  if (isOgp) {
+    document.body.classList.add("ogp");
+  }
+
   const blockTarget = root.querySelector<HTMLElement>("#hero-block")!;
   const heroBlock: Block = block.create(blockTarget, {
     spec: {

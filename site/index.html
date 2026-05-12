@@ -4,6 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kakitori — Kanji writing practice library</title>
+    <meta name="description" content="A TypeScript library for kanji handwriting practice. Wraps hanzi-writer with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://k1low.github.io/kakitori/" />
+    <meta property="og:title" content="kakitori — Kanji writing practice library" />
+    <meta property="og:description" content="A TypeScript library for kanji handwriting practice. Wraps hanzi-writer with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta property="og:image" content="https://k1low.github.io/kakitori/ogp.png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="640" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="kakitori — Kanji writing practice library" />
+    <meta name="twitter:description" content="A TypeScript library for kanji handwriting practice. Wraps hanzi-writer with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta name="twitter:image" content="https://k1low.github.io/kakitori/ogp.png" />
+    <meta name="twitter:creator" content="@k1LoW" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -11,7 +24,7 @@
         padding: 2rem;
         max-width: 1100px;
         margin: 0 auto;
-        background: #fafafa;
+        background: #faf7ed;
         color: #222;
         line-height: 1.5;
       }
@@ -328,6 +341,45 @@
         border-top: 1px solid #ddd;
         font-size: 0.85rem;
         color: #777;
+      }
+
+      /* OGP capture mode — activated when the page is loaded with ?ogp=1.
+         Crops the viewport to just the hero row for a 1280x640 screenshot. */
+      body.ogp {
+        padding: 0;
+        margin: 0;
+        max-width: none;
+        width: 1280px;
+        height: 640px;
+        overflow: hidden;
+        background: #faf7ed;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      body.ogp > *:not(#hero-section) { display: none; }
+      body.ogp #hero-section {
+        margin: 0;
+        padding: 0;
+        border: none;
+      }
+      body.ogp .hero-text { display: none; }
+      body.ogp #hero-replay { display: none; }
+      body.ogp .hero-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0;
+        width: 1280px;
+        min-height: 640px;
+        padding: 0;
+        gap: 1.25rem;
+        background: #faf7ed;
+      }
+      body.ogp #hero-a-wrap {
+        /* extra space between 書き取り and 永; baseline gap (1.25rem)
+           is too tight here while still matching the kakitori → 書 gap. */
+        margin-left: 8rem;
       }
     </style>
   </head>
