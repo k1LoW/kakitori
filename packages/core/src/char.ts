@@ -12,7 +12,7 @@ import type {
 import type {
   CharStrokeData,
   StrokeEnding,
-  StrokeEndingJudgment,
+  StrokeEndingResult,
   TimedPoint,
 } from "./types.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
@@ -299,7 +299,7 @@ interface MountState {
   hwSvg: SVGSVGElement | null;
   gridSvg: SVGSVGElement | null;
   activeOverlay: SVGSVGElement | null;
-  pendingEndingJudgment: StrokeEndingJudgment | null;
+  pendingEndingJudgment: StrokeEndingResult | null;
   quizActive: boolean;
   /**
    * True after start() has armed a write quiz on this mount. Stays true
@@ -576,7 +576,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     _quiz: HanziQuiz,
     dataStrokeNum: number,
     _meta: QuizStrokeMeta,
-  ): StrokeEndingJudgment | null {
+  ): StrokeEndingResult | null {
     return computeEndingJudgment({
       dataStrokeNum,
       points: getCapturedPoints(m),
@@ -1208,7 +1208,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // the current logical stroke. Timestamps come from `points` (final
     // sample's `t` is the release moment). Lazily fetch character data for
     // the direction auto-derivation if it has not been loaded yet.
-    let strokeEnding: StrokeEndingJudgment | undefined;
+    let strokeEnding: StrokeEndingResult | undefined;
     if (strokeEndings) {
       if (!characterData) {
         characterData = (await j.hw.getCharacterData()) as unknown as HanziCharacterData;

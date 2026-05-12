@@ -1,6 +1,6 @@
 import type {
   StrokeEnding,
-  StrokeEndingJudgment,
+  StrokeEndingResult,
   StrokeEndingType,
   TimedPoint,
 } from "./types.js";
@@ -109,7 +109,7 @@ export function judge(
   points: ReadonlyArray<TimedPoint>,
   expected: StrokeEnding,
   options: JudgeOptions,
-): StrokeEndingJudgment {
+): StrokeEndingResult {
   const { drawableSize, strictness = 0.7 } = options;
   if (!Number.isFinite(drawableSize)) {
     throw new Error(`judge(): drawableSize must be finite, got ${drawableSize}`);

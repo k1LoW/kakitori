@@ -1,6 +1,6 @@
 import type {
   StrokeEnding,
-  StrokeEndingJudgment,
+  StrokeEndingResult,
   TimedPoint,
 } from "./types.js";
 import { judge } from "./StrokeEndingJudge.js";
@@ -64,7 +64,7 @@ export interface EndingJudgmentInput {
  */
 export function computeEndingJudgment(
   input: EndingJudgmentInput,
-): StrokeEndingJudgment | null {
+): StrokeEndingResult | null {
   const {
     dataStrokeNum,
     points,

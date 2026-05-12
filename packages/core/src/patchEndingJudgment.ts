@@ -1,4 +1,4 @@
-import type { StrokeEndingJudgment } from "./types.js";
+import type { StrokeEndingResult } from "./types.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziQuiz, QuizStrokeMeta } from "./hanziWriterInternals.js";
 
@@ -11,14 +11,14 @@ export interface EndingPatchOptions {
     quiz: HanziQuiz,
     dataStrokeNum: number,
     meta: QuizStrokeMeta,
-  ) => StrokeEndingJudgment | null;
+  ) => StrokeEndingResult | null;
   /**
    * Fired when judgment is non-null and `correct=false`. Caller can fire
    * `onStrokeEndingMistake`, increment counters, etc. The patch itself
    * stays free of caller-specific concerns.
    */
   onMistake?: (
-    judgment: StrokeEndingJudgment,
+    judgment: StrokeEndingResult,
     ctx: {
       quiz: HanziQuiz;
       dataStrokeNum: number;
@@ -32,7 +32,7 @@ export interface EndingPatchOptions {
    * stroke through). Caller can stash the judgment for `onCorrectStroke` to
    * pick up.
    */
-  onResolved?: (judgment: StrokeEndingJudgment | null) => void;
+  onResolved?: (judgment: StrokeEndingResult | null) => void;
   /**
    * When true, a failing judgment routes the stroke to `_handleFailure`
    * instead of `_handleSuccess`, forcing the user to redraw it.

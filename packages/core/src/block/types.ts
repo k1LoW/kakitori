@@ -79,12 +79,23 @@ export interface BlockSpec {
  * - blank cells produce zero (visual-only chrome).
  */
 export interface BlockCellResult {
+  /** Mirrors the cell's spec kind. Determines the shape of `chars`. */
   kind: "guided" | "free" | "blank";
+  /**
+   * Per-character results. Length depends on `kind`: guided=1,
+   * free=expected length (one entry per character in the matched
+   * candidate), blank=0.
+   */
   chars: CharResult[];
 }
 
 /** Result of a furigana annotation. One `CharResult` per character in the candidate. */
 export interface BlockAnnotationResult {
+  /**
+   * Per-character results in the annotation. Length equals the
+   * expected text length; entries the matcher hasn't locked in yet
+   * stay `complete: false` placeholders.
+   */
   chars: CharResult[];
 }
 
@@ -114,7 +125,9 @@ export interface BlockResult {
    * first character settles.
    */
   matched: boolean;
+  /** Per-cell results in `BlockSpec.cells` order. */
   cells: BlockCellResult[];
+  /** Per-annotation results in `BlockSpec.annotations` order. */
   annotations: BlockAnnotationResult[];
 }
 

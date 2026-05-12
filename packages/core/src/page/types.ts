@@ -154,5 +154,9 @@ export interface PageResult {
    * first character settles anywhere on the page.
    */
   matched: boolean;
+  /**
+   * Per-block results in `PageCreateOptions.blocks` order. Each entry's
+   * `id` echoes the corresponding `PageBlockEntry.id`.
+   */
   blocks: BlockResult[];
 }

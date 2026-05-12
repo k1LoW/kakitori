@@ -497,7 +497,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
 interface CharStrokeResult {
   matched: boolean;
   similarity: number;
-  strokeEnding?: StrokeEndingJudgment;
+  strokeEnding?: StrokeEndingResult;
   points?: TimedPoint[];      // raw drawn samples with timestamps
   mistakesOnStroke?: number;  // guided write only
   isBackwards?: boolean;      // guided write only
