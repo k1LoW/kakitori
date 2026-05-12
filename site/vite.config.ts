@@ -25,8 +25,6 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "index.html"),
         debug: resolve(__dirname, "debug.html"),
-        block: resolve(__dirname, "block.html"),
-        page: resolve(__dirname, "page.html"),
       },
     },
   },

@@ -1,5 +1,5 @@
 {
-  "name": "kakitori-demo",
+  "name": "kakitori-site",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -12,7 +12,8 @@
   "dependencies": {
     "@k1low/kakitori": "workspace:^",
     "@k1low/kakitori-data": "workspace:^",
-    "hanzi-writer": "3.7.3"
+    "hanzi-writer": "3.7.3",
+    "shiki": "4.0.2"
   },
   "devDependencies": {
     "typescript": "5.8.3",

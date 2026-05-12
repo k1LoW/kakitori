@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>kakitori — Kanji writing practice library</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        padding: 2rem;
+        max-width: 1100px;
+        margin: 0 auto;
+        background: #fafafa;
+        color: #222;
+        line-height: 1.5;
+      }
+      a { color: #0366d6; }
+      h1, h2, h3 { line-height: 1.25; }
+      h1 { font-size: 2.2rem; margin-bottom: 0.25rem; }
+      h2 {
+        font-size: 3rem;
+        margin-top: 3rem;
+        margin-bottom: 0.5rem;
+        padding-bottom: 0.25rem;
+        border-bottom: 2px solid #ddd;
+      }
+      h3 {
+        font-size: 1.15rem;
+        margin-top: 2rem;
+        margin-bottom: 0.5rem;
+      }
+      p { margin-bottom: 0.75rem; }
+      code {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: #f0f0f0;
+        padding: 1px 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+      }
+      pre {
+        margin: 0.75rem 0 1rem;
+        padding: 0.85rem 1rem;
+        border-radius: 6px;
+        overflow-x: auto;
+        font-size: 0.85rem;
+        line-height: 1.45;
+        background: #24292e;
+        color: #e1e4e8;
+        border: 1px solid #1b1f23;
+      }
+      pre code {
+        background: transparent;
+        padding: 0;
+        border-radius: 0;
+        font-size: inherit;
+        color: inherit;
+      }
+
+      header.site-header {
+        display: flex;
+        justify-content: flex-end;
+        margin-bottom: 1.5rem;
+      }
+      header.site-header .github-link {
+        display: inline-flex;
+        color: #222;
+        line-height: 0;
+      }
+      header.site-header .github-link:hover { color: #555; }
+      header.site-header .github-link svg { display: block; }
+
+      .lede { color: #555; font-size: 1.05rem; margin-bottom: 1rem; }
+
+      button {
+        padding: 6px 14px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+      button:hover { background: #f0f0f0; }
+      select {
+        padding: 6px;
+        font-size: 0.9rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        background: #fff;
+      }
+
+      /* char section */
+      #char-practice {
+        margin-bottom: 1rem;
+        padding: 1rem;
+        background: #fff;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+      #char-practice .controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+      }
+      #char-practice-char {
+        font-size: 1.5rem;
+        margin-right: 0.5rem;
+      }
+      #char-practice-body {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      #char-writer-col { flex-shrink: 0; }
+      #char-writer {
+        border: 1px solid #ddd;
+        background: #fff;
+        border-radius: 4px;
+      }
+      #char-result {
+        margin-top: 0.5rem;
+        font-size: 0.85rem;
+        width: 300px;
+      }
+      #char-stroke-slots {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        margin-bottom: 4px;
+      }
+      .stroke-slot {
+        padding: 2px 6px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.8rem;
+        color: #999;
+      }
+      .stroke-slot.ok {
+        border-color: #4a4;
+        color: #4a4;
+        background: #effe8f;
+      }
+      .stroke-slot.ng {
+        border-color: #c44;
+        color: #c44;
+        background: #fee;
+      }
+      #char-summary {
+        font-size: 0.8rem;
+        color: #666;
+        min-height: 1.2em;
+      }
+      #char-log {
+        height: 300px;
+        overflow-y: auto;
+        flex: 1;
+        min-width: 240px;
+        font-size: 11px;
+        border: 1px solid #ddd;
+        background: #fff;
+        border-radius: 4px;
+        padding: 8px;
+        text-align: left;
+        font-family: monospace;
+        white-space: pre-wrap;
+      }
+      .section-header {
+        cursor: pointer;
+        user-select: none;
+        padding: 0.5rem 0;
+        font-size: 1rem;
+        font-weight: bold;
+        border-bottom: 1px solid #ccc;
+        margin-top: 0.5rem;
+      }
+      .section-header::before { content: "▶ "; font-size: 0.8em; }
+      .section-header.open::before { content: "▼ "; font-size: 0.8em; }
+      .char-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+        padding: 0.5rem 0;
+      }
+      .char-cell {
+        width: 60px;
+        height: 60px;
+      }
+      .char-cell svg { display: block; }
+      .char-cell:hover { background: #eef; }
+
+      /* block / page sections */
+      .demo-controls {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .demo-controls label { font-size: 0.85rem; color: #555; }
+      .demo-stage {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      #block-host,
+      #page-host {
+        flex-shrink: 0;
+        background: #fff;
+        padding: 1rem;
+        border-radius: 6px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+      }
+      #block-log,
+      #page-log {
+        flex: 1;
+        min-width: 240px;
+        overflow-y: auto;
+        font-size: 11px;
+        font-family: monospace;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 8px;
+      }
+      #block-log { height: 360px; }
+      #page-log { height: 600px; }
+      #block-log .ok, #page-log .ok { color: #0a7d2c; }
+      #block-log .ng, #page-log .ng { color: #c4321a; }
+      #block-status,
+      #page-status {
+        font-size: 0.85rem;
+        color: #555;
+        margin-top: 0.5rem;
+      }
+
+      /* Hero */
+      .hero {
+        padding: 2rem 0 3rem;
+        border-bottom: 1px solid #eee;
+        margin-bottom: 2rem;
+      }
+      .hero-row {
+        display: grid;
+        grid-template-columns: auto auto 1fr;
+        column-gap: 1.25rem;
+        align-items: center;
+        min-height: 628px;
+        margin-bottom: 2rem;
+      }
+      .hero-title {
+        font-size: 5rem;
+        letter-spacing: -0.02em;
+        line-height: 1;
+        margin: 0;
+      }
+      #hero-block {
+        /* Shift block down so its first cell (書) center sits on the row's
+           vertical center (= kakitori center = あ center). Block centered
+           originally; we offset by (blockHeight - cellHeight) / 2 = (358-88)/2 = 135. */
+        transform: translateY(135px);
+      }
+      #hero-a-wrap {
+        position: relative;
+        justify-self: end;
+      }
+      #hero-a {
+        background: transparent;
+        border: 1px solid #ddd;
+      }
+      #hero-replay {
+        position: absolute;
+        bottom: 8px;
+        right: 8px;
+        font-size: 0.8rem;
+        padding: 4px 10px;
+      }
+      .hero-text { max-width: 60ch; }
+      .hero-text .lede { font-size: 1.05rem; }
+      .hero-text pre { max-width: 36ch; margin-top: 1rem; }
+      .hero-text .hero-links {
+        margin-top: 1.25rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+      .hero-text .hero-links a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.65rem 1.25rem;
+        font-size: 0.95rem;
+        font-weight: 500;
+        border-radius: 999px;
+        text-decoration: none;
+        transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+      }
+      .hero-text .hero-links a.btn-primary {
+        background: #222;
+        color: #fff;
+        border: 1px solid #222;
+      }
+      .hero-text .hero-links a.btn-primary:hover {
+        background: #000;
+        border-color: #000;
+      }
+      .hero-text .hero-links a.btn-secondary {
+        background: transparent;
+        color: #222;
+        border: 1px solid #ccc;
+      }
+      .hero-text .hero-links a.btn-secondary:hover {
+        background: #f0f0f0;
+        border-color: #999;
+      }
+      @media (max-width: 800px) {
+        .hero-title { font-size: 2.5rem; }
+        #hero-a-wrap { margin-top: 0; }
+      }
+
+      footer.site-footer {
+        margin-top: 4rem;
+        padding-top: 1.5rem;
+        border-top: 1px solid #ddd;
+        font-size: 0.85rem;
+        color: #777;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="site-header">
+      <a class="github-link" href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer" aria-label="GitHub repository">
+        <svg viewBox="0 0 16 16" width="32" height="32" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+      </a>
+    </header>
+
+    <section id="hero-section" class="hero">
+      <div class="hero-row">
+        <h1 class="hero-title">kakitori</h1>
+        <div id="hero-block"></div>
+        <div id="hero-a-wrap">
+          <div id="hero-a"></div>
+          <button id="hero-replay" type="button">▶ replay</button>
+        </div>
+      </div>
+      <div class="hero-text">
+        <p class="lede">
+          A TypeScript library for kanji handwriting practice. Wraps
+          <a href="https://github.com/chanind/hanzi-writer" target="_blank" rel="noopener noreferrer">hanzi-writer</a>
+          with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
+        </p>
+        <pre data-lang="bash">npm install @k1low/kakitori</pre>
+        <div class="hero-links">
+          <a class="btn-primary" href="#char">Get started ↓</a>
+          <a class="btn-secondary" href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">GitHub →</a>
+        </div>
+      </div>
+    </section>
+
+    <p>
+      kakitori is built around three primitives: <code>char</code> for one character,
+      <code>block</code> for one practice problem (cells + furigana), and
+      <code>page</code> for a full vertical-rl practice sheet of many blocks.
+    </p>
+
+    <!-- ============================================================ -->
+    <!-- char                                                          -->
+    <!-- ============================================================ -->
+    <section id="char-section">
+      <h2 id="char">char</h2>
+      <p>
+        <code>char</code> handles a single character. You can render it as a static SVG,
+        mount an interactive writer that judges each stroke, or judge strokes headlessly without a DOM.
+      </p>
+
+      <pre data-lang="ts">import { char } from "@k1low/kakitori";
+
+// Mount an interactive writer that judges each stroke.
+const target = document.getElementById("writer")!;
+const c = char.create("学");
+c.mount(target, {
+  size: 300,
+  showGrid: true,
+  onCorrectStroke: (data) =&gt; console.log("OK", data.strokeNum),
+  onMistake: (data) =&gt; console.log("NG", data.strokeNum),
+  onComplete: ({ totalMistakes }) =&gt; console.log("done", totalMistakes),
+});
+c.start();
+
+// Static SVG render with no interaction.
+char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
+
+      <p>
+        Live example. Pick any character from the gallery below to start a practice session.
+        The slot row shows the expected stroke ending (tome / hane / harai) for each stroke,
+        and is updated to OK / NG after each stroke is judged.
+      </p>
+
+      <div id="char-practice">
+        <div class="controls">
+          <span id="char-practice-char"></span>
+          <button id="char-quiz-btn">Start kakitori</button>
+          <button id="char-animate-btn">Animate</button>
+          <button id="char-highlight-btn">Next stroke</button>
+          <button id="char-reset-btn">Reset</button>
+        </div>
+        <div id="char-practice-body">
+          <div id="char-writer-col">
+            <div id="char-writer"></div>
+            <div id="char-result">
+              <div id="char-stroke-slots"></div>
+              <div id="char-summary"></div>
+            </div>
+          </div>
+          <pre id="char-log"></pre>
+        </div>
+      </div>
+
+      <div id="char-gallery"></div>
+
+      <h3>CharResult</h3>
+      <p>
+        <code>c.result()</code> returns a <code>CharResult</code>. This is the leaf type used
+        across the whole stack. The same shape comes back from headless <code>Char.judge()</code>
+        and from the mounted interactive path.
+      </p>
+      <pre data-lang="ts">interface CharResult {
+  character: string;
+  complete: boolean;   // every logical stroke has been observed
+  matched: boolean;    // every observed stroke matched
+  perStroke: CharStrokeResult[];
+  mistakes?: number;             // guided-only
+  strokeEndingMistakes?: number; // guided-only
+  similarity?: number;           // free / annotation only
+  candidate?: string;            // free / annotation only
+  // The two fields below are populated when a CharResult comes through
+  // a Block / Page result tree (undefined for standalone char.result()).
+  source?: "guided" | "free" | "annotation";
+  mode?: "write" | "show";
+}
+
+interface CharStrokeResult {
+  matched: boolean;
+  similarity: number;
+  strokeEnding?: StrokeEndingJudgment;
+  points?: TimedPoint[];      // raw drawn samples with timestamps
+  mistakesOnStroke?: number;  // guided write only
+  isBackwards?: boolean;      // guided write only
+}</pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- block                                                         -->
+    <!-- ============================================================ -->
+    <section id="block-section">
+      <h2 id="block">block</h2>
+      <p>
+        <code>block</code> represents one practice problem: a row of cells plus an optional furigana annotation strip.
+        Cells can be <em>guided</em> (one specific character to write or show), <em>free</em> (any of an
+        expected string, matched freehand), or <em>blank</em> (visual placeholder).
+      </p>
+
+      <pre data-lang="ts">import { block } from "@k1low/kakitori/block";
+
+const target = document.getElementById("block-host")!;
+const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "学", mode: "write" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+    annotations: [
+      { cellRange: [0, 1], expected: "がっこう", mode: "write" },
+    ],
+  },
+  cellSize: 140,
+  onCellComplete: (index, kind, chars) =&gt; { /* per cell finished */ },
+  onBlockComplete: (result) =&gt; { /* this problem finished */ },
+});
+
+// Get the structured result tree at any time.
+const result = b.result();</pre>
+
+      <p>
+        Live example. The selector switches between use cases that mix guided / free cells with and without furigana.
+      </p>
+
+      <div class="demo-controls">
+        <label for="block-usecase">Use case:</label>
+        <select id="block-usecase">
+          <option value="1">1: 学校 (guided + guided, write)</option>
+          <option value="2">2: [_]校 (write 学 / show 校)</option>
+          <option value="3">3: がっこう (free, write)</option>
+          <option value="4">4: がっ + 校 (free write + guided show)</option>
+          <option value="5" selected>5: 学校 + ふりがな がっこう (guided + furigana)</option>
+          <option value="6">6: [_]校 + ふりがな がっこう</option>
+          <option value="7">7: 学校 (both show) + ふりがな のみ書く</option>
+          <option value="8">8: 学校 (write, お手本 outline 非表示)</option>
+        </select>
+        <button id="block-reset">Reset</button>
+        <button id="block-undo">Undo</button>
+        <button id="block-status-btn">Status</button>
+      </div>
+      <div class="demo-stage">
+        <div id="block-host"></div>
+        <pre id="block-log"></pre>
+      </div>
+      <div id="block-status"></div>
+
+      <h3>BlockResult</h3>
+      <p>
+        <code>b.result()</code> returns a <code>BlockResult</code>. Each cell exposes its
+        <code>CharResult[]</code> (one entry per expected character); each annotation does the same.
+        <code>mode: "show"</code> entries are display-only and always come back <code>complete: true</code>
+        with an empty <code>perStroke</code>.
+      </p>
+      <pre data-lang="ts">interface BlockResult {
+  id?: string;        // echoed from PageBlockEntry.id when generated by Page
+  complete: boolean;  // all writable chars completed
+  matched: boolean;   // no observed failures
+  cells: BlockCellResult[];
+  annotations: BlockAnnotationResult[];
+}
+
+interface BlockCellResult {
+  kind: "guided" | "free" | "blank";
+  chars: CharResult[]; // guided=1, free=expected length, blank=0
+}
+
+interface BlockAnnotationResult {
+  chars: CharResult[]; // one entry per expected character
+}</pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- page                                                          -->
+    <!-- ============================================================ -->
+    <section id="page-section">
+      <h2 id="page">page</h2>
+      <p>
+        <code>page</code> lays out multiple blocks on a vertical-rl grid (Japanese practice-sheet style).
+        Blocks flow column-by-column. A block that crosses a column boundary is split per-cell automatically,
+        even when it carries a furigana annotation, and strokes drawn across split surfaces are judged
+        from a shared buffer.
+      </p>
+
+      <pre data-lang="ts">import { page } from "@k1low/kakitori/page";
+
+const target = document.getElementById("page-host")!;
+const p = page.create(target, {
+  writingMode: "vertical-rl",
+  columns: 5,
+  cellsPerColumn: 8,
+  cellSize: 96,
+  blocks: [
+    {
+      id: "q1",
+      spec: {
+        cells: [
+          { kind: "guided", char: "学", mode: "write" },
+          { kind: "guided", char: "校", mode: "write" },
+        ],
+        annotations: [
+          { cellRange: [0, 1], expected: "がっこう", mode: "show" },
+        ],
+      },
+    },
+    { id: "q2", spec: { cells: [{ kind: "guided", char: "山", mode: "write" }] } },
+    // ...
+  ],
+  onBlockComplete: (blockIndex, result) =&gt; { /* one problem done */ },
+  onPageComplete: (result) =&gt; { /* whole sheet done */ },
+});</pre>
+
+      <p>
+        Live example. Notice block <code>q9</code> (図書館 + としょかん) crossing a column boundary,
+        and block <code>q10</code> rendering as a 5-cell visual blank.
+      </p>
+
+      <div class="demo-controls">
+        <button id="page-reset">Reset</button>
+        <button id="page-undo">Undo</button>
+        <button id="page-status-btn">Status</button>
+      </div>
+      <div class="demo-stage">
+        <div id="page-host"></div>
+        <pre id="page-log"></pre>
+      </div>
+      <div id="page-status"></div>
+
+      <h3>PageResult</h3>
+      <p>
+        <code>p.result()</code> returns a <code>PageResult</code>. Each block carries a
+        <code>BlockResult</code> directly, with the original <code>id</code> echoed back so a caller
+        can correlate results against the input blocks.
+      </p>
+      <pre data-lang="ts">interface PageResult {
+  complete: boolean;
+  matched: boolean;
+  blocks: BlockResult[]; // each entry mirrors the order of opts.blocks
+}
+
+// Flatten + filter all CharResult leaves across a result tree.
+import { collectCharResults } from "@k1low/kakitori";
+
+const scored = collectCharResults(p.result(), {
+  sources: ["guided"],
+  modes: ["write"],
+  completedOnly: true,
+});</pre>
+    </section>
+
+    <footer class="site-footer">
+      <p>
+        MIT licensed. Source at
+        <a href="https://github.com/k1LoW/kakitori" target="_blank" rel="noopener noreferrer">github.com/k1LoW/kakitori</a>.
+      </p>
+    </footer>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

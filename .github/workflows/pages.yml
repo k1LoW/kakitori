@@ -1,10 +1,10 @@
-name: Deploy demo to GitHub Pages
+name: Deploy site to GitHub Pages
 
 on:
   push:
     branches: [main]
     paths:
-      - demo/**
+      - site/**
       - packages/core/src/**
       - packages/data/src/**
   workflow_dispatch:
@@ -36,13 +36,13 @@ jobs:
 
       - run: pnpm install
 
-      - run: pnpm --filter kakitori-demo build
+      - run: pnpm --filter kakitori-site build
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: demo/dist
+          path: site/dist
 
       - id: deployment
         uses: actions/deploy-pages@v4
