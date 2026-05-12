@@ -41,7 +41,7 @@ export interface StrokeEnding {
 }
 
 /** Result of stroke ending judgment for a completed stroke. */
-export interface StrokeEndingJudgment {
+export interface StrokeEndingResult {
   /** True if the detected ending type is in the expected list. */
   correct: boolean;
   /** Configured expected ending types from `StrokeEnding.types`. */
@@ -106,6 +106,6 @@ export interface CharStrokeData {
    * data-stroke count rather than a logical count.
    */
   strokesRemaining: number;
-  /** Stroke ending judgment. Present only when ending types are configured for this stroke. */
-  strokeEnding?: StrokeEndingJudgment;
+  /** Stroke ending result. Present only when ending types are configured for this stroke. */
+  strokeEnding?: StrokeEndingResult;
 }

@@ -36,7 +36,7 @@ export {
 export type {
   StrokeEndingType,
   StrokeEnding,
-  StrokeEndingJudgment,
+  StrokeEndingResult,
   CharStrokeData,
   TimedPoint,
 } from "./types.js";

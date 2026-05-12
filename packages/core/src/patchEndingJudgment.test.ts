@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
-import type { StrokeEndingJudgment } from "./types.js";
+import type { StrokeEndingResult } from "./types.js";
 import type { HanziQuiz, QuizStrokeMeta } from "./hanziWriterInternals.js";
 
-function failingJudgment(): StrokeEndingJudgment {
+function failingJudgment(): StrokeEndingResult {
   return {
     correct: false,
     expected: ["harai"],
@@ -13,7 +13,7 @@ function failingJudgment(): StrokeEndingJudgment {
   };
 }
 
-function passingJudgment(): StrokeEndingJudgment {
+function passingJudgment(): StrokeEndingResult {
   return {
     correct: true,
     expected: ["tome"],

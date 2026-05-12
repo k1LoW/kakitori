@@ -1,4 +1,4 @@
-import type { CharStrokeData, StrokeEndingJudgment, TimedPoint } from "./types.js";
+import type { CharStrokeData, StrokeEndingResult, TimedPoint } from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
 
 export type CharLogger = (msg: string) => void;
@@ -121,9 +121,25 @@ export interface CharJudgeStrokeOptions {
  * ({@link Char.start}) paths — a stroke result is a stroke result.
  */
 export interface CharStrokeResult {
+  /**
+   * Whether this stroke was accepted by the matcher. Placeholder
+   * entries (filling gaps from out-of-order judge calls) come back
+   * `false`.
+   */
   matched: boolean;
+  /**
+   * Match score in `[0, 1]`, derived from hanzi-writer's per-stroke
+   * average distance against the reference path. `0` for placeholder
+   * gap entries.
+   */
   similarity: number;
-  strokeEnding?: StrokeEndingJudgment;
+  /**
+   * Tome / hane / harai judgment for this stroke. Present only when an
+   * ending was actually evaluated — i.e. on guided write strokes that
+   * had an expected ending registered, or on headless `Char.judge`
+   * calls that requested ending evaluation. Undefined otherwise.
+   */
+  strokeEnding?: StrokeEndingResult;
   /**
    * Raw drawn samples for this stroke, with timestamps. Suitable as
    * the second argument to {@link Char.judge} for replay / re-judging.
