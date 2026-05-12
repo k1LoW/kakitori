@@ -26,8 +26,8 @@ Features:
 
 | Package | Description |
 |---------|-------------|
-| [@k1low/kakitori](./packages/core) | Core library (Hanzi Writer wrapper + stroke ending judge) |
-| [@k1low/kakitori-data](./packages/data) | Stroke ending data and CLI tools |
+| [@k1low/kakitori](./packages/core) | Core library: char / block / page primitives + per-stroke tome / hane / harai judgment |
+| [@k1low/kakitori-data](./packages/data) | Stroke ending (tome / hane / harai) + stroke grouping data, plus CLI tools |
 
 ## Usage
 

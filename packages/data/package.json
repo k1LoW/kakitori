@@ -1,7 +1,7 @@
 {
   "name": "@k1low/kakitori-data",
   "version": "0.7.1",
-  "description": "Stroke ending data (tome/hane/harai) for kakitori",
+  "description": "Stroke ending (tome / hane / harai) and stroke grouping data, plus CLI tools, for @k1low/kakitori",
   "license": "MIT",
   "repository": {
     "type": "git",

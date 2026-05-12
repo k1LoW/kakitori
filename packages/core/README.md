@@ -1,8 +1,14 @@
 # @k1low/kakitori
 
-A kanji writing practice library with stroke ending judgment (tome/hane/harai).
+A TypeScript library for kanji handwriting practice. Wraps [Hanzi Writer](https://github.com/chanind/hanzi-writer) with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
 
-Wraps [Hanzi Writer](https://github.com/chanind/hanzi-writer) and adds stroke ending detection using pointer timing analysis.
+Built around three primitives:
+
+- **`char`** — one character. Render statically, mount an interactive writer that judges each stroke, or judge strokes headlessly without a DOM.
+- **`block`** — one practice problem: a row of cells plus an optional furigana annotation strip. Cells can be guided / free / blank.
+- **`page`** — a vertical-rl grid of multiple blocks (Japanese practice-sheet style).
+
+See [github.com/k1LoW/kakitori](https://github.com/k1LoW/kakitori) for the full overview and live examples.
 
 ## Install
 
@@ -12,30 +18,23 @@ npm install @k1low/kakitori hanzi-writer
 
 ## Usage
 
-```javascript
-import { char, defaultCharDataLoader } from "@k1low/kakitori";
+```ts
+import { char } from "@k1low/kakitori";
 
-const c = char.create("#target", "永", {
+// Mount an interactive writer that judges each stroke.
+const target = document.getElementById("writer")!;
+const c = char.create("学");
+c.mount(target, {
   size: 300,
-  charDataLoader: defaultCharDataLoader,
-  onCorrectStroke: (data) => {
-    if (data.strokeEnding) {
-      console.log(data.strokeEnding.correct ? "OK" : "NG");
-    }
-  },
-  onComplete: (data) => {
-    console.log(`Stroke ending mistakes: ${data.strokeEndingMistakes}`);
-  },
+  showGrid: true,
+  onCorrectStroke: (data) => console.log("OK", data.strokeNum),
+  onMistake: (data) => console.log("NG", data.strokeNum),
+  onComplete: ({ totalMistakes }) => console.log("done", totalMistakes),
 });
-
-c.setStrokeEndings([
-  { types: ["tome"] },
-  { types: ["hane"] },
-  { types: ["harai"] },
-]);
-
 c.start();
 ```
+
+`block` / `page` primitives expose the same per-character `CharResult` leaves; flatten across a tree with `collectCharResults()`.
 
 ## License
 

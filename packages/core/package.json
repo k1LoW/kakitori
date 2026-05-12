@@ -1,7 +1,7 @@
 {
   "name": "@k1low/kakitori",
   "version": "0.12.0",
-  "description": "Kanji writing practice library with stroke ending judgment (tome/hane/harai)",
+  "description": "A TypeScript library for kanji handwriting practice: char / block / page primitives with per-stroke tome / hane / harai judgment",
   "license": "MIT",
   "repository": {
     "type": "git",
