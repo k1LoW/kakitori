@@ -11,11 +11,12 @@ import type { CharResult, GridOptions } from "../charOptions.js";
 export interface PageBlockEntry {
   spec: BlockSpec;
   /**
-   * Optional identifier surfaced as `BlockResult.id` so callers can
+   * Optional identifier echoed as `BlockResult.id` so callers can
    * correlate aggregated results with their original input without
-   * indexing into the blocks array. Not passed through
-   * `onCellComplete` / `onBlockComplete`, which only receive
-   * `blockIndex`.
+   * indexing into the blocks array. Reachable from `onBlockComplete`
+   * via `result.id` and from `Page.result().blocks[i].id`; the
+   * `onCellComplete` callback only receives `blockIndex` and does not
+   * surface the id.
    */
   id?: string;
 }
