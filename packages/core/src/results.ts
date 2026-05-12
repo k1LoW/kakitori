@@ -5,9 +5,9 @@ import type { PageResult } from "./page/index.js";
 /** Filter options accepted by {@link collectCharResults}. */
 export interface CollectCharResultsOptions {
   /** Keep only results whose `source` is in this list. Default: all sources. */
-  sources?: ReadonlyArray<"guided" | "free" | "annotation">;
+  sources?: ReadonlyArray<NonNullable<CharResult["source"]>>;
   /** Keep only results whose `mode` is in this list. Default: both. */
-  modes?: ReadonlyArray<"write" | "show">;
+  modes?: ReadonlyArray<NonNullable<CharResult["mode"]>>;
   /** When true, keep only entries with `complete: true`. Default: false. */
   completedOnly?: boolean;
 }

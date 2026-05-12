@@ -89,9 +89,11 @@ export interface FreeCellCreateOptions {
   /**
    * Which `CharResult.source` value the freeCell stamps on every char
    * it produces (`"free"` for normal cells, `"annotation"` for furigana
-   * annotation handles). Defaults to `"free"`.
+   * annotation handles). Defaults to `"free"`. Derived from
+   * `CharResult["source"]` (`"guided"` is excluded — freeCell never
+   * produces guided results) so it stays aligned if the union grows.
    */
-  resultSource?: "free" | "annotation";
+  resultSource?: Exclude<NonNullable<CharResult["source"]>, "guided">;
   /**
    * Fires once a candidate match settles (matched-all, or all candidates
    * exhausted with the user reaching the longest candidate's stroke
