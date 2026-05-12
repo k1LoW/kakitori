@@ -62,15 +62,15 @@ describe("Block.results", () => {
       ],
     });
     await flushMicrotasks();
-    const snap = b.results();
+    const snap = b.result();
     expect(snap.complete).toBe(true);
     expect(snap.matched).toBe(true);
     expect(snap.cells).toHaveLength(2);
     expect(snap.cells[0].chars).toEqual([
-      { character: "あ", complete: true, matched: true, perStroke: [] },
+      { character: "あ", complete: true, matched: true, perStroke: [], source: "free", mode: "show" },
     ]);
     expect(snap.cells[1].chars).toEqual([
-      { character: "い", complete: true, matched: true, perStroke: [] },
+      { character: "い", complete: true, matched: true, perStroke: [], source: "free", mode: "show" },
     ]);
     expect(snap.annotations).toEqual([]);
     b.destroy();
@@ -82,7 +82,7 @@ describe("Block.results", () => {
       cells: [{ kind: "blank", span: 3 }],
     });
     await flushMicrotasks();
-    const snap = b.results();
+    const snap = b.result();
     expect(snap.cells[0]).toEqual({ kind: "blank", chars: [] });
     // Vacuous true on both rollups since nothing has to be matched.
     expect(snap.complete).toBe(true);
@@ -96,7 +96,7 @@ describe("Block.results", () => {
       cells: [{ kind: "free", expected: "あい", mode: "write" }],
     });
     await flushMicrotasks();
-    const snap = b.results();
+    const snap = b.result();
     expect(snap.complete).toBe(false);
     // Vacuous matched=true because no character has settled yet.
     expect(snap.matched).toBe(true);
@@ -109,7 +109,7 @@ describe("Block.results", () => {
     parent.remove();
   });
 
-  it("buildBlockSnapshot rollup ignores in-progress chars when computing matched", async () => {
+  it("buildBlockResult rollup ignores in-progress chars when computing matched", async () => {
     // Mix a settled show cell (matched=true, complete=true) with an
     // in-progress write cell. The block-level matched must stay true
     // because no completed character has failed yet.
@@ -124,7 +124,7 @@ describe("Block.results", () => {
     // surfaces[1] hosts the write-mode cell — draw a stroke that won't
     // commit to a candidate (single horizontal line vs. expected あ).
     strokeAt(surfaces[1] as SVGElement, [[10, 10], [70, 10]], 1);
-    const snap = b.results();
+    const snap = b.result();
     expect(snap.complete).toBe(false);
     expect(snap.matched).toBe(true); // only the show cell is settled
     expect(snap.cells[0].chars[0].complete).toBe(true);

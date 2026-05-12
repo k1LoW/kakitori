@@ -10,10 +10,10 @@ import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
   BlankCell,
-  BlockAnnotationSnapshot,
-  BlockCellSnapshot,
+  BlockAnnotationResult,
+  BlockCellResult,
   BlockLoaders,
-  BlockSnapshot,
+  BlockResult,
   BlockSpec,
   Cell,
   FuriganaAnnotation,
@@ -99,7 +99,7 @@ export interface BlockCreateOptions {
   /**
    * Fired for every cell or annotation that finishes settling — `chars`
    * is the per-character snapshot for that unit (length matches the
-   * corresponding `BlockCellSnapshot.chars` / `BlockAnnotationSnapshot.chars`).
+   * corresponding `BlockCellResult.chars` / `BlockAnnotationResult.chars`).
    */
   onCellComplete?: (
     index: number,
@@ -107,7 +107,7 @@ export interface BlockCreateOptions {
     chars: CharResult[],
   ) => void;
   /** Fired once every cell and annotation has finished settling. */
-  onBlockComplete?: (snapshot: BlockSnapshot) => void;
+  onBlockComplete?: (result: BlockResult) => void;
   /**
    * Fired whenever any cell or annotation in this block receives a stroke
    * (correct or wrong). Lets a wrapping page track which block was most
@@ -134,11 +134,11 @@ export interface Block {
     hasMore: boolean;
   } | null;
   /**
-   * Snapshot of the block's progress at this exact moment — same shape
-   * as the value passed to `onBlockComplete` (where `complete` is always
+   * Composite result of the block at this exact moment — same shape as
+   * the value passed to `onBlockComplete` (where `complete` is always
    * `true`). Pure getter; safe to poll at any time.
    */
-  results(): BlockSnapshot;
+  result(): BlockResult;
   /** Destroy every child Char / freeCell and detach the block. */
   destroy(): void;
 }
@@ -507,6 +507,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           complete: true,
           matched: true,
           perStroke: [],
+          source: "guided",
+          mode: "show",
         },
       ];
       queueMicrotask(() => {
@@ -538,10 +540,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
   function guidedCellChars(state: PerCellState): CharResult[] {
     if (state.syntheticChars) {
+      // synthesizeShowChars / mountGuidedCell show-mode already set
+      // source + mode on each entry.
       return state.syntheticChars;
     }
     if (state.charInstance) {
-      return [state.charInstance.result()];
+      // Char.result() is the standalone shape (source / mode undefined).
+      // Stamp the cell-context source + mode here so consumers iterating
+      // the BlockResult tree don't need to know about the cell's mode.
+      return [{ ...state.charInstance.result(), source: "guided", mode: "write" }];
     }
     return [];
   }
@@ -572,7 +579,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         index,
         cell,
         committed: false,
-        syntheticChars: synthesizeShowChars(cell.expected),
+        syntheticChars: synthesizeShowChars(cell.expected, "free"),
       };
       queueMicrotask(() => {
         if (destroyed) {
@@ -615,12 +622,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     return state;
   }
 
-  function synthesizeShowChars(expected: import("./types.js").Expected): CharResult[] {
+  function synthesizeShowChars(
+    expected: import("./types.js").Expected,
+    source: "guided" | "free" | "annotation",
+  ): CharResult[] {
     return Array.from(firstCandidate(expected)).map<CharResult>((ch) => ({
       character: ch,
       complete: true,
       matched: true,
       perStroke: [],
+      source,
+      mode: "show",
     }));
   }
 
@@ -768,7 +780,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         annotation,
         freeHandle: null,
         committed: false,
-        syntheticChars: synthesizeShowChars(annotation.expected),
+        syntheticChars: synthesizeShowChars(annotation.expected, "annotation"),
       };
       queueMicrotask(() => {
         if (destroyed) {
@@ -787,6 +799,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         expected: annotation.expected,
         surfaces: subStrips.map((s) => ({ parent: s.el, width: s.width, height: s.height })),
         label: `annotation#${index}`,
+        resultSource: "annotation",
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
         ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
@@ -820,7 +833,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     maybeCommitBlock();
   }
 
-  function cellSnapshot(state: PerCellState): BlockCellSnapshot {
+  function cellResult(state: PerCellState): BlockCellResult {
     if (state.cell.kind === "guided") {
       return { kind: "guided", chars: guidedCellChars(state) };
     }
@@ -832,26 +845,26 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     return { kind: "blank", chars: state.syntheticChars ?? [] };
   }
 
-  function annotationSnapshot(
+  function annotationResult(
     state: PerAnnotationState,
-  ): BlockAnnotationSnapshot {
+  ): BlockAnnotationResult {
     const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
     return { chars };
   }
 
-  function buildBlockSnapshot(): BlockSnapshot {
-    const cellsSnap = cellStates.map(cellSnapshot);
-    const annotationsSnap = annotationStates.map(annotationSnapshot);
+  function buildBlockResult(): BlockResult {
+    const cellsOut = cellStates.map(cellResult);
+    const annotationsOut = annotationStates.map(annotationResult);
     const allChars: CharResult[] = [];
-    for (const c of cellsSnap) {
+    for (const c of cellsOut) {
       allChars.push(...c.chars);
     }
-    for (const a of annotationsSnap) {
+    for (const a of annotationsOut) {
       allChars.push(...a.chars);
     }
     const complete = allChars.every((c) => c.complete);
     const matched = allChars.filter((c) => c.complete).every((c) => c.matched);
-    return { complete, matched, cells: cellsSnap, annotations: annotationsSnap };
+    return { complete, matched, cells: cellsOut, annotations: annotationsOut };
   }
 
   let blockCommitted = false;
@@ -865,7 +878,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return;
     }
     blockCommitted = true;
-    opts.onBlockComplete?.(buildBlockSnapshot());
+    opts.onBlockComplete?.(buildBlockResult());
   }
 
   return {
@@ -974,8 +987,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         hasMore: activityStack.length > 0,
       };
     },
-    results(): BlockSnapshot {
-      return buildBlockSnapshot();
+    result(): BlockResult {
+      return buildBlockResult();
     },
     destroy(): void {
       destroyed = true;

@@ -634,6 +634,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           matched: true,
           similarity: charData.similarity,
           strokeEnding: judgment,
+          points: charData.points,
+          mistakesOnStroke: hwData.mistakesOnStroke,
+          isBackwards: hwData.isBackwards,
         };
         m.totalMistakes = hwData.totalMistakes;
         if (m.options.strokeEndingAsMiss) {
@@ -716,6 +719,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           const stroke: CharStrokeResult = {
             matched: true,
             similarity: charData.similarity,
+            points: charData.points,
+            mistakesOnStroke: hwData.mistakesOnStroke,
+            isBackwards: hwData.isBackwards,
           };
           if (charData.strokeEnding !== undefined) {
             stroke.strokeEnding = charData.strokeEnding;
@@ -761,6 +767,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           m.perStroke[logicalStrokeNum] = {
             matched: false,
             similarity: charData.similarity,
+            points: charData.points,
+            mistakesOnStroke: hwData.mistakesOnStroke,
+            isBackwards: hwData.isBackwards,
           };
           m.totalMistakes = hwData.totalMistakes;
         }
@@ -1219,9 +1228,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
     }
 
+    // Carry the original caller-supplied points (not the
+    // internal-projection) so consumers can re-feed them through
+    // Char.judge for replay without re-projecting. opts.sourceBox is
+    // not part of CharStrokeResult — callers who use a sourceBox should
+    // also keep it externally if they want to replay verbatim.
     const strokeResult: CharStrokeResult = strokeEnding
-      ? { matched: captured.matched, similarity, strokeEnding }
-      : { matched: captured.matched, similarity };
+      ? { matched: captured.matched, similarity, strokeEnding, points }
+      : { matched: captured.matched, similarity, points };
 
     j.perStroke[strokeNum] = strokeResult;
     return strokeResult;

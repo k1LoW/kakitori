@@ -87,6 +87,14 @@ export interface FreeCellCreateOptions {
   /** Color for the segment bbox overlay (debug). */
   segmentBoxColor?: string;
   /**
+   * Which `CharResult.source` value the freeCell stamps on every char
+   * it produces (`"free"` for normal cells, `"annotation"` for furigana
+   * annotation handles). Defaults to `"free"`. Derived from
+   * `CharResult["source"]` (`"guided"` is excluded — freeCell never
+   * produces guided results) so it stays aligned if the union grows.
+   */
+  resultSource?: Exclude<NonNullable<CharResult["source"]>, "guided">;
+  /**
    * Fires once a candidate match settles (matched-all, or all candidates
    * exhausted with the user reaching the longest candidate's stroke
    * count). `chars` is the per-character snapshot — `chars.length`
@@ -537,6 +545,8 @@ export function createFreeCell(
         perStroke,
         similarity: charAvgSim,
         candidate: candidate.text,
+        source: opts.resultSource ?? "free",
+        mode: "write",
       };
       chars.push(result);
       const perStrokeFlags = perStroke
@@ -678,7 +688,7 @@ export function createFreeCell(
       // so block / page aggregation can tell this apart from a blank
       // cell (which is genuinely empty + vacuously complete + matched).
       // matched: false on every entry forces the rolled-up
-      // BlockSnapshot.matched / PageSnapshot.matched to be false too.
+      // BlockResult.matched / PageResult.matched to be false too.
       const fallbackCandidate = candidatesText[0] ?? "";
       settledChars = Array.from(fallbackCandidate).map<CharResult>((ch) => ({
         character: ch,
@@ -687,6 +697,8 @@ export function createFreeCell(
         perStroke: [],
         similarity: 0,
         candidate: fallbackCandidate,
+        source: opts.resultSource ?? "free",
+        mode: "write",
       }));
       opts.onCellComplete?.(settledChars);
     }
@@ -751,6 +763,8 @@ export function createFreeCell(
       complete: false,
       matched: true,
       perStroke: [],
+      source: opts.resultSource ?? "free",
+      mode: "write",
     }));
   }
 

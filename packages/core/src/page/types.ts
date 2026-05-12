@@ -1,20 +1,22 @@
 import type {
   BlockLoaders,
-  BlockSnapshot,
+  BlockResult,
   BlockSpec,
   FreeCellLogger,
   WritingMode,
 } from "../block/index.js";
 import type { CharResult, GridOptions } from "../charOptions.js";
 
-/** A block plus an optional identifier echoed back through {@link PageSnapshot}. */
+/** A block plus an optional identifier echoed back through {@link PageResult}. */
 export interface PageBlockEntry {
   spec: BlockSpec;
   /**
-   * Optional identifier surfaced as `PageBlockSnapshot.id` so callers
-   * can correlate aggregated results with their original input without
-   * indexing into the blocks array. Not passed through `onCellComplete` /
-   * `onBlockComplete`, which only receive `blockIndex`.
+   * Optional identifier echoed as `BlockResult.id` so callers can
+   * correlate aggregated results with their original input without
+   * indexing into the blocks array. Reachable from `onBlockComplete`
+   * via `result.id` and from `Page.result().blocks[i].id`; the
+   * `onCellComplete` callback only receives `blockIndex` and does not
+   * surface the id.
    */
   id?: string;
 }
@@ -89,9 +91,9 @@ export interface PageCreateOptions {
     chars: CharResult[],
   ) => void;
   /** Fired once a block has all its results in. */
-  onBlockComplete?: (blockIndex: number, snapshot: BlockSnapshot) => void;
+  onBlockComplete?: (blockIndex: number, result: BlockResult) => void;
   /** Fired once every block has completed. */
-  onPageComplete?: (snapshot: PageSnapshot) => void;
+  onPageComplete?: (result: PageResult) => void;
 }
 
 export interface Page {
@@ -110,11 +112,11 @@ export interface Page {
    */
   undo(): PageUndoResult | null;
   /**
-   * Snapshot of every user-block on this page. Same shape as the value
-   * passed to `onPageComplete` (where `complete` is always `true`).
-   * Pure getter; safe to poll at any time.
+   * Composite result of every user-block on this page — same shape as
+   * the value passed to `onPageComplete` (where `complete` is always
+   * `true`). Pure getter; safe to poll at any time.
    */
-  results(): PageSnapshot;
+  result(): PageResult;
   /** Destroy every child block and detach the page. */
   destroy(): void;
 }
@@ -132,24 +134,16 @@ export type PageUndoResult =
   | { kind: "annotation"; blockIndex: number; annotationIndex: number };
 
 /**
- * Per-block snapshot. The position in `PageSnapshot.blocks` matches the
- * position in `opts.blocks` (and the `blockIndex` callbacks see), so
- * we don't restate the index here. `id` echoes the optional entry
- * identifier when callers want a stable correlator that survives
- * reordering.
- */
-export interface PageBlockSnapshot {
-  /** Echo of the entry's id, if any, so callers can correlate without index math. */
-  id?: string;
-  snapshot: BlockSnapshot;
-}
-
-/**
- * Snapshot of every user-block on this page. Returned by
- * {@link Page.results} at any time and passed to `onPageComplete` once
+ * Composite result of every user-block on this page. Returned by
+ * {@link Page.result} at any time and passed to `onPageComplete` once
  * `complete` flips true.
+ *
+ * `blocks` contains `BlockResult` values directly — no wrapper.
+ * Position in `blocks` matches the position in `opts.blocks` (and the
+ * `blockIndex` callbacks see). Each `BlockResult.id` echoes the
+ * optional `PageBlockEntry.id`.
  */
-export interface PageSnapshot {
+export interface PageResult {
   /** Every cell + annotation across every block has settled. */
   complete: boolean;
   /**
@@ -160,5 +154,5 @@ export interface PageSnapshot {
    * first character settles anywhere on the page.
    */
   matched: boolean;
-  blocks: PageBlockSnapshot[];
+  blocks: BlockResult[];
 }

@@ -1,4 +1,4 @@
-import type { CharStrokeData, StrokeEndingJudgment } from "./types.js";
+import type { CharStrokeData, StrokeEndingJudgment, TimedPoint } from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
 
 export type CharLogger = (msg: string) => void;
@@ -124,6 +124,38 @@ export interface CharStrokeResult {
   matched: boolean;
   similarity: number;
   strokeEnding?: StrokeEndingJudgment;
+  /**
+   * Raw drawn samples for this stroke, with timestamps. Suitable as
+   * the second argument to {@link Char.judge} for replay / re-judging.
+   *
+   * **Coordinate space depends on the path that produced the result:**
+   *
+   * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): hanzi-writer
+   *   internal coords (Y-up, `[0, HANZI_COORD_SIZE]`). The capture
+   *   pipeline projects the user's client-space pointer events into
+   *   this space before storing them. Replay via `Char.judge` should
+   *   omit `opts.sourceBox`.
+   * - **Headless `Char.judge`**: exactly the points the caller passed
+   *   in. If the caller used `opts.sourceBox`, those are in the
+   *   caller's source space (Y-down browser convention); without
+   *   `sourceBox`, they are already in hanzi-writer internal coords.
+   *   Re-pass the same `sourceBox` (or none) to replay verbatim.
+   *
+   * Undefined for synthetic show-mode strokes (no user input) and for
+   * placeholder gap entries.
+   */
+  points?: TimedPoint[];
+  /**
+   * Guided write only: how many misses occurred on this stroke before
+   * the matcher accepted it. `0` for first-try success. Undefined on
+   * the headless judge path and on synthetic show-mode strokes.
+   */
+  mistakesOnStroke?: number;
+  /**
+   * Guided write only: hanzi-writer's reverse-stroke detection (the
+   * user drew the stroke in the wrong direction). Undefined elsewhere.
+   */
+  isBackwards?: boolean;
 }
 
 /**
@@ -178,4 +210,22 @@ export interface CharResult {
    * searching.
    */
   candidate?: string;
+  /**
+   * Which cell flavour produced this result when it came through a
+   * Block / Page result tree. Undefined for {@link Char.result} called
+   * standalone (no enclosing cell context).
+   */
+  source?: "guided" | "free" | "annotation";
+  /**
+   * Whether this character was expected to be **written** (real
+   * practice input) or **shown** (display only, no user input). Set
+   * on every result that came through a Block / Page result tree.
+   * Undefined for {@link Char.result} called standalone.
+   *
+   * - `mode === "write"` + `complete === false`: in progress.
+   * - `mode === "write"` + `complete === true`: user finished writing.
+   * - `mode === "show"` + `complete === true`: display-only, no input
+   *   (`perStroke` is always empty).
+   */
+  mode?: "write" | "show";
 }

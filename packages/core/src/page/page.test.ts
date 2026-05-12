@@ -341,19 +341,19 @@ describe("page.create — mount layout", () => {
       ],
     });
     await flushMicrotasks();
-    const snap = handle.results();
+    const snap = handle.result();
     expect(snap.complete).toBe(false);
     expect(snap.blocks).toHaveLength(2);
     // b0: one show cell + one show annotation, both synthesized as
-    // complete + matched, so the per-block snapshot is complete.
+    // complete + matched, so the per-block result is complete.
     expect(snap.blocks[0].id).toBe("b0");
-    expect(snap.blocks[0].snapshot.complete).toBe(true);
-    expect(snap.blocks[0].snapshot.matched).toBe(true);
-    expect(snap.blocks[0].snapshot.cells[0].chars[0].character).toBe("学");
+    expect(snap.blocks[0].complete).toBe(true);
+    expect(snap.blocks[0].matched).toBe(true);
+    expect(snap.blocks[0].cells[0].chars[0].character).toBe("学");
     // b1: write cell, no strokes yet → chars not complete.
     expect(snap.blocks[1].id).toBe("b1");
-    expect(snap.blocks[1].snapshot.complete).toBe(false);
-    expect(snap.blocks[1].snapshot.cells[0].chars[0].complete).toBe(false);
+    expect(snap.blocks[1].complete).toBe(false);
+    expect(snap.blocks[1].cells[0].chars[0].complete).toBe(false);
     // Page-level matched is the vacuous AND across observed completions.
     expect(snap.matched).toBe(true);
     handle.destroy();

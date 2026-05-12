@@ -240,7 +240,7 @@ statusBtn.addEventListener("click", () => {
   if (!currentPage) {
     return;
   }
-  log(`results: ${JSON.stringify(currentPage.results())}`);
+  log(`result: ${JSON.stringify(currentPage.result())}`);
 });
 
 rebuild();
