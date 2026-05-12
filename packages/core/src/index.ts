@@ -3,6 +3,10 @@ export { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
 export { judge as judgeStrokeEnding, type JudgeOptions } from "./StrokeEndingJudge.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { CharacterConfig } from "./dataLoader.js";
+export {
+  collectCharResults,
+  type CollectCharResultsOptions,
+} from "./results.js";
 export type {
   CharCreateOptions,
   MountOptions,
