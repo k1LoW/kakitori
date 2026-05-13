@@ -128,6 +128,7 @@ const scored = collectCharResults(p.result(), {
 Character stroke data is sourced via [@k1low/hanzi-writer-data-jp](https://github.com/k1LoW/hanzi-writer-data-jp), whose data is derived from:
 
 - [animCJK](https://github.com/parsimonhi/animCJK) — LGPL v3 or later ([LGPL.txt](https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/LGPL.txt))
+  - Builds on [Makemeahanzi](https://github.com/skishore/makemeahanzi), which extracts SVG strokes from the Arphic PL KaitiM GB / Big5 fonts generously provided by Arphic Technology Co., Ltd.
 - [subAnimJ](https://github.com/k1LoW/subAnimJ) — Arphic Public License ([LICENSE](https://github.com/k1LoW/subAnimJ/blob/main/LICENSE), [ARPHICPL.TXT](https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/ARPHICPL.TXT))
 - [animNumber](https://github.com/k1LoW/animNumber) — SIL Open Font License 1.1 ([OFL.txt](https://github.com/k1LoW/animNumber/blob/main/licenses/OFL.txt))
 - [Unihan database](https://www.unicode.org/charts/unihan.html) — Unicode Copyright and Permission Notice ([COPYING.txt](https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/COPYING.txt))
