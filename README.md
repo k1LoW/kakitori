@@ -137,4 +137,4 @@ The full set of upstream licenses lives in the [hanzi-writer-data-jp `licenses/`
 
 ## License
 
-MIT (for kakitori's own source). Bundled / referenced character data keeps its upstream license — see the Acknowledgements section above.
+MIT (for kakitori's own source). Character stroke data is fetched from upstream at runtime and keeps its own license — see the Acknowledgements section above.
