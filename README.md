@@ -138,3 +138,29 @@ The full set of upstream licenses lives in the [hanzi-writer-data-jp `licenses/`
 ## License
 
 MIT (for kakitori's own source). Character stroke data is fetched from upstream at runtime and keeps its own license — see the Acknowledgements section above.
+
+### Attribution snippet for downstream sites
+
+If you use kakitori together with [@k1low/hanzi-writer-data-jp](https://github.com/k1LoW/hanzi-writer-data-jp) (the default character data source) on your own site, drop something like the following into your footer or credits page to surface the upstream licensing chain:
+
+```html
+<p>
+  Character stroke data via
+  <a href="https://github.com/k1LoW/hanzi-writer-data-jp" target="_blank" rel="noopener noreferrer">@k1low/hanzi-writer-data-jp</a>,
+  derived from
+  <a href="https://github.com/parsimonhi/animCJK" target="_blank" rel="noopener noreferrer">animCJK</a>
+  (<a href="https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/LGPL.txt" target="_blank" rel="noopener noreferrer">LGPL v3+</a>;
+  built on
+  <a href="https://github.com/skishore/makemeahanzi" target="_blank" rel="noopener noreferrer">Makemeahanzi</a>
+  / Arphic PL KaitiM fonts by Arphic Technology),
+  <a href="https://github.com/k1LoW/subAnimJ" target="_blank" rel="noopener noreferrer">subAnimJ</a>
+  (<a href="https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/ARPHICPL.TXT" target="_blank" rel="noopener noreferrer">Arphic PL</a>),
+  <a href="https://github.com/k1LoW/animNumber" target="_blank" rel="noopener noreferrer">animNumber</a>
+  (<a href="https://github.com/k1LoW/animNumber/blob/main/licenses/OFL.txt" target="_blank" rel="noopener noreferrer">SIL OFL 1.1</a>),
+  and the
+  <a href="https://www.unicode.org/charts/unihan.html" target="_blank" rel="noopener noreferrer">Unihan database</a>
+  (<a href="https://github.com/k1LoW/hanzi-writer-data-jp/blob/main/licenses/COPYING.txt" target="_blank" rel="noopener noreferrer">Unicode license</a>).
+  Full upstream license texts:
+  <a href="https://github.com/k1LoW/hanzi-writer-data-jp/tree/main/licenses" target="_blank" rel="noopener noreferrer">hanzi-writer-data-jp/licenses/</a>.
+</p>
+```
