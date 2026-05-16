@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.13.2](https://github.com/k1LoW/kakitori/compare/packages/core/v0.13.1...packages/core/v0.13.2) - 2026-05-16
+### Other Changes
+- docs: refresh tagline to "handwriting practice for kanji, kana, and numbers" by @k1LoW in https://github.com/k1LoW/kakitori/pull/75
+
 ## [v0.13.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.13.0...packages/core/v0.13.1) - 2026-05-12
 
 ## [v0.13.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.12.0...packages/core/v0.13.0) - 2026-05-12
