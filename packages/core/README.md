@@ -1,6 +1,6 @@
 # @k1low/kakitori
 
-A TypeScript library for kanji handwriting practice. Wraps [Hanzi Writer](https://github.com/chanind/hanzi-writer) with per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
+A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
 
 Built around three primitives:
 
