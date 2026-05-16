@@ -1,7 +1,7 @@
 {
   "name": "@k1low/kakitori",
   "version": "0.13.1",
-  "description": "A TypeScript library for kanji handwriting practice: char / block / page primitives with per-stroke tome / hane / harai judgment",
+  "description": "A handwriting practice library for kanji, kana, and numbers — per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout",
   "license": "MIT",
   "repository": {
     "type": "git",
