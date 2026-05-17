@@ -81,6 +81,17 @@ export interface BlockCreateOptions {
   /** Border color for every cell and annotation wrapper, plus the matching
    * cross-grid line color inside guided cells. Defaults to `'#ddd'`. */
   cellBorderColor?: string;
+  /**
+   * Block-wide default for {@link MountOptions.retainStrokes}: when
+   * `true`, every guided cell in this block accumulates its user-drawn
+   * ink as polylines (practice-paper feel). Per-cell `GuidedCell.overrides`
+   * still wins.
+   */
+  retainStrokes?: boolean;
+  /** Block-wide default for {@link MountOptions.retainedStrokeColor}. */
+  retainedStrokeColor?: string;
+  /** Block-wide default for {@link MountOptions.retainedStrokeWidth}. */
+  retainedStrokeWidth?: number;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -467,6 +478,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       // cells share line thickness by default. Per-cell overrides below
       // (via `pickMountOpts`) still win.
       drawingWidth: guidedDrawingWidth,
+      // Block-wide retain-strokes defaults; per-cell overrides below win.
+      ...(opts.retainStrokes !== undefined
+        ? { retainStrokes: opts.retainStrokes }
+        : {}),
+      ...(opts.retainedStrokeColor !== undefined
+        ? { retainedStrokeColor: opts.retainedStrokeColor }
+        : {}),
+      ...(opts.retainedStrokeWidth !== undefined
+        ? { retainedStrokeWidth: opts.retainedStrokeWidth }
+        : {}),
       // In write mode the quiz starts asynchronously after `await ready()`.
       // hanzi-writer's mount default would render the character visibly
       // during that gap — flash the answer to the user. Hide it from the

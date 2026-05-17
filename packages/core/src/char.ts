@@ -299,6 +299,13 @@ interface MountState {
   hwSvg: SVGSVGElement | null;
   gridSvg: SVGSVGElement | null;
   activeOverlay: SVGSVGElement | null;
+  /**
+   * SVG `<g>` (inside its own overlay SVG, layered above hwSvg) that
+   * accumulates one `<polyline>` per accepted user stroke when
+   * `MountOptions.retainStrokes` is true. Created lazily on the first
+   * stroke that needs to be retained.
+   */
+  retainedGroup: SVGGElement | null;
   pendingEndingJudgment: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -561,6 +568,97 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return m.timedPoints.map((p) => ({ x: p.x, y: p.y, t: p.t }));
   }
 
+  /**
+   * Lazily set up an overlay SVG + `<g>` that carries hanzi-writer's
+   * transform, so polylines authored in hanzi-writer internal coords
+   * land in the same visible position as hanzi-writer's own strokes.
+   * Returns null if hanzi-writer's SVG isn't queryable yet (which
+   * shouldn't happen by the time we get a correct stroke, but keeps the
+   * caller safe).
+   */
+  function ensureRetainedGroup(m: MountState): SVGGElement | null {
+    if (m.retainedGroup) {
+      return m.retainedGroup;
+    }
+    const hwSvg = m.hwSvg;
+    if (!hwSvg) {
+      return null;
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const hwGroup = hwSvg.querySelector(":scope > g");
+    const hwTransform = hwGroup?.getAttribute("transform") || "";
+    const overlay = document.createElementNS(ns, "svg") as SVGSVGElement;
+    overlay.classList.add("kakitori-retained");
+    overlay.setAttribute("width", String(m.size));
+    overlay.setAttribute("height", String(m.size));
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.style.position = "absolute";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    // Sit above hwSvg (z-index 1) but below the animate overlay (2) so a
+    // mid-stroke `animate()` call still wins visually if it happens.
+    overlay.style.zIndex = "1";
+    overlay.style.pointerEvents = "none";
+    const group = document.createElementNS(ns, "g") as SVGGElement;
+    if (hwTransform) {
+      group.setAttribute("transform", hwTransform);
+    }
+    overlay.appendChild(group);
+    m.layerEl.appendChild(overlay);
+    m.retainedGroup = group;
+    return group;
+  }
+
+  /**
+   * Append one polyline representing a single accepted user stroke into
+   * the retained overlay. No-op when `retainStrokes` is false or the
+   * captured points are insufficient.
+   */
+  function appendRetainedStroke(m: MountState, points: TimedPoint[]): void {
+    if (!m.options.retainStrokes) {
+      return;
+    }
+    if (points.length < 2) {
+      return;
+    }
+    const group = ensureRetainedGroup(m);
+    if (!group) {
+      return;
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const polyline = document.createElementNS(ns, "polyline");
+    polyline.setAttribute(
+      "points",
+      points.map((p) => `${p.x},${p.y}`).join(" "),
+    );
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute(
+      "stroke",
+      m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555",
+    );
+    polyline.setAttribute(
+      "stroke-width",
+      String(m.options.retainedStrokeWidth ?? m.options.drawingWidth ?? 4),
+    );
+    polyline.setAttribute("stroke-linecap", "round");
+    polyline.setAttribute("stroke-linejoin", "round");
+    // Width above is interpreted in display pixels regardless of the
+    // hanzi-writer transform; without this the scale factor (~size/900)
+    // would make the line invisibly thin.
+    polyline.setAttribute("vector-effect", "non-scaling-stroke");
+    group.appendChild(polyline);
+  }
+
+  /** Wipe every retained polyline. Called on reset()/start(). */
+  function clearRetainedStrokes(m: MountState): void {
+    if (!m.retainedGroup) {
+      return;
+    }
+    while (m.retainedGroup.firstChild) {
+      m.retainedGroup.removeChild(m.retainedGroup.firstChild);
+    }
+  }
+
   function getMountStroke(m: MountState, dataStrokeNum: number) {
     const characterImpl = (
       m.hw as unknown as {
@@ -691,6 +789,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         }
 
         const points = getCapturedPoints(m);
+        // Persist the user's drawn ink (one polyline per data stroke /
+        // pointer cycle) so grouped strokes contribute every stroke
+        // they actually drew, not just the first-in-group.
+        appendRetainedStroke(m, points);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
@@ -1407,6 +1509,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       hwSvg,
       gridSvg,
       activeOverlay: null,
+      retainedGroup: null,
       pendingEndingJudgment: null,
       quizActive: false,
       quizArmed: false,
@@ -1539,6 +1642,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   function start(): Char {
     const m = assertMounted();
     cancelActiveAnimation(m);
+    // Starting a new quiz attempt is a clean slate for retained ink —
+    // previous attempts' strokes shouldn't pile up on the new one.
+    clearRetainedStrokes(m);
     m.quizArmed = true;
     const seq = ++requestSeq;
     configReady.then(() => {
@@ -1568,6 +1674,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    clearRetainedStrokes(m);
     m.quizArmed = false;
     resetStrokeColors();
     return api;
@@ -1579,6 +1686,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    clearRetainedStrokes(m);
     resetStrokeColors();
     if (wasArmed) {
       // quizArmed remains true: the quiz is being re-armed in place.
