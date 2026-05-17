@@ -1614,16 +1614,17 @@ describe("char", () => {
 
     it("sourceBox projects screen-space points into hanzi-writer internal coords", async () => {
       // mockCharData stroke 0 median is [(0, 0), (100, 100)] in internal
-      // coords (Y up). The same shape on a 900x900 source square (Y down,
-      // origin top-left) would draw from (0, 900) to (100, 800). With
-      // sourceBox set, judge() must flip Y and pass through unchanged in X
-      // (since size matches HANZI_COORD_SIZE).
+      // coords (Y up). The same shape on a HANZI_PRESCALED_SIZE-square
+      // source (Y down, origin top-left) would draw from (0, HANZI_Y_MAX)
+      // to (100, HANZI_Y_MAX - 100). With sourceBox set, judge() must
+      // flip Y around HANZI_Y_MAX and pass through unchanged in X
+      // (since size matches HANZI_PRESCALED_SIZE).
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      const sourceBox = { x: 0, y: 0, size: 900 };
+      const sourceBox = { x: 0, y: 0, size: 1024 };
       const trace = [
         { x: 0, y: 900, t: 0 },
         { x: 25, y: 875, t: 0 },
@@ -1638,15 +1639,16 @@ describe("char", () => {
 
     it("sourceBox preserves the spatial relationship between strokes", async () => {
       // Both strokes drawn at their canonical (internal) positions but
-      // expressed in screen coords on a 900x900 square. Mock medians are
-      // [(0,0)-(100,100)] for stroke 0 and [(200,200)-(300,300)] for
-      // stroke 1; both must match when fed through the same sourceBox.
+      // expressed in screen coords on a HANZI_PRESCALED_SIZE × HANZI_PRESCALED_SIZE
+      // square. Mock medians are [(0,0)-(100,100)] for stroke 0 and
+      // [(200,200)-(300,300)] for stroke 1; both must match when fed
+      // through the same sourceBox.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      const sourceBox = { x: 0, y: 0, size: 900 };
+      const sourceBox = { x: 0, y: 0, size: 1024 };
       const stroke0 = [
         { x: 0, y: 900, t: 0 },
         { x: 50, y: 850, t: 0 },

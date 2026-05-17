@@ -5,5 +5,18 @@ export const DEFAULT_SIZE = 300;
 // Default padding for char.create() and char.render().
 export const DEFAULT_PADDING = 0;
 
-// Internal coordinate system used by HanziWriter character data (0-900 range).
-export const HANZI_COORD_SIZE = 900;
+// hanzi-writer's source coord canvas. Character paths and medians from
+// hanzi-writer-data live inside `x ∈ [0, HANZI_PRESCALED_SIZE]` and
+// `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`. The canvas is square (1024 × 1024).
+// kakitori projects pointer input to this same space so it can be passed
+// to hanzi-writer's matcher / `Char.judge`.
+//
+// Mirror of CHARACTER_BOUNDS in hanzi-writer:
+//   [{ x: 0, y: -124 }, { x: 1024, y: 900 }]
+export const HANZI_PRESCALED_SIZE = 1024;
+/** Top of character in hanzi-writer Y (Y-up). */
+export const HANZI_Y_MAX = 900;
+/** Bottom of character (descender) in hanzi-writer Y. */
+export const HANZI_Y_MIN = -124;
+/** `|HANZI_Y_MIN|` — character extends this far below the y=0 baseline. */
+export const HANZI_Y_BASELINE_OFFSET = -HANZI_Y_MIN;

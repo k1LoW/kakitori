@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
 import { normalizeCharacterSegment } from "./normalize.js";
 import type { TimedPoint } from "../types.js";
-import { HANZI_COORD_SIZE } from "../constants.js";
+import { HANZI_PRESCALED_SIZE } from "../constants.js";
 
-const CENTER = HANZI_COORD_SIZE / 2;
+const CENTER = HANZI_PRESCALED_SIZE / 2;
 
 describe("normalizeCharacterSegment", () => {
   it("returns an empty array for empty input", () => {
@@ -19,9 +19,9 @@ describe("normalizeCharacterSegment", () => {
     expect(out).toEqual([[{ x: CENTER, y: CENTER, t: 5 }]]);
   });
 
-  it("centers the centroid and scales the longer side to HANZI_COORD_SIZE", () => {
+  it("centers the centroid and scales the longer side to HANZI_PRESCALED_SIZE", () => {
     // Square bbox 100x100. Centroid is at (50, 50) (mean of these 4 corners).
-    // Longer side is 100, so scale = HANZI_COORD_SIZE / 100.
+    // Longer side is 100, so scale = HANZI_PRESCALED_SIZE / 100.
     const strokes: TimedPoint[][] = [
       [
         { x: 0, y: 0, t: 0 },
@@ -31,7 +31,7 @@ describe("normalizeCharacterSegment", () => {
       ],
     ];
     const out = normalizeCharacterSegment(strokes);
-    const half = HANZI_COORD_SIZE / 2;
+    const half = HANZI_PRESCALED_SIZE / 2;
     // (0, 0) is top-left in input → after centroid translation (-50, -50) and
     // y-flip → bottom-left in internal (low x, low y? actually centroid moves
     // to center, then x = center - half, y = center + half because Y flips).
@@ -46,7 +46,7 @@ describe("normalizeCharacterSegment", () => {
   });
 
   it("preserves aspect ratio: a tall narrow stroke fits the longer side", () => {
-    // Vertical line of 200 px, at x=50. Longer side is 200, so scale = HANZI_COORD_SIZE / 200.
+    // Vertical line of 200 px, at x=50. Longer side is 200, so scale = HANZI_PRESCALED_SIZE / 200.
     const strokes: TimedPoint[][] = [
       [
         { x: 50, y: 0, t: 0 },
@@ -57,9 +57,9 @@ describe("normalizeCharacterSegment", () => {
     // Both points share x=50 → centroid x is 50 → both end at canvas center x.
     expect(out[0][0].x).toBeCloseTo(CENTER);
     expect(out[0][1].x).toBeCloseTo(CENTER);
-    // y span fills HANZI_COORD_SIZE: top of the input (y=0, in Y-down) becomes
-    // top of internal Y-up (y = HANZI_COORD_SIZE).
-    expect(out[0][0].y).toBeCloseTo(HANZI_COORD_SIZE);
+    // y span fills HANZI_PRESCALED_SIZE: top of the input (y=0, in Y-down) becomes
+    // top of internal Y-up (y = HANZI_PRESCALED_SIZE).
+    expect(out[0][0].y).toBeCloseTo(HANZI_PRESCALED_SIZE);
     expect(out[0][1].y).toBeCloseTo(0);
   });
 
@@ -89,9 +89,9 @@ describe("normalizeCharacterSegment", () => {
     ];
     const out = normalizeCharacterSegment(strokes);
     // First stroke top edge → high y in Y-up (center + half).
-    expect(out[0][0].y).toBeCloseTo(CENTER + HANZI_COORD_SIZE / 2);
+    expect(out[0][0].y).toBeCloseTo(CENTER + HANZI_PRESCALED_SIZE / 2);
     // Second stroke bottom edge → low y in Y-up (center - half).
-    expect(out[1][0].y).toBeCloseTo(CENTER - HANZI_COORD_SIZE / 2);
+    expect(out[1][0].y).toBeCloseTo(CENTER - HANZI_PRESCALED_SIZE / 2);
   });
 
   it("translation invariance: shifted input produces the same normalized output", () => {

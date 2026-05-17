@@ -16,7 +16,13 @@ import type {
   TimedPoint,
 } from "./types.js";
 import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
-import { DEFAULT_SIZE, DEFAULT_PADDING, HANZI_COORD_SIZE } from "./constants.js";
+import {
+  DEFAULT_SIZE,
+  DEFAULT_PADDING,
+  HANZI_PRESCALED_SIZE,
+  HANZI_Y_MAX,
+  HANZI_Y_BASELINE_OFFSET,
+} from "./constants.js";
 import { computeEndingJudgment } from "./endingJudgment.js";
 import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
 import {
@@ -125,9 +131,10 @@ export function computeMedianPathLength(
 
 /**
  * Project drawn points from a source coordinate-space square into the
- * hanzi-writer internal `[0, HANZI_COORD_SIZE]` square. Source is assumed
- * to be Y-down (browser/SVG); internal is Y-up (math), so the y axis is
- * flipped during projection.
+ * hanzi-writer internal `[0, HANZI_PRESCALED_SIZE]` square. Source is
+ * assumed to be Y-down (browser/SVG); internal is Y-up (math) with the
+ * character's top at `HANZI_Y_MAX`, so the y axis is flipped during
+ * projection.
  */
 function projectToInternal(
   points: ReadonlyArray<TimedPoint>,
@@ -138,10 +145,10 @@ function projectToInternal(
       `char.judge(): sourceBox.size must be a positive finite number, got ${sourceBox.size}`,
     );
   }
-  const scale = HANZI_COORD_SIZE / sourceBox.size;
+  const scale = HANZI_PRESCALED_SIZE / sourceBox.size;
   return points.map((p) => ({
     x: (p.x - sourceBox.x) * scale,
-    y: HANZI_COORD_SIZE - (p.y - sourceBox.y) * scale,
+    y: HANZI_Y_MAX - (p.y - sourceBox.y) * scale,
     t: p.t,
   }));
 }
@@ -166,7 +173,8 @@ export interface Char {
    *
    * `points` are sampled positions along the drawn trajectory with timestamps
    * (`{ x, y, t }`). `x` and `y` must be in hanzi-writer's internal coord
-   * space (`[0, HANZI_COORD_SIZE]`, Y-up) unless `opts.sourceBox` is provided.
+   * space (`x ∈ [0, HANZI_PRESCALED_SIZE]`, `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`,
+   * Y-up) unless `opts.sourceBox` is provided.
    * Pass the SAME `sourceBox` for every stroke of one character so the
    * spatial relationship between strokes is preserved. The final element
    * is treated as the moment of pointerup (its `t` becomes the release time);
@@ -445,11 +453,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // The layer element is square (mount enforces width==height==size). The
     // visible character is rendered inside the layer with `padding` margin,
     // so the inner [padding, size - padding] box is what hanzi-writer maps
-    // to internal [0, HANZI_COORD_SIZE]. Mirror that mapping here so a
-    // pointer landing on the character's left edge becomes internal x=0,
-    // not x=padding-scaled. The CSS scale factor (rect.width / m.size)
-    // applies to padding too, so we scale it before computing the inner
-    // width and origin.
+    // to internal coords (a HANZI_PRESCALED_SIZE-wide canvas with Y range
+    // [HANZI_Y_MIN, HANZI_Y_MAX]). Mirror that mapping here so a pointer
+    // landing on the character's left edge becomes internal x=0, not
+    // x=padding-scaled, and the top of the inner box becomes y=HANZI_Y_MAX
+    // (Y-up). The CSS scale factor (rect.width / m.size) applies to
+    // padding too, so we scale it before computing the inner width and
+    // origin.
     //
     // mount()'s validateSizeAndPadding guarantees padding < size/2, so the
     // inner width is always positive.
@@ -461,7 +471,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.pointerProjection = {
       originX: rect.left + effectivePadding,
       originY: rect.top + effectivePadding,
-      scale: HANZI_COORD_SIZE / innerSize,
+      scale: HANZI_PRESCALED_SIZE / innerSize,
     };
   }
 
@@ -476,7 +486,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
     return {
       x: (clientX - proj.originX) * proj.scale,
-      y: HANZI_COORD_SIZE - (clientY - proj.originY) * proj.scale,
+      y: HANZI_Y_MAX - (clientY - proj.originY) * proj.scale,
     };
   }
 
@@ -583,7 +593,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       strokeEndings,
       strokeGroups,
       characterData,
-      drawableSize: HANZI_COORD_SIZE,
+      drawableSize: HANZI_PRESCALED_SIZE,
       strictness: strokeEndingStrictness,
       log,
     });
@@ -829,7 +839,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       computeMedianPathLength(s.points as Array<{ x: number; y: number }>),
     );
     const strokeDurations = strokeLengths.map(
-      (len) => (len / HANZI_COORD_SIZE) * BASE_STROKE_DURATION,
+      (len) => (len / HANZI_PRESCALED_SIZE) * BASE_STROKE_DURATION,
     );
 
     const strokeDelays: number[] = Array.from({ length: dataStrokes.length }, () => 0);
@@ -1038,8 +1048,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       container.style.position = "fixed";
       container.style.top = "0";
       container.style.left = "0";
-      container.style.width = `${HANZI_COORD_SIZE}px`;
-      container.style.height = `${HANZI_COORD_SIZE}px`;
+      container.style.width = `${HANZI_PRESCALED_SIZE}px`;
+      container.style.height = `${HANZI_PRESCALED_SIZE}px`;
       container.style.visibility = "hidden";
       container.style.pointerEvents = "none";
       container.style.contain = "strict";
@@ -1047,8 +1057,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
       try {
         const hw = HanziWriter.create(container, currentCharacter, {
-          width: HANZI_COORD_SIZE,
-          height: HANZI_COORD_SIZE,
+          width: HANZI_PRESCALED_SIZE,
+          height: HANZI_PRESCALED_SIZE,
           padding: 0,
           charDataLoader,
           // Keep hint/highlight off so the matcher path stays as plain as
@@ -1178,8 +1188,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
 
     // If a sourceBox was provided, project each point into hanzi-writer's
-    // internal coord space (`[0, HANZI_COORD_SIZE]` with Y-up). Otherwise
-    // assume the caller has already done the projection.
+    // internal coord space (`x ∈ [0, HANZI_PRESCALED_SIZE]`, `y ∈ [HANZI_Y_MIN,
+    // HANZI_Y_MAX]` with Y-up). Otherwise assume the caller has already
+    // done the projection.
     const internalPoints: TimedPoint[] = opts.sourceBox
       ? projectToInternal(points, opts.sourceBox)
       : points.map((p) => ({ x: p.x, y: p.y, t: p.t }));
@@ -1219,7 +1230,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         strokeEndings,
         strokeGroups,
         characterData,
-        drawableSize: HANZI_COORD_SIZE,
+        drawableSize: HANZI_PRESCALED_SIZE,
         strictness: strokeEndingStrictness,
         log,
       });
@@ -1806,7 +1817,7 @@ function renderImpl(
     (data) => {
       const strokeColor = options.strokeColor ?? "#555";
 
-      const scale = (size - 2 * padding) / HANZI_COORD_SIZE;
+      const scale = (size - 2 * padding) / HANZI_PRESCALED_SIZE;
 
       const ns = "http://www.w3.org/2000/svg";
       const svg = document.createElementNS(ns, "svg");
@@ -1817,10 +1828,14 @@ function renderImpl(
         drawCrossGrid(svg, size, options.showGrid);
       }
 
+      // Translate so that hanzi-writer's character bounds (y ∈ [-124, 900])
+      // span the inner box: y=-124 (descender bottom) lands at
+      // (size - padding), y=900 (top) lands at padding. Shift the y origin
+      // by HANZI_Y_BASELINE_OFFSET * scale to make room for the descender.
       const g = document.createElementNS(ns, "g");
       g.setAttribute(
         "transform",
-        `translate(${padding}, ${size - padding}) scale(${scale}, ${-scale})`,
+        `translate(${padding}, ${size - padding - HANZI_Y_BASELINE_OFFSET * scale}) scale(${scale}, ${-scale})`,
       );
 
       for (const d of data.strokes) {
