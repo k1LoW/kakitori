@@ -569,28 +569,23 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   /**
-   * Lazily set up an overlay SVG + `<g>` that carries hanzi-writer's
-   * transform, so polylines authored in hanzi-writer internal coords
-   * land in the same visible position as hanzi-writer's own strokes.
-   * Returns null if hanzi-writer's SVG isn't queryable yet (which
-   * shouldn't happen by the time we get a correct stroke, but keeps the
-   * caller safe).
+   * Lazily set up an overlay SVG (no transform) inside layerEl. Retained
+   * polylines are painted directly in layer-relative display coords so
+   * we don't have to mirror hanzi-writer's CHARACTER_BOUNDS-based
+   * transform (its source coord space is 1024×1024 with y in [-124, 900],
+   * not kakitori's 900×900 — sharing the transform would shift / scale
+   * the ink off the user's actual drawing).
    */
-  function ensureRetainedGroup(m: MountState): SVGGElement | null {
+  function ensureRetainedSvg(m: MountState): SVGSVGElement | null {
     if (m.retainedGroup) {
-      return m.retainedGroup;
-    }
-    const hwSvg = m.hwSvg;
-    if (!hwSvg) {
-      return null;
+      return m.retainedGroup.ownerSVGElement;
     }
     const ns = "http://www.w3.org/2000/svg";
-    const hwGroup = hwSvg.querySelector(":scope > g");
-    const hwTransform = hwGroup?.getAttribute("transform") || "";
     const overlay = document.createElementNS(ns, "svg") as SVGSVGElement;
     overlay.classList.add("kakitori-retained");
     overlay.setAttribute("width", String(m.size));
     overlay.setAttribute("height", String(m.size));
+    overlay.setAttribute("viewBox", `0 0 ${m.size} ${m.size}`);
     overlay.setAttribute("aria-hidden", "true");
     overlay.style.position = "absolute";
     overlay.style.top = "0";
@@ -600,19 +595,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     overlay.style.zIndex = "1";
     overlay.style.pointerEvents = "none";
     const group = document.createElementNS(ns, "g") as SVGGElement;
-    if (hwTransform) {
-      group.setAttribute("transform", hwTransform);
-    }
     overlay.appendChild(group);
     m.layerEl.appendChild(overlay);
     m.retainedGroup = group;
-    return group;
+    return overlay;
   }
 
   /**
    * Append one polyline representing a single accepted user stroke into
-   * the retained overlay. No-op when `retainStrokes` is false or the
-   * captured points are insufficient.
+   * the retained overlay. Converts captured points back from
+   * hanzi-writer internal coords to layer-relative display coords so the
+   * ink lands exactly where the user drew it. No-op when `retainStrokes`
+   * is false or the captured points are insufficient.
    */
   function appendRetainedStroke(m: MountState, points: TimedPoint[]): void {
     if (!m.options.retainStrokes) {
@@ -621,31 +615,60 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (points.length < 2) {
       return;
     }
-    const group = ensureRetainedGroup(m);
+    ensureRetainedSvg(m);
+    const group = m.retainedGroup;
     if (!group) {
       return;
     }
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return;
+    }
+    // projectFromCache:
+    //   internal_x = (clientX - originX) * scale
+    //   internal_y = HANZI_COORD_SIZE - (clientY - originY) * scale
+    // Inverse:
+    //   display_x = clientX - layerLeft = internal_x / scale + (originX - layerLeft)
+    //   display_y = clientY - layerTop  = (HANZI_COORD_SIZE - internal_y) / scale + (originY - layerTop)
+    // (originX - layerLeft) and (originY - layerTop) collapse to the
+    // padding offset in display pixels, since originX/Y were defined as
+    // layerRect + paddingScaled.
+    const layerRect = m.layerEl.getBoundingClientRect();
+    const padOffsetX = proj.originX - layerRect.left;
+    const padOffsetY = proj.originY - layerRect.top;
+    const invScale = 1 / proj.scale;
     const ns = "http://www.w3.org/2000/svg";
     const polyline = document.createElementNS(ns, "polyline");
     polyline.setAttribute(
       "points",
-      points.map((p) => `${p.x},${p.y}`).join(" "),
+      points
+        .map((p) => {
+          const dx = p.x * invScale + padOffsetX;
+          const dy = (HANZI_COORD_SIZE - p.y) * invScale + padOffsetY;
+          return `${dx},${dy}`;
+        })
+        .join(" "),
     );
     polyline.setAttribute("fill", "none");
     polyline.setAttribute(
       "stroke",
       m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555",
     );
-    polyline.setAttribute(
-      "stroke-width",
-      String(m.options.retainedStrokeWidth ?? m.options.drawingWidth ?? 4),
-    );
+    // `MountOptions.drawingWidth` is forwarded to hanzi-writer as
+    // `drawingWidth`, which hanzi-writer interprets in its own internal
+    // coord space (1024×1024, see CHARACTER_BOUNDS). hanzi-writer's
+    // main `<g>` scales that down by `innerSize / 1024` for display,
+    // so to match the on-screen thickness of hanzi-writer's pen, we
+    // apply the same conversion here. `retainedStrokeWidth`, when set,
+    // is taken as display pixels verbatim.
+    const innerSize = m.size - 2 * m.padding;
+    const hwToDisplayScale = innerSize / 1024;
+    const widthDisplay =
+      m.options.retainedStrokeWidth ??
+      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
+    polyline.setAttribute("stroke-width", String(widthDisplay));
     polyline.setAttribute("stroke-linecap", "round");
     polyline.setAttribute("stroke-linejoin", "round");
-    // Width above is interpreted in display pixels regardless of the
-    // hanzi-writer transform; without this the scale factor (~size/900)
-    // would make the line invisibly thin.
-    polyline.setAttribute("vector-effect", "non-scaling-stroke");
     group.appendChild(polyline);
   }
 
