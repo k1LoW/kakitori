@@ -111,10 +111,12 @@ export interface MountOptions {
    *   — followed by a single `onComplete`. `mistakesOnStroke` is
    *   always `0` in this mode (no guided-write retry count).
    *
-   *   Since per-char skips hanzi-writer's live-ink rendering,
-   *   {@link MountOptions.retainStrokes} defaults to `true` here so
-   *   the user actually sees what they drew while the verdict is
-   *   deferred. Explicitly pass `retainStrokes: false` to opt out.
+   *   Per-char skips hanzi-writer's live-ink rendering, so kakitori
+   *   paints each drawn stroke as a polyline regardless of
+   *   {@link MountOptions.retainStrokes} — there is no per-stroke
+   *   accept moment to draw the official stroke instead. After
+   *   judgment, `retainStrokes` decides whether those polylines stay
+   *   on screen (`true`) or are cleared (`false`, the default).
    */
   evaluation?: "per-stroke" | "per-char";
   // Animation

@@ -409,7 +409,17 @@ interface MountState {
    * can detach them on teardown.
    */
   perCharOnPointerDown: ((e: PointerEvent) => void) | null;
+  perCharOnPointerMove: ((e: PointerEvent) => void) | null;
   perCharOnPointerUp: ((e: PointerEvent) => void) | null;
+  /**
+   * Live `<polyline>` for the stroke the user is currently dragging out
+   * in per-char mode. Created on pointerdown, points re-derived from
+   * `m.timedPoints` on each pointermove, finalized (null'd) on
+   * pointerup. The element itself stays in the retained-strokes
+   * overlay until `clearRetainedStrokes` or `finalizePerChar` decides
+   * what to do with it.
+   */
+  perCharLivePolyline: SVGPolylineElement | null;
   pendingEndingJudgment: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -719,6 +729,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!m.options.retainStrokes) {
       return;
     }
+    paintUserPolyline(m, points);
+  }
+
+  /**
+   * Paint one finalized polyline into the retained-strokes overlay
+   * (no `retainStrokes` gating). {@link appendRetainedStroke} wraps
+   * this for per-stroke mode; per-char's live-ink path uses
+   * {@link createLivePolyline} + {@link updateLivePolylinePoints}
+   * directly so the stroke grows under the pointer instead of
+   * snapping in on release.
+   */
+  function paintUserPolyline(m: MountState, points: TimedPoint[]): void {
     const proj = m.pointerProjection;
     if (!proj) {
       return;
@@ -1032,11 +1054,28 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.hw.hideCharacter();
 
     const onPointerDown = (_e: PointerEvent) => {
-      // Bind nothing: startTimingTracking() has already reset
-      // m.timedPoints for this new cycle.
+      // Pre-create an empty polyline for the new stroke so pointermove
+      // can grow it live (rather than waiting for pointerup to flash a
+      // completed shape in). startTimingTracking() runs in capture
+      // phase before this, so m.pointerProjection is already set.
+      m.perCharLivePolyline = createLivePolyline(m);
+    };
+
+    const onPointerMove = (_e: PointerEvent) => {
+      const polyline = m.perCharLivePolyline;
+      if (!polyline) {
+        return;
+      }
+      // Re-derive the polyline from every sample captured so far so the
+      // ink follows the pointer in real time. startTimingTracking has
+      // already appended the latest pointermove to m.timedPoints by the
+      // time this bubble-phase handler runs.
+      updateLivePolylinePoints(m, polyline, m.timedPoints);
     };
 
     const onPointerUp = (_e: PointerEvent) => {
+      const polyline = m.perCharLivePolyline;
+      m.perCharLivePolyline = null;
       const captures = m.perCharCaptures;
       if (!captures) {
         return;
@@ -1050,12 +1089,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const moved = points.length >= 2
         && points.some((p) => p.x !== points[0].x || p.y !== points[0].y);
       if (!moved) {
+        // Tap with no movement: drop the empty polyline we created on
+        // pointerdown so the overlay doesn't accumulate empty nodes.
+        polyline?.remove();
         return;
       }
       captures.push(points);
-      // Mirror the per-stroke path: retain the user's polyline now so
-      // it stays visible while later strokes are still being drawn.
-      appendRetainedStroke(m, points);
+      // Lock in the final polyline geometry. The live updater already
+      // matches the captured points, but redo it once to make sure the
+      // saved polyline reflects the released stroke exactly.
+      if (polyline) {
+        updateLivePolylinePoints(m, polyline, points);
+      }
 
       // Wait until the user has drawn every stroke before judging.
       // Resolve the expected count fresh on every release: hanzi-writer
@@ -1075,11 +1120,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     };
 
     m.perCharOnPointerDown = onPointerDown;
+    m.perCharOnPointerMove = onPointerMove;
     m.perCharOnPointerUp = onPointerUp;
     // Bubble phase here so we run AFTER the timing handlers (which use
     // the capture phase to make sure release samples land before
     // hanzi-writer would consume the event).
     m.layerEl.addEventListener("pointerdown", onPointerDown);
+    m.layerEl.addEventListener("pointermove", onPointerMove);
     m.layerEl.addEventListener("pointerup", onPointerUp);
   }
 
@@ -1088,11 +1135,75 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.layerEl.removeEventListener("pointerdown", m.perCharOnPointerDown);
       m.perCharOnPointerDown = null;
     }
+    if (m.perCharOnPointerMove) {
+      m.layerEl.removeEventListener("pointermove", m.perCharOnPointerMove);
+      m.perCharOnPointerMove = null;
+    }
     if (m.perCharOnPointerUp) {
       m.layerEl.removeEventListener("pointerup", m.perCharOnPointerUp);
       m.perCharOnPointerUp = null;
     }
     m.perCharCaptures = null;
+    m.perCharLivePolyline = null;
+  }
+
+  /**
+   * Build a `<polyline>` element for a single in-progress per-char
+   * stroke, sized to match {@link paintUserPolyline}'s styling, and
+   * append it to the retained overlay. Returns the element so
+   * pointermove can keep extending its `points` attribute.
+   */
+  function createLivePolyline(m: MountState): SVGPolylineElement | null {
+    const group = ensureRetainedSvg(m);
+    if (!group) {
+      return null;
+    }
+    const innerSize = m.size - 2 * m.padding;
+    const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+    const strokeWidth =
+      m.options.retainedStrokeWidth ??
+      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
+    const stroke =
+      m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555";
+    const ns = "http://www.w3.org/2000/svg";
+    const polyline = document.createElementNS(ns, "polyline");
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", stroke);
+    polyline.setAttribute("stroke-width", String(strokeWidth));
+    polyline.setAttribute("stroke-linecap", "round");
+    polyline.setAttribute("stroke-linejoin", "round");
+    group.appendChild(polyline);
+    return polyline;
+  }
+
+  /**
+   * Recompute the `points` attribute on a live polyline from a fresh
+   * pointer sample buffer. Shares the same inverse-projection math as
+   * {@link computeRetainedStrokeAttrs} so per-stroke retained ink and
+   * per-char live ink land in identical coords.
+   */
+  function updateLivePolylinePoints(
+    m: MountState,
+    polyline: SVGPolylineElement,
+    points: ReadonlyArray<TimedPoint>,
+  ): void {
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return;
+    }
+    const layerRect = m.layerEl.getBoundingClientRect();
+    const attrs = computeRetainedStrokeAttrs(
+      points,
+      proj,
+      layerRect,
+      m.size,
+      m.padding,
+      m.options,
+    );
+    if (!attrs) {
+      return;
+    }
+    polyline.setAttribute("points", attrs.points);
   }
 
   /**
@@ -1164,6 +1275,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // until reset() / unmount().
     stopPerCharCycle(m);
     stopTimingTracking(m);
+    // The drawn polylines were painted unconditionally to give the user
+    // mid-stroke feedback. Now that judgment is done, `retainStrokes`
+    // governs whether they stick around for review — clear them
+    // otherwise so per-char without retain matches the per-stroke
+    // default UX (no leftover ink).
+    if (!m.options.retainStrokes) {
+      clearRetainedStrokes(m);
+    }
     log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
     m.options.onComplete?.({
       character: currentCharacter,
@@ -1723,18 +1842,6 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       targetEl = target;
     }
 
-    // Per-char mode skips hanzi-writer's quiz, which also removes its
-    // live-ink rendering as the user drags. Without any retained ink the
-    // user would write onto a completely blank cell with no feedback
-    // until judgment lands. Default `retainStrokes: true` when the
-    // caller picked per-char and did not explicitly opt out.
-    if (
-      mountOpts.evaluation === "per-char" &&
-      mountOpts.retainStrokes === undefined
-    ) {
-      mountOpts = { ...mountOpts, retainStrokes: true };
-    }
-
     const size = mountOpts.size ?? DEFAULT_SIZE;
     const padding = mountOpts.padding ?? DEFAULT_PADDING;
     validateSizeAndPadding(size, padding, "char.mount()");
@@ -1820,7 +1927,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       retainedGroup: null,
       perCharCaptures: null,
       perCharOnPointerDown: null,
+      perCharOnPointerMove: null,
       perCharOnPointerUp: null,
+      perCharLivePolyline: null,
       pendingEndingJudgment: null,
       quizActive: false,
       quizArmed: false,
