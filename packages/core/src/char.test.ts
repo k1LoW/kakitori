@@ -371,6 +371,40 @@ describe("char", () => {
       expect(transform).toContain("translate");
       expect(transform).toContain("scale");
     });
+
+    it("places y=HANZI_Y_MAX at padding and y=HANZI_Y_MIN at size-padding", () => {
+      // Verifies the baseline-offset transform so hanzi-writer's
+      // asymmetric source Y range [-124, 900] spans the inner box: top
+      // of character (y=900) lands at the inner top (= padding), and
+      // descender bottom (y=-124) lands at the inner bottom (=
+      // size - padding).
+      const size = 300;
+      const padding = 20;
+      char.render(container, "あ", {
+        size,
+        padding,
+        charDataLoader: mockCharDataLoader,
+      });
+      const g = container.querySelector("svg g") as SVGGElement;
+      const transform = g.getAttribute("transform") ?? "";
+      // Transform is of the form `translate(tx, ty) scale(s, -s)` — parse it
+      // out arithmetically instead of leaning on jsdom's matrix consolidation
+      // (which doesn't run layout, so getCTM() returns the identity).
+      const m = transform.match(
+        /translate\(([\d.eE+-]+),\s*([\d.eE+-]+)\)\s*scale\(([\d.eE+-]+),\s*([\d.eE+-]+)\)/,
+      );
+      expect(m).not.toBeNull();
+      const [tx, ty, sx, sy] = [m![1], m![2], m![3], m![4]].map(Number);
+      // Map a path point (x, y) through `translate(tx, ty) scale(sx, sy)`.
+      const apply = (x: number, y: number) => ({
+        x: tx + x * sx,
+        y: ty + y * sy,
+      });
+      const topPoint = apply(0, 900); // character top
+      const bottomPoint = apply(0, -124); // descender bottom
+      expect(topPoint.y).toBeCloseTo(padding);
+      expect(bottomPoint.y).toBeCloseTo(size - padding);
+    });
   });
 
   describe("ready", () => {
