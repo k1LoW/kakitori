@@ -98,6 +98,22 @@ export interface BlockCreateOptions {
    * stroke is accepted. Per-cell `GuidedCell.overrides` still wins.
    */
   showAcceptedStroke?: boolean;
+  /**
+   * Judgment granularity across this block. Default `"per-stroke"`.
+   *
+   * - `"per-stroke"`: forwarded to every guided cell (hanzi-writer
+   *   quiz judges per stroke).
+   * - `"per-char"`: every guided cell is mounted with `evaluation:
+   *   "per-char"` — the user writes each character freely and the
+   *   verdict lands when the character is fully drawn.
+   * - `"per-block"`: same per-cell behavior as `"per-char"` (each cell
+   *   judges after its own completion). The block-level distinction is
+   *   currently semantic only; `onBlockComplete` still fires after the
+   *   final cell, and per-cell results stay individually visible.
+   *
+   * Per-cell `GuidedCell.overrides.evaluation` still wins.
+   */
+  evaluation?: "per-stroke" | "per-char" | "per-block";
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -497,6 +513,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showAcceptedStroke !== undefined
         ? { showAcceptedStroke: opts.showAcceptedStroke }
         : {}),
+      // Translate block-wide evaluation to a per-cell evaluation:
+      // both `per-char` and `per-block` make every guided cell judge at
+      // character completion; `per-stroke` (default) keeps hanzi-writer's
+      // built-in per-stroke flow. Per-cell `overrides.evaluation` still
+      // wins via `pickMountOpts(overrides)` below.
+      ...(opts.evaluation === "per-char" || opts.evaluation === "per-block"
+        ? { evaluation: "per-char" as const }
+        : opts.evaluation === "per-stroke"
+          ? { evaluation: "per-stroke" as const }
+          : {}),
       // In write mode the quiz starts asynchronously after `await ready()`.
       // hanzi-writer's mount default would render the character visibly
       // during that gap — flash the answer to the user. Hide it from the

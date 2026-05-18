@@ -87,6 +87,16 @@ export interface PageCreateOptions {
    * overrides still win.
    */
   showAcceptedStroke?: boolean;
+  /**
+   * Page-wide default for {@link BlockCreateOptions.evaluation}:
+   * forwarded to every block. `"per-page"` collapses to per-cell
+   * `"per-char"` for now (v1 has no page-level deferred judgment yet);
+   * the value is preserved so consumers and future versions can rely
+   * on the same option name.
+   *
+   * Per-block / per-cell overrides still win.
+   */
+  evaluation?: "per-stroke" | "per-char" | "per-block" | "per-page";
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
   logger?: FreeCellLogger;
   /** Debug overlay forwarded to every block's free cells / annotations. */

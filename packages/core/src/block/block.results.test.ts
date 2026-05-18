@@ -132,4 +132,29 @@ describe("Block.results", () => {
     b.destroy();
     parent.remove();
   });
+
+  it("accepts block-wide evaluation option without crashing", async () => {
+    // Smoke-test: block-wide `evaluation: "per-block"` should propagate to
+    // every guided cell as `evaluation: "per-char"` without breaking
+    // mount. End-to-end per-char behavior is covered at the Char layer.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      evaluation: "per-block",
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells).toHaveLength(2);
+    expect(snap.complete).toBe(false);
+    b.destroy();
+    parent.remove();
+  });
 });

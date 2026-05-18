@@ -345,6 +345,121 @@ describe("char", () => {
     });
   });
 
+  describe("evaluation: per-char", () => {
+    function drawStroke(
+      el: HTMLElement,
+      points: Array<[number, number]>,
+      pointerId = 1,
+    ): void {
+      const rect = el.getBoundingClientRect();
+      const dispatch = (type: string, x: number, y: number) => {
+        const evt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+          type,
+          {
+            bubbles: true,
+            cancelable: true,
+            pointerId,
+            clientX: rect.left + x,
+            clientY: rect.top + y,
+          },
+        );
+        el.dispatchEvent(evt);
+      };
+      dispatch("pointerdown", points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) {
+        dispatch("pointermove", points[i][0], points[i][1]);
+      }
+      const last = points[points.length - 1];
+      dispatch("pointerup", last[0], last[1]);
+    }
+
+    function getWriterLayer(root: HTMLElement): HTMLElement {
+      const svg = root.querySelector("svg");
+      if (!svg) {
+        throw new Error("test setup: hanzi-writer SVG not found");
+      }
+      return svg.parentElement as HTMLElement;
+    }
+
+    it("defers judgment until every stroke is drawn and then fires onComplete", async () => {
+      const onCorrect = vi.fn();
+      const onMistake = vi.fn();
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        evaluation: "per-char",
+        onCorrectStroke: onCorrect,
+        onMistake,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // First pointer cycle: onComplete must NOT fire yet.
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(onComplete).not.toHaveBeenCalled();
+
+      // Second pointer cycle completes the character (mockCharData has 2 strokes).
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      // finalizePerChar is async (judger init + per-stroke awaits).
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(onCorrect).toHaveBeenCalledTimes(2);
+      // Per the spec, per-char never produces a "mistake" callback —
+      // mismatched strokes still flow through onCorrectStroke with
+      // `matched: false`.
+      expect(onMistake).not.toHaveBeenCalled();
+    });
+
+    it("does not bridge to hanzi-writer's quiz (per-stroke rejection is suppressed)", async () => {
+      const onMistake = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        evaluation: "per-char",
+        onMistake,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // Deliberately draw outside any plausible matcher tolerance —
+      // hanzi-writer's quiz would reject this with onMistake. per-char
+      // must NOT call onMistake (the verdict is folded into onComplete's
+      // CharResult via matched=false).
+      drawStroke(layer, [[5, 5], [5, 6]]);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(onMistake).not.toHaveBeenCalled();
+    });
+
+    it("ignores zero-distance taps and waits for genuine strokes", async () => {
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        evaluation: "per-char",
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // Two taps with no movement: should be discarded, not counted as
+      // strokes; otherwise onComplete would fire after the second tap.
+      drawStroke(layer, [[10, 10]]);
+      drawStroke(layer, [[20, 20]]);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onComplete).not.toHaveBeenCalled();
+    });
+  });
+
   describe("render", () => {
     it("renders SVG paths for character strokes", () => {
       char.render(container, "あ", {

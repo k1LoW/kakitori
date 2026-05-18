@@ -318,6 +318,14 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
+        // Forward page-wide evaluation, mapping `per-page` to block's
+        // `per-block` (v1 has no page-level deferred judgment, so the
+        // closest cell-level behavior is to defer per character).
+        ...(opts.evaluation === "per-page"
+          ? { evaluation: "per-block" as const }
+          : opts.evaluation !== undefined
+            ? { evaluation: opts.evaluation }
+            : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),

@@ -96,6 +96,21 @@ export interface MountOptions {
    * that value wins (so an explicit color is never silently hidden).
    */
   showAcceptedStroke?: boolean;
+  /**
+   * Granularity at which user input is judged. Default `"per-stroke"`.
+   *
+   * - `"per-stroke"`: hanzi-writer's quiz drives matching. Each stroke
+   *   is judged the moment the user lifts the pointer, mistakes are
+   *   rejected, and `onMistake` fires per attempt.
+   * - `"per-char"`: hanzi-writer's quiz is bypassed. The user freely
+   *   draws every stroke without per-stroke rejection. Once the user
+   *   has completed as many pointerdown→up cycles as the character
+   *   has logical strokes, kakitori judges each captured stroke and
+   *   fires `onCorrectStroke` (with `matched` reflecting the verdict)
+   *   plus a single `onComplete`. `mistakesOnStroke` is always `0`
+   *   in this mode (there is no guided-write attempt count).
+   */
+  evaluation?: "per-stroke" | "per-char";
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;
