@@ -125,6 +125,23 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
   validateAnnotations(opts.blocks, writingMode);
 
+  // Resolve the page-wide `evaluation` once. `"per-page"` is reserved
+  // for future page-level deferred judgment; v1 has no such layer, so
+  // map it to block-level `"per-block"` and surface a single log line
+  // through the page logger. Anything else passes through unchanged.
+  // The result is later spread into every block.create() call (one per
+  // segment), so this must NOT live inside placeBlock or the log
+  // would fire once per segment.
+  let effectiveEvaluation: BlockCreateOptions["evaluation"] | undefined;
+  if (opts.evaluation === "per-page") {
+    opts.logger?.(
+      'page: evaluation "per-page" is not yet implemented; falling back to "per-block"',
+    );
+    effectiveEvaluation = "per-block";
+  } else if (opts.evaluation !== undefined) {
+    effectiveEvaluation = opts.evaluation;
+  }
+
   // page.create() is the public entrypoint, so rethrow layoutPage's
   // errors under the same prefix the rest of this function uses —
   // callers shouldn't need to know layoutPage exists to read the
@@ -318,20 +335,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
-        // Forward page-wide evaluation, mapping `per-page` to block's
-        // `per-block` (v1 has no page-level deferred judgment, so the
-        // closest cell-level behavior is to defer per character).
-        // Surface the fallback through the page logger so callers who
-        // explicitly opted into `per-page` aren't silently downgraded
-        // without any signal.
-        ...(opts.evaluation === "per-page"
-          ? (opts.logger?.(
-              'page: evaluation "per-page" is not yet implemented; falling back to "per-block"',
-            ),
-            { evaluation: "per-block" as const })
-          : opts.evaluation !== undefined
-            ? { evaluation: opts.evaluation }
-            : {}),
+        // effectiveEvaluation is resolved once in createPage; the
+        // "per-page" -> "per-block" downgrade log fired there too, so
+        // we never log per-segment.
+        ...(effectiveEvaluation !== undefined ? { evaluation: effectiveEvaluation } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
