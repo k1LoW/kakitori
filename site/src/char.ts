@@ -196,6 +196,19 @@ export function setupChar(root: HTMLElement): void {
       correction:
         (correctionSelect?.value as "per-stroke" | "per-char" | undefined) ??
         "per-stroke",
+      onClick: ({ strokeIndex }) => {
+        // Click-to-inspect: highlight the clicked stroke red. Core
+        // already gates this callback so it never fires while a quiz
+        // / per-char cycle is active, so a trailing drag-tail click
+        // can't recolor a just-accepted stroke.
+        if (strokeIndex === null || !c) {
+          return;
+        }
+        c.resetStrokeColors();
+        c.setStrokeColor(strokeIndex, "#c00");
+        highlightIdx = strokeIndex;
+        log(`click: stroke ${strokeIndex + 1} highlighted`);
+      },
       onCorrectStroke: (data: CharStrokeData) => {
         log(`onCorrectStroke ${formatStrokeData(data)}`);
         const slot = strokeSlotEls[data.strokeNum];
@@ -274,37 +287,10 @@ export function setupChar(root: HTMLElement): void {
     c.animate();
   });
 
-  // Click-to-highlight: only a deliberate tap (no significant
-  // movement) should color a stroke. A finished drawing stroke often
-  // triggers click too (especially per-char where the user covers
-  // ground inside the cell) and would otherwise paint a random stroke
-  // red right after every input.
-  let pointerDownPos: { x: number; y: number } | null = null;
-  const CLICK_DRAG_THRESHOLD_PX = 6;
-  writerEl.addEventListener("pointerdown", (e) => {
-    pointerDownPos = { x: e.clientX, y: e.clientY };
-  });
-  writerEl.addEventListener("click", (e) => {
-    if (!c) {
-      return;
-    }
-    const start = pointerDownPos;
-    pointerDownPos = null;
-    if (start) {
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      if (dx * dx + dy * dy > CLICK_DRAG_THRESHOLD_PX * CLICK_DRAG_THRESHOLD_PX) {
-        return;
-      }
-    }
-    const idx = c.getStrokeIndexAtPoint(e.clientX, e.clientY);
-    if (idx !== null) {
-      c.resetStrokeColors();
-      c.setStrokeColor(idx, "#c00");
-      highlightIdx = idx;
-      log(`click: stroke ${idx + 1} highlighted`);
-    }
-  });
+  // Click-to-inspect is now wired through mount's `onClick` option
+  // (set in openPractice) — core gates the callback on quizActive so
+  // a trailing drag-tail click during drawing cannot recolor a
+  // just-accepted stroke.
 
   highlightBtn.addEventListener("click", () => {
     if (!c) {

@@ -2060,6 +2060,16 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     if (mountOpts.onClick) {
       m.boundOnClick = (e: MouseEvent) => {
+        // Quiz / per-char active = the writer is in drawing mode; the
+        // trailing click event of a drawn stroke must NOT trigger an
+        // onClick callback (and especially must not let consumers paint
+        // the just-accepted stroke a different color via
+        // setStrokeColor, which would interfere with the strokeColor
+        // / showAcceptedStroke contract). Click-to-inspect is only
+        // meaningful while the writer is idle.
+        if (m.quizActive) {
+          return;
+        }
         const strokeIndex = getStrokeIndexAtPoint(e.clientX, e.clientY);
         mountOpts.onClick!({ character: currentCharacter, strokeIndex });
       };

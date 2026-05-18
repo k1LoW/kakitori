@@ -845,6 +845,31 @@ describe("char", () => {
       sibling.click();
       expect(onClick).not.toHaveBeenCalled();
     });
+
+    it("does not fire onClick while a quiz / per-char cycle is active", async () => {
+      // The trailing click event of a drawn stroke (browsers fire one
+      // unless the gesture is a clear drag) must not bleed into
+      // onClick — otherwise consumers using onClick for
+      // click-to-inspect (e.g. setStrokeColor) would recolor the just
+      // -accepted stroke and clobber its strokeColor / showAcceptedStroke
+      // contract. Start a quiz, then click the layer and verify the
+      // callback stays silent.
+      const onClick = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onClick,
+      });
+      await k.ready();
+      k.start();
+      // start() schedules startQuiz via configReady.then, so flush one
+      // microtask before checking the gate.
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layerEl = container.firstElementChild as HTMLElement;
+      layerEl.click();
+      expect(onClick).not.toHaveBeenCalled();
+    });
   });
 
   describe("setStrokeColor / resetStrokeColor / resetStrokeColors", () => {
