@@ -1,5 +1,12 @@
 export { char, type Char } from "./char.js";
-export { DEFAULT_SIZE, DEFAULT_PADDING } from "./constants.js";
+export {
+  DEFAULT_SIZE,
+  DEFAULT_PADDING,
+  HANZI_PRESCALED_SIZE,
+  HANZI_Y_MAX,
+  HANZI_Y_MIN,
+  HANZI_Y_BASELINE_OFFSET,
+} from "./constants.js";
 export { judge as judgeStrokeEnding, type JudgeOptions } from "./StrokeEndingJudge.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { CharacterConfig } from "./dataLoader.js";
