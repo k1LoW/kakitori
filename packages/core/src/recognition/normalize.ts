@@ -1,5 +1,9 @@
 import type { TimedPoint } from "../types.js";
-import { HANZI_PRESCALED_SIZE } from "../constants.js";
+import {
+  HANZI_PRESCALED_SIZE,
+  HANZI_Y_MAX,
+  HANZI_Y_MIN,
+} from "../constants.js";
 
 /**
  * Bounding-box description of where the normalized character should land in
@@ -21,7 +25,11 @@ export interface NormalizeTarget {
  */
 export const DEFAULT_NORMALIZE_TARGET: NormalizeTarget = {
   centerX: HANZI_PRESCALED_SIZE / 2,
-  centerY: HANZI_PRESCALED_SIZE / 2,
+  // hanzi-writer's Y range is [-124, 900] (asymmetric — characters can
+  // descend below the baseline), so the canvas center along Y is 388,
+  // not 512. Centering at HANZI_PRESCALED_SIZE / 2 here would shift the
+  // normalized cloud 124 units up relative to the matcher's medians.
+  centerY: (HANZI_Y_MIN + HANZI_Y_MAX) / 2,
   longerSide: HANZI_PRESCALED_SIZE,
 };
 
