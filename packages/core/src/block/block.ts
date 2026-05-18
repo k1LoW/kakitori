@@ -5,7 +5,7 @@ import type {
   GridOptions,
   MountOptions,
 } from "../charOptions.js";
-import { DEFAULT_PADDING, HANZI_COORD_SIZE } from "../constants.js";
+import { DEFAULT_PADDING, HANZI_PRESCALED_SIZE } from "../constants.js";
 import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
@@ -451,15 +451,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       };
     }
     // hanzi-writer's `drawingWidth` is interpreted in its internal coord
-    // system (HANZI_COORD_SIZE). The character is rendered into the inner
-    // padded area, so the display-px → internal-units factor is
-    // `HANZI_COORD_SIZE / innerSize` (innerSize = rect.w - 2 * padding).
+    // system (HANZI_PRESCALED_SIZE). The character is rendered into the
+    // inner padded area, so the display-px → internal-units factor is
+    // `HANZI_PRESCALED_SIZE / innerSize` (innerSize = rect.w - 2 * padding).
     // Without accounting for an `overrides.padding`, guided strokes would
     // silently drift thicker than free-cell strokes.
     const resolvedPadding = overrides.padding ?? DEFAULT_PADDING;
     const innerSize = rect.w - 2 * resolvedPadding;
     const guidedDrawingWidth =
-      innerSize > 0 ? (resolvedDrawingWidth * HANZI_COORD_SIZE) / innerSize : resolvedDrawingWidth;
+      innerSize > 0 ? (resolvedDrawingWidth * HANZI_PRESCALED_SIZE) / innerSize : resolvedDrawingWidth;
     const mountOpts: MountOptions = {
       size: rect.w,
       showGrid: blockShowGrid,

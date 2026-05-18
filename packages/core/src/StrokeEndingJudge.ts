@@ -96,7 +96,7 @@ const BASE_SIZE = 300;
 export interface JudgeOptions {
   /**
    * Side length of the drawable area in the SAME coord space as `points`.
-   * Use `HANZI_COORD_SIZE` when `points` are in hanzi-writer internal
+   * Use `HANZI_PRESCALED_SIZE` when `points` are in hanzi-writer internal
    * coords; pass display pixels (e.g. `size - 2 * padding`) only when
    * `points` are in display coords. Speed and segment-distance thresholds
    * scale against this; mismatched units skew the verdict.

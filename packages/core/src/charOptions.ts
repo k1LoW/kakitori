@@ -98,9 +98,15 @@ export interface MountOptions {
 export interface CharJudgeStrokeOptions {
   /**
    * Source coordinate-space square. When provided, judge() linearly maps
-   * `[x, x+size] x [y, y+size]` in source coords to `[0, HANZI_COORD_SIZE]`
-   * in hanzi-writer's internal coords, also flipping the Y axis (source is
-   * assumed to be Y-down / browser convention; hanzi-writer is Y-up).
+   * each source axis into hanzi-writer's internal coords:
+   *
+   *   x: `[sourceBox.x, sourceBox.x + size]` → `[0, HANZI_PRESCALED_SIZE]`
+   *   y: `[sourceBox.y, sourceBox.y + size]` → `[HANZI_Y_MAX, HANZI_Y_MIN]`
+   *
+   * The Y axis flips (source is Y-down / browser convention; hanzi-writer
+   * is Y-up) and lands in the asymmetric `[HANZI_Y_MIN, HANZI_Y_MAX]`
+   * range — `sourceBox.y` (source top) → `HANZI_Y_MAX`, and
+   * `sourceBox.y + size` (source bottom) → `HANZI_Y_MIN`, NOT 0.
    *
    * Pass the SAME `sourceBox` for every stroke of a single character so
    * the spatial relationship across strokes is preserved.
@@ -147,10 +153,10 @@ export interface CharStrokeResult {
    * **Coordinate space depends on the path that produced the result:**
    *
    * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): hanzi-writer
-   *   internal coords (Y-up, `[0, HANZI_COORD_SIZE]`). The capture
-   *   pipeline projects the user's client-space pointer events into
-   *   this space before storing them. Replay via `Char.judge` should
-   *   omit `opts.sourceBox`.
+   *   internal coords (Y-up, `x ∈ [0, HANZI_PRESCALED_SIZE]`,
+   *   `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`). The capture pipeline projects
+   *   the user's client-space pointer events into this space before
+   *   storing them. Replay via `Char.judge` should omit `opts.sourceBox`.
    * - **Headless `Char.judge`**: exactly the points the caller passed
    *   in. If the caller used `opts.sourceBox`, those are in the
    *   caller's source space (Y-down browser convention); without

@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { char, computeMedianPathLength } from "./char.js";
+import {
+  char,
+  computeMedianPathLength,
+  projectToInternal,
+} from "./char.js";
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
@@ -370,6 +374,40 @@ describe("char", () => {
       const transform = g?.getAttribute("transform");
       expect(transform).toContain("translate");
       expect(transform).toContain("scale");
+    });
+
+    it("places y=HANZI_Y_MAX at padding and y=HANZI_Y_MIN at size-padding", () => {
+      // Verifies the baseline-offset transform so hanzi-writer's
+      // asymmetric source Y range [-124, 900] spans the inner box: top
+      // of character (y=900) lands at the inner top (= padding), and
+      // descender bottom (y=-124) lands at the inner bottom (=
+      // size - padding).
+      const size = 300;
+      const padding = 20;
+      char.render(container, "あ", {
+        size,
+        padding,
+        charDataLoader: mockCharDataLoader,
+      });
+      const g = container.querySelector("svg g") as SVGGElement;
+      const transform = g.getAttribute("transform") ?? "";
+      // Transform is of the form `translate(tx, ty) scale(s, -s)` — parse it
+      // out arithmetically instead of leaning on jsdom's matrix consolidation
+      // (which doesn't run layout, so getCTM() returns the identity).
+      const m = transform.match(
+        /translate\(([\d.eE+-]+),\s*([\d.eE+-]+)\)\s*scale\(([\d.eE+-]+),\s*([\d.eE+-]+)\)/,
+      );
+      expect(m).not.toBeNull();
+      const [tx, ty, sx, sy] = [m![1], m![2], m![3], m![4]].map(Number);
+      // Map a path point (x, y) through `translate(tx, ty) scale(sx, sy)`.
+      const apply = (x: number, y: number) => ({
+        x: tx + x * sx,
+        y: ty + y * sy,
+      });
+      const topPoint = apply(0, 900); // character top
+      const bottomPoint = apply(0, -124); // descender bottom
+      expect(topPoint.y).toBeCloseTo(padding);
+      expect(bottomPoint.y).toBeCloseTo(size - padding);
     });
   });
 
@@ -1614,16 +1652,17 @@ describe("char", () => {
 
     it("sourceBox projects screen-space points into hanzi-writer internal coords", async () => {
       // mockCharData stroke 0 median is [(0, 0), (100, 100)] in internal
-      // coords (Y up). The same shape on a 900x900 source square (Y down,
-      // origin top-left) would draw from (0, 900) to (100, 800). With
-      // sourceBox set, judge() must flip Y and pass through unchanged in X
-      // (since size matches HANZI_COORD_SIZE).
+      // coords (Y up). The same shape on a HANZI_PRESCALED_SIZE-square
+      // source (Y down, origin top-left) would draw from (0, HANZI_Y_MAX)
+      // to (100, HANZI_Y_MAX - 100). With sourceBox set, judge() must
+      // flip Y around HANZI_Y_MAX and pass through unchanged in X
+      // (since size matches HANZI_PRESCALED_SIZE).
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      const sourceBox = { x: 0, y: 0, size: 900 };
+      const sourceBox = { x: 0, y: 0, size: 1024 };
       const trace = [
         { x: 0, y: 900, t: 0 },
         { x: 25, y: 875, t: 0 },
@@ -1638,15 +1677,16 @@ describe("char", () => {
 
     it("sourceBox preserves the spatial relationship between strokes", async () => {
       // Both strokes drawn at their canonical (internal) positions but
-      // expressed in screen coords on a 900x900 square. Mock medians are
-      // [(0,0)-(100,100)] for stroke 0 and [(200,200)-(300,300)] for
-      // stroke 1; both must match when fed through the same sourceBox.
+      // expressed in screen coords on a HANZI_PRESCALED_SIZE × HANZI_PRESCALED_SIZE
+      // square. Mock medians are [(0,0)-(100,100)] for stroke 0 and
+      // [(200,200)-(300,300)] for stroke 1; both must match when fed
+      // through the same sourceBox.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      const sourceBox = { x: 0, y: 0, size: 900 };
+      const sourceBox = { x: 0, y: 0, size: 1024 };
       const stroke0 = [
         { x: 0, y: 900, t: 0 },
         { x: 50, y: 850, t: 0 },
@@ -1682,5 +1722,56 @@ describe("char", () => {
         ], { sourceBox: { x: 0, y: 0, size: Number.POSITIVE_INFINITY } }),
       ).rejects.toThrow("sourceBox.size must be a positive finite number");
     });
+  });
+});
+
+describe("projectToInternal", () => {
+  // These tests assert the projection formula at the source — independent
+  // of hanzi-writer's matcher tolerance. A formula that flipped Y around
+  // HANZI_PRESCALED_SIZE / 2 instead of HANZI_Y_MAX, or scaled by the
+  // wrong canvas dim, would still pass `matched: true` tests through
+  // matcher leniency, so the assertions below are intentionally exact.
+  it("maps the source top-left corner to (0, HANZI_Y_MAX)", () => {
+    const out = projectToInternal(
+      [{ x: 100, y: 200, t: 7 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(0);
+    expect(out[0].y).toBeCloseTo(900); // HANZI_Y_MAX
+    expect(out[0].t).toBe(7); // timestamp passes through
+  });
+
+  it("maps the source bottom-right corner to (HANZI_PRESCALED_SIZE, HANZI_Y_MIN)", () => {
+    const out = projectToInternal(
+      [{ x: 100 + 512, y: 200 + 512, t: 9 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(1024); // HANZI_PRESCALED_SIZE
+    expect(out[0].y).toBeCloseTo(-124); // HANZI_Y_MIN
+    expect(out[0].t).toBe(9);
+  });
+
+  it("maps the source center to (HANZI_PRESCALED_SIZE/2, 388)", () => {
+    // Y center is (HANZI_Y_MIN + HANZI_Y_MAX) / 2 = 388, NOT
+    // HANZI_PRESCALED_SIZE / 2 = 512 — verifying the asymmetric Y range.
+    const out = projectToInternal(
+      [{ x: 100 + 256, y: 200 + 256, t: 0 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(512);
+    expect(out[0].y).toBeCloseTo(388);
+  });
+
+  it("scales X and Y by HANZI_PRESCALED_SIZE / sourceBox.size", () => {
+    // A 1024-unit source box should produce a 1:1 (pass-through) X
+    // mapping plus a flip around HANZI_Y_MAX in Y.
+    const out = projectToInternal(
+      [{ x: 0, y: 0, t: 0 }, { x: 1024, y: 1024, t: 1 }],
+      { x: 0, y: 0, size: 1024 },
+    );
+    expect(out[0].x).toBeCloseTo(0);
+    expect(out[0].y).toBeCloseTo(900);
+    expect(out[1].x).toBeCloseTo(1024);
+    expect(out[1].y).toBeCloseTo(-124);
   });
 });

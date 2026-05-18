@@ -43,9 +43,9 @@ export interface EndingJudgmentInput {
    * Side length of the drawable area in the SAME coord space as `points`.
    * For internal-coord callers (the default — `Char.judge` and the mounted
    * quiz path both project into hanzi-writer internal coords) this is
-   * `HANZI_COORD_SIZE`. For callers passing CSS-pixel points it is the
-   * displayed size minus padding (`size - 2 * padding`). Mismatched units
-   * here will skew the speed / distance thresholds in
+   * `HANZI_PRESCALED_SIZE`. For callers passing CSS-pixel points it is
+   * the displayed size minus padding (`size - 2 * padding`). Mismatched
+   * units here will skew the speed / distance thresholds in
    * {@link StrokeEndingJudge.judge}.
    */
   drawableSize: number;

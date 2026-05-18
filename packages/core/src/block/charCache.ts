@@ -28,10 +28,10 @@ export interface JudgeCharEntry {
   logicalStrokeCount: number;
   /**
    * Bbox of the character's median paths in hanzi-writer internal coords
-   * (Y-up, [0, HANZI_COORD_SIZE]). Used as the normalize target so the
-   * user's drawn segment is mapped onto the same area the matcher expects
-   * — including the natural padding hanzi-writer leaves around each
-   * character.
+   * (Y-up, x ∈ [0, HANZI_PRESCALED_SIZE], y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]).
+   * Used as the normalize target so the user's drawn segment is mapped
+   * onto the same area the matcher expects — including the natural
+   * padding hanzi-writer leaves around each character.
    */
   normalizeTarget: NormalizeTarget;
   /**
