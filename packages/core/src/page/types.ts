@@ -88,7 +88,7 @@ export interface PageCreateOptions {
    */
   showAcceptedStroke?: boolean;
   /**
-   * Page-wide default for {@link BlockCreateOptions.evaluation}:
+   * Page-wide default for {@link BlockCreateOptions.correction}:
    * forwarded to every block. Per-block / per-cell overrides still win.
    *
    * **`"per-page"` is reserved and not yet implemented.** v1 has no
@@ -99,7 +99,7 @@ export interface PageCreateOptions {
    * today and pick up the real behavior in a future version without
    * changing their call site.
    */
-  evaluation?: "per-stroke" | "per-char" | "per-block" | "per-page";
+  correction?: "per-stroke" | "per-char" | "per-block" | "per-page";
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
   logger?: FreeCellLogger;
   /** Debug overlay forwarded to every block's free cells / annotations. */

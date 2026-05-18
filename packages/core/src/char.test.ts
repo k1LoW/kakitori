@@ -345,7 +345,7 @@ describe("char", () => {
     });
   });
 
-  describe("evaluation: per-char", () => {
+  describe("correction: per-char", () => {
     function drawStroke(
       el: HTMLElement,
       points: Array<[number, number]>,
@@ -388,7 +388,7 @@ describe("char", () => {
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        evaluation: "per-char",
+        correction: "per-char",
         onCorrectStroke: onCorrect,
         onMistake,
         onComplete,
@@ -427,7 +427,7 @@ describe("char", () => {
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        evaluation: "per-char",
+        correction: "per-char",
         onCorrectStroke: onCorrect,
         onMistake,
         onComplete,
@@ -459,7 +459,7 @@ describe("char", () => {
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        evaluation: "per-char",
+        correction: "per-char",
         onMistake,
       });
       await k.ready();
@@ -479,7 +479,7 @@ describe("char", () => {
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        evaluation: "per-char",
+        correction: "per-char",
         onComplete,
       });
       await k.ready();

@@ -396,15 +396,15 @@ interface MountState {
    */
   retainedGroup: SVGGElement | null;
   /**
-   * Per-char evaluation state: each accepted pointer cycle (pointerdown
+   * Per-char correction state: each accepted pointer cycle (pointerdown
    * → pointerup) appends one entry. Once its length equals the logical
    * stroke count, kakitori runs judgment on the buffered captures and
-   * fires `onComplete`. Always-null when `evaluation` is `"per-stroke"`
+   * fires `onComplete`. Always-null when `correction` is `"per-stroke"`
    * (the hanzi-writer-driven default).
    */
   perCharCaptures: TimedPoint[][] | null;
   /**
-   * Pointer handlers attached only in `evaluation: "per-char"`. Kept as
+   * Pointer handlers attached only in `correction: "per-char"`. Kept as
    * `MountState` fields so {@link cancelActiveQuiz} / {@link unmount}
    * can detach them on teardown.
    */
@@ -901,8 +901,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     startTimingTracking(m);
 
-    if (m.options.evaluation === "per-char") {
-      // Per-char evaluation: skip hanzi-writer's quiz entirely; capture
+    if (m.options.correction === "per-char") {
+      // Per-char correction: skip hanzi-writer's quiz entirely; capture
       // every pointer cycle the user draws and judge them in one batch
       // once the cycle count matches the character's logical stroke
       // count. Live ink rendering still flows through the retain-stroke
@@ -1043,7 +1043,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   /**
-   * Per-char evaluation: arm pointer handlers that snapshot every
+   * Per-char correction: arm pointer handlers that snapshot every
    * completed pointer cycle into `m.perCharCaptures` and, once the
    * captured count matches the character's logical stroke count, drive
    * the internal judger over every captured stroke and fire
@@ -1717,7 +1717,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
   /**
    * Shared judge implementation used by both the public {@link judge}
-   * (headless mode) and per-char evaluation on a mounted instance. The
+   * (headless mode) and per-char correction on a mounted instance. The
    * `allowMount` flag toggles the mount-coexistence guard inside
    * {@link ensureJudger}.
    */

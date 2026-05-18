@@ -97,28 +97,30 @@ export interface MountOptions {
    */
   showAcceptedStroke?: boolean;
   /**
-   * Granularity at which user input is judged. Default `"per-stroke"`.
+   * Granularity at which user input is corrected (添削). Default
+   * `"per-stroke"`.
    *
    * - `"per-stroke"`: hanzi-writer's quiz drives matching. Each stroke
-   *   is judged the moment the user lifts the pointer, mistakes are
-   *   rejected, and `onMistake` fires per attempt.
+   *   is corrected the moment the user lifts the pointer, mistakes
+   *   are rejected, and `onMistake` fires per attempt.
    * - `"per-char"`: hanzi-writer's quiz is bypassed. The user freely
    *   draws every stroke without per-stroke rejection. Once the user
    *   has completed as many pointerdown→up cycles as the character has
-   *   logical strokes, kakitori judges each captured stroke. Per-stroke
-   *   verdicts dispatch through the existing callbacks — matched
-   *   strokes fire `onCorrectStroke`, unmatched ones fire `onMistake`
-   *   — followed by a single `onComplete`. `mistakesOnStroke` is
-   *   always `0` in this mode (no guided-write retry count).
+   *   logical strokes, kakitori corrects each captured stroke. Per
+   *   stroke verdicts dispatch through the existing callbacks —
+   *   matched strokes fire `onCorrectStroke`, unmatched ones fire
+   *   `onMistake` — followed by a single `onComplete`.
+   *   `mistakesOnStroke` is always `0` in this mode (no guided-write
+   *   retry count).
    *
    *   Per-char skips hanzi-writer's live-ink rendering, so kakitori
    *   paints each drawn stroke as a polyline regardless of
    *   {@link MountOptions.retainStrokes} — there is no per-stroke
    *   accept moment to draw the official stroke instead. After
-   *   judgment, `retainStrokes` decides whether those polylines stay
-   *   on screen (`true`) or are cleared (`false`, the default).
+   *   correction, `retainStrokes` decides whether those polylines
+   *   stay on screen (`true`) or are cleared (`false`, the default).
    */
-  evaluation?: "per-stroke" | "per-char";
+  correction?: "per-stroke" | "per-char";
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;

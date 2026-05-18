@@ -71,8 +71,8 @@ export function setupChar(root: HTMLElement): void {
   const showAcceptedCheckbox = root.querySelector<HTMLInputElement>(
     "#char-show-accepted",
   );
-  const evaluationSelect = root.querySelector<HTMLSelectElement>(
-    "#char-evaluation",
+  const correctionSelect = root.querySelector<HTMLSelectElement>(
+    "#char-correction",
   );
   const quizBtn = root.querySelector<HTMLElement>("#char-quiz-btn")!;
   const animateBtn = root.querySelector<HTMLElement>("#char-animate-btn")!;
@@ -193,8 +193,8 @@ export function setupChar(root: HTMLElement): void {
       showGrid: true,
       retainStrokes: retainCheckbox?.checked ?? false,
       showAcceptedStroke: showAcceptedCheckbox?.checked ?? true,
-      evaluation:
-        (evaluationSelect?.value as "per-stroke" | "per-char" | undefined) ??
+      correction:
+        (correctionSelect?.value as "per-stroke" | "per-char" | undefined) ??
         "per-stroke",
       onCorrectStroke: (data: CharStrokeData) => {
         log(`onCorrectStroke ${formatStrokeData(data)}`);
@@ -241,7 +241,7 @@ export function setupChar(root: HTMLElement): void {
     openPractice(currentCharacter);
   });
 
-  evaluationSelect?.addEventListener("change", () => {
+  correctionSelect?.addEventListener("change", () => {
     openPractice(currentCharacter);
   });
 

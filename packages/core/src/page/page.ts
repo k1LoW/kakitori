@@ -125,21 +125,21 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
   validateAnnotations(opts.blocks, writingMode);
 
-  // Resolve the page-wide `evaluation` once. `"per-page"` is reserved
-  // for future page-level deferred judgment; v1 has no such layer, so
-  // map it to block-level `"per-block"` and surface a single log line
-  // through the page logger. Anything else passes through unchanged.
-  // The result is later spread into every block.create() call (one per
-  // segment), so this must NOT live inside placeBlock or the log
-  // would fire once per segment.
-  let effectiveEvaluation: BlockCreateOptions["evaluation"] | undefined;
-  if (opts.evaluation === "per-page") {
+  // Resolve the page-wide `correction` once. `"per-page"` is reserved
+  // for future page-level deferred correction; v1 has no such layer,
+  // so map it to block-level `"per-block"` and surface a single log
+  // line through the page logger. Anything else passes through
+  // unchanged. The result is later spread into every block.create()
+  // call (one per segment), so this must NOT live inside placeBlock
+  // or the log would fire once per segment.
+  let effectiveCorrection: BlockCreateOptions["correction"] | undefined;
+  if (opts.correction === "per-page") {
     opts.logger?.(
-      'page: evaluation "per-page" is not yet implemented; falling back to "per-block"',
+      'page: correction "per-page" is not yet implemented; falling back to "per-block"',
     );
-    effectiveEvaluation = "per-block";
-  } else if (opts.evaluation !== undefined) {
-    effectiveEvaluation = opts.evaluation;
+    effectiveCorrection = "per-block";
+  } else if (opts.correction !== undefined) {
+    effectiveCorrection = opts.correction;
   }
 
   // page.create() is the public entrypoint, so rethrow layoutPage's
@@ -335,10 +335,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
-        // effectiveEvaluation is resolved once in createPage; the
+        // effectiveCorrection is resolved once in createPage; the
         // "per-page" -> "per-block" downgrade log fired there too, so
         // we never log per-segment.
-        ...(effectiveEvaluation !== undefined ? { evaluation: effectiveEvaluation } : {}),
+        ...(effectiveCorrection !== undefined ? { correction: effectiveCorrection } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),

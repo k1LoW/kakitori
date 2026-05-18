@@ -134,8 +134,8 @@ describe("Block.results", () => {
   });
 
   it("block-wide per-block defers per-cell judgment until the character is fully drawn", async () => {
-    // End-to-end verification that block-wide `evaluation: "per-block"`
-    // makes every guided cell switch to `evaluation: "per-char"`. The
+    // End-to-end verification that block-wide `correction: "per-block"`
+    // makes every guided cell switch to `correction: "per-char"`. The
     // key behavioral difference: hanzi-writer's strict matcher would
     // reject a clearly-wrong stroke in per-stroke mode (onMistake, no
     // completion); per-char captures it anyway and the cell commits
@@ -149,7 +149,7 @@ describe("Block.results", () => {
       },
       cellSize: 80,
       loaders: { charDataLoader: stubLoader, configLoader: null },
-      evaluation: "per-block",
+      correction: "per-block",
       onCellComplete: (idx) => {
         completedCells.push(idx);
       },
@@ -173,7 +173,7 @@ describe("Block.results", () => {
     parent.remove();
   });
 
-  it("per-cell overrides.evaluation: 'per-stroke' wins over block-wide 'per-block'", async () => {
+  it("per-cell overrides.correction: 'per-stroke' wins over block-wide 'per-block'", async () => {
     // The per-cell override path is the one consumers reach for when
     // they want a mixed block. Verify that an explicit per-cell
     // `per-stroke` still rejects clearly-wrong strokes (no completion)
@@ -188,13 +188,13 @@ describe("Block.results", () => {
             kind: "guided",
             char: "あ",
             mode: "write",
-            overrides: { evaluation: "per-stroke" },
+            overrides: { correction: "per-stroke" },
           },
         ],
       },
       cellSize: 80,
       loaders: { charDataLoader: stubLoader, configLoader: null },
-      evaluation: "per-block",
+      correction: "per-block",
       onCellComplete: (idx) => {
         completedCells.push(idx);
       },
