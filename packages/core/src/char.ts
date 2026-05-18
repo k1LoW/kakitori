@@ -1531,6 +1531,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     };
     if (mountOpts.strokeColor != null) {
       hwOptions.strokeColor = mountOpts.strokeColor;
+    } else if (mountOpts.showAcceptedStroke === false) {
+      // hanzi-writer's color parser only accepts `#rgb` / `#rrggbb` /
+      // `rgb(...)` / `rgba(...)`, so the keyword "transparent" doesn't
+      // round-trip — use a fully-transparent rgba() instead.
+      hwOptions.strokeColor = "rgba(0,0,0,0)";
     }
     if (mountOpts.outlineColor != null) {
       hwOptions.outlineColor = mountOpts.outlineColor;

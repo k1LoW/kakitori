@@ -81,6 +81,12 @@ export interface PageCreateOptions {
   retainedStrokeColor?: string;
   /** Page-wide default for {@link MountOptions.retainedStrokeWidth}. */
   retainedStrokeWidth?: number;
+  /**
+   * Page-wide default for {@link MountOptions.showAcceptedStroke}:
+   * forwarded to every block's `block.create()`. Per-block / per-cell
+   * overrides still win.
+   */
+  showAcceptedStroke?: boolean;
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
   logger?: FreeCellLogger;
   /** Debug overlay forwarded to every block's free cells / annotations. */
