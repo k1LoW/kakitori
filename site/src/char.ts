@@ -68,6 +68,9 @@ export function setupChar(root: HTMLElement): void {
   const retainCheckbox = root.querySelector<HTMLInputElement>(
     "#char-retain-strokes",
   );
+  const showAcceptedCheckbox = root.querySelector<HTMLInputElement>(
+    "#char-show-accepted",
+  );
   const quizBtn = root.querySelector<HTMLElement>("#char-quiz-btn")!;
   const animateBtn = root.querySelector<HTMLElement>("#char-animate-btn")!;
   const highlightBtn = root.querySelector<HTMLElement>("#char-highlight-btn")!;
@@ -186,6 +189,7 @@ export function setupChar(root: HTMLElement): void {
       drawingWidth: 12,
       showGrid: true,
       retainStrokes: retainCheckbox?.checked ?? false,
+      showAcceptedStroke: showAcceptedCheckbox?.checked ?? true,
       onCorrectStroke: (data: CharStrokeData) => {
         log(`onCorrectStroke ${formatStrokeData(data)}`);
         const slot = strokeSlotEls[data.strokeNum];
@@ -224,6 +228,10 @@ export function setupChar(root: HTMLElement): void {
   retainCheckbox?.addEventListener("change", () => {
     // Remount with the new retainStrokes setting; mount option is
     // captured at mount time, not on the fly.
+    openPractice(currentCharacter);
+  });
+
+  showAcceptedCheckbox?.addEventListener("change", () => {
     openPractice(currentCharacter);
   });
 

@@ -267,6 +267,84 @@ describe("char", () => {
     });
   });
 
+  describe("showAcceptedStroke option", () => {
+    // hanzi-writer renders three sibling groups inside its outer <g>:
+    // [0] outline (dashed reference), [1] main (the user's accepted ink),
+    // [2] highlight. The `main` group is what `strokeColor` paints.
+    function mainGroupStrokes(root: HTMLElement): string[] {
+      const groups = root.querySelectorAll("svg > g > g");
+      const mainPaths = groups[1]?.querySelectorAll("path");
+      return Array.from(mainPaths ?? []).map((p) => p.getAttribute("stroke") ?? "");
+    }
+
+    // ready() resolves once character data has loaded, but hanzi-writer's
+    // internal RenderState commit happens on the next microtask after
+    // that. Flushing one macrotask gives the SVG paths their final
+    // `stroke` attribute before we read it.
+    async function paintReady(k: { ready(): Promise<unknown> }): Promise<void> {
+      await k.ready();
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
+    it("paints accepted strokes with the default color when option is unset", async () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await paintReady(k);
+      const strokes = mainGroupStrokes(container);
+      expect(strokes.length).toBeGreaterThan(0);
+      for (const s of strokes) {
+        // Default hanzi-writer color (#555 = rgba(85,85,85,1)).
+        expect(s).toMatch(/rgba\(85,\s*85,\s*85,\s*1\)/);
+      }
+    });
+
+    it("paints accepted strokes as fully transparent when showAcceptedStroke is false", async () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        showAcceptedStroke: false,
+      });
+      await paintReady(k);
+      const strokes = mainGroupStrokes(container);
+      expect(strokes.length).toBeGreaterThan(0);
+      for (const s of strokes) {
+        expect(s).toMatch(/rgba\(0,\s*0,\s*0,\s*0\)/);
+      }
+    });
+
+    it("lets an explicit strokeColor win over showAcceptedStroke:false", async () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        showAcceptedStroke: false,
+        strokeColor: "#abcdef",
+      });
+      await paintReady(k);
+      const strokes = mainGroupStrokes(container);
+      expect(strokes.length).toBeGreaterThan(0);
+      for (const s of strokes) {
+        // #abcdef = rgba(171, 205, 239, 1)
+        expect(s).toMatch(/rgba\(171,\s*205,\s*239,\s*1\)/);
+      }
+    });
+
+    it("leaves the default in place when showAcceptedStroke is explicitly true", async () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        showAcceptedStroke: true,
+      });
+      await paintReady(k);
+      const strokes = mainGroupStrokes(container);
+      expect(strokes.length).toBeGreaterThan(0);
+      for (const s of strokes) {
+        expect(s).toMatch(/rgba\(85,\s*85,\s*85,\s*1\)/);
+      }
+    });
+  });
+
   describe("render", () => {
     it("renders SVG paths for character strokes", () => {
       char.render(container, "あ", {

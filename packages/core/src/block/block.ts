@@ -92,6 +92,12 @@ export interface BlockCreateOptions {
   retainedStrokeColor?: string;
   /** Block-wide default for {@link MountOptions.retainedStrokeWidth}. */
   retainedStrokeWidth?: number;
+  /**
+   * Block-wide default for {@link MountOptions.showAcceptedStroke}: when
+   * `false`, hanzi-writer's official stroke is hidden after each cell
+   * stroke is accepted. Per-cell `GuidedCell.overrides` still wins.
+   */
+  showAcceptedStroke?: boolean;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -487,6 +493,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         : {}),
       ...(opts.retainedStrokeWidth !== undefined
         ? { retainedStrokeWidth: opts.retainedStrokeWidth }
+        : {}),
+      ...(opts.showAcceptedStroke !== undefined
+        ? { showAcceptedStroke: opts.showAcceptedStroke }
         : {}),
       // In write mode the quiz starts asynchronously after `await ready()`.
       // hanzi-writer's mount default would render the character visibly

@@ -81,6 +81,21 @@ export interface MountOptions {
    * `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`.
    */
   retainedStrokeWidth?: number;
+  /**
+   * Whether to paint hanzi-writer's official stroke once a stroke is
+   * accepted. Default: `true` (the usual quiz behavior: the gray
+   * reference stroke replaces the user's drawing).
+   *
+   * Set to `false` for a "paper-only" feel — combined with
+   * `retainStrokes: true`, only the user's own ink stays visible. The
+   * outline (`showOutline`) and character template (`showCharacter`)
+   * are unaffected.
+   *
+   * Internally this overrides hanzi-writer's `strokeColor` to a fully
+   * transparent rgba. If the caller explicitly sets `strokeColor`,
+   * that value wins (so an explicit color is never silently hidden).
+   */
+  showAcceptedStroke?: boolean;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;
