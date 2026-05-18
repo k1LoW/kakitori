@@ -411,6 +411,7 @@ interface MountState {
   perCharOnPointerDown: ((e: PointerEvent) => void) | null;
   perCharOnPointerMove: ((e: PointerEvent) => void) | null;
   perCharOnPointerUp: ((e: PointerEvent) => void) | null;
+  perCharOnPointerCancel: ((e: PointerEvent) => void) | null;
   /**
    * Live `<polyline>` for the stroke the user is currently dragging out
    * in per-char mode. Created on pointerdown, points re-derived from
@@ -1147,6 +1148,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       if (!m.perCharCaptures) {
         return;
       }
+      // Single-pointer guard. Kanji practice is inherently one stroke
+      // at a time; a second simultaneous pointerdown (multi-touch, or
+      // a stray secondary pointer the browser routes to this target)
+      // would otherwise overwrite m.perCharLivePolyline and orphan the
+      // first stroke's element in the overlay. Ignore the secondary
+      // pointer entirely until the first one releases.
+      if (m.perCharLivePolyline) {
+        return;
+      }
       // Pre-create an empty polyline for the new stroke so pointermove
       // can grow it live (rather than waiting for pointerup to flash a
       // completed shape in). startTimingTracking() runs in capture
@@ -1154,15 +1164,30 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.perCharLivePolyline = createLivePolyline(m);
     };
 
+    const onPointerCancel = (_e: PointerEvent) => {
+      // The browser took the pointer away from us mid-stroke (OS
+      // scroll/zoom takeover, contextmenu, palm rejection, etc.).
+      // pointerup will NOT fire for this cycle, so without explicit
+      // cleanup the live polyline stays on the overlay as an orphan
+      // AND the cycle stalls (captures never reaches charStrokeCount).
+      // Treat the cancelled stroke like a zero-distance tap: drop the
+      // in-progress polyline and wait for the user to redraw.
+      const polyline = m.perCharLivePolyline;
+      m.perCharLivePolyline = null;
+      polyline?.remove();
+    };
+
     m.perCharOnPointerDown = onPointerDown;
     m.perCharOnPointerMove = onPointerMove;
     m.perCharOnPointerUp = onPointerUp;
+    m.perCharOnPointerCancel = onPointerCancel;
     // Bubble phase here so we run AFTER the timing handlers (which use
     // the capture phase to make sure release samples land before
     // hanzi-writer would consume the event).
     m.layerEl.addEventListener("pointerdown", onPointerDown);
     m.layerEl.addEventListener("pointermove", onPointerMove);
     m.layerEl.addEventListener("pointerup", onPointerUp);
+    m.layerEl.addEventListener("pointercancel", onPointerCancel);
   }
 
   function stopPerCharCycle(m: MountState): void {
@@ -1177,6 +1202,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (m.perCharOnPointerUp) {
       m.layerEl.removeEventListener("pointerup", m.perCharOnPointerUp);
       m.perCharOnPointerUp = null;
+    }
+    if (m.perCharOnPointerCancel) {
+      m.layerEl.removeEventListener("pointercancel", m.perCharOnPointerCancel);
+      m.perCharOnPointerCancel = null;
     }
     m.perCharCaptures = null;
     m.perCharLivePolyline = null;
@@ -1990,6 +2019,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perCharOnPointerDown: null,
       perCharOnPointerMove: null,
       perCharOnPointerUp: null,
+      perCharOnPointerCancel: null,
       perCharLivePolyline: null,
       perCharSeq: 0,
       pendingEndingJudgment: null,
