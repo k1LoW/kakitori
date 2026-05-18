@@ -639,20 +639,20 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!proj) {
       return;
     }
-    // projectFromCache:
+    // projectFromCache (inverse derived below):
     //   internal_x = (clientX - originX) * scale
     //   internal_y = HANZI_Y_MAX - (clientY - originY) * scale
-    //   scale = HANZI_PRESCALED_SIZE / innerSize
-    // Inverse:
-    //   display_x = clientX - layerLeft = internal_x / scale + (originX - layerLeft)
-    //   display_y = clientY - layerTop  = (HANZI_Y_MAX - internal_y) / scale
-    //                                     + (originY - layerTop)
-    // `(originX - layerLeft)` and `(originY - layerTop)` collapse to the
-    // padding offset in display pixels (since `originX/Y = layerRect + paddingScaled`).
+    //   scale = HANZI_PRESCALED_SIZE / innerSize_cssScaled
+    // The overlay SVG's viewBox is `0 0 m.size m.size` (logical units),
+    // so we have to divide CSS-px values by the layer's CSS scale before
+    // writing them as polyline coords — otherwise a host that CSS-scales
+    // the layer (rect.width !== m.size) would shift / mis-size the ink.
     const layerRect = m.layerEl.getBoundingClientRect();
-    const padOffsetX = proj.originX - layerRect.left;
-    const padOffsetY = proj.originY - layerRect.top;
-    const invScale = 1 / proj.scale;
+    const cssScale = (layerRect.width || m.size) / m.size;
+    const padOffsetX = (proj.originX - layerRect.left) / cssScale;
+    const padOffsetY = (proj.originY - layerRect.top) / cssScale;
+    // CSS px per internal unit ÷ cssScale → logical (viewBox) px per internal unit.
+    const invScale = 1 / (proj.scale * cssScale);
     const ns = "http://www.w3.org/2000/svg";
     const polyline = document.createElementNS(ns, "polyline");
     polyline.setAttribute(
@@ -1663,6 +1663,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (mounted) {
       mounted.strokeEndingMistakes = 0;
       mounted.pendingEndingJudgment = null;
+      // Retained ink belongs to the previous character; drop it so the
+      // overlay corresponds to whatever is being rendered now.
+      clearRetainedStrokes(mounted);
       await mounted.hw.setCharacter(c);
     }
     if (judger) {
