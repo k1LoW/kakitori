@@ -141,7 +141,7 @@ export function computeMedianPathLength(
  * `HANZI_Y_MIN` (= -124). The Y axis flips during projection, and the
  * resulting Y range is asymmetric, NOT `[0, HANZI_PRESCALED_SIZE]`.
  */
-function projectToInternal(
+export function projectToInternal(
   points: ReadonlyArray<TimedPoint>,
   sourceBox: { x: number; y: number; size: number },
 ): TimedPoint[] {

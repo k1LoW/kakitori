@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { char, computeMedianPathLength } from "./char.js";
+import {
+  char,
+  computeMedianPathLength,
+  projectToInternal,
+} from "./char.js";
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
@@ -1718,5 +1722,56 @@ describe("char", () => {
         ], { sourceBox: { x: 0, y: 0, size: Number.POSITIVE_INFINITY } }),
       ).rejects.toThrow("sourceBox.size must be a positive finite number");
     });
+  });
+});
+
+describe("projectToInternal", () => {
+  // These tests assert the projection formula at the source — independent
+  // of hanzi-writer's matcher tolerance. A formula that flipped Y around
+  // HANZI_PRESCALED_SIZE / 2 instead of HANZI_Y_MAX, or scaled by the
+  // wrong canvas dim, would still pass `matched: true` tests through
+  // matcher leniency, so the assertions below are intentionally exact.
+  it("maps the source top-left corner to (0, HANZI_Y_MAX)", () => {
+    const out = projectToInternal(
+      [{ x: 100, y: 200, t: 7 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(0);
+    expect(out[0].y).toBeCloseTo(900); // HANZI_Y_MAX
+    expect(out[0].t).toBe(7); // timestamp passes through
+  });
+
+  it("maps the source bottom-right corner to (HANZI_PRESCALED_SIZE, HANZI_Y_MIN)", () => {
+    const out = projectToInternal(
+      [{ x: 100 + 512, y: 200 + 512, t: 9 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(1024); // HANZI_PRESCALED_SIZE
+    expect(out[0].y).toBeCloseTo(-124); // HANZI_Y_MIN
+    expect(out[0].t).toBe(9);
+  });
+
+  it("maps the source center to (HANZI_PRESCALED_SIZE/2, 388)", () => {
+    // Y center is (HANZI_Y_MIN + HANZI_Y_MAX) / 2 = 388, NOT
+    // HANZI_PRESCALED_SIZE / 2 = 512 — verifying the asymmetric Y range.
+    const out = projectToInternal(
+      [{ x: 100 + 256, y: 200 + 256, t: 0 }],
+      { x: 100, y: 200, size: 512 },
+    );
+    expect(out[0].x).toBeCloseTo(512);
+    expect(out[0].y).toBeCloseTo(388);
+  });
+
+  it("scales X and Y by HANZI_PRESCALED_SIZE / sourceBox.size", () => {
+    // A 1024-unit source box should produce a 1:1 (pass-through) X
+    // mapping plus a flip around HANZI_Y_MAX in Y.
+    const out = projectToInternal(
+      [{ x: 0, y: 0, t: 0 }, { x: 1024, y: 1024, t: 1 }],
+      { x: 0, y: 0, size: 1024 },
+    );
+    expect(out[0].x).toBeCloseTo(0);
+    expect(out[0].y).toBeCloseTo(900);
+    expect(out[1].x).toBeCloseTo(1024);
+    expect(out[1].y).toBeCloseTo(-124);
   });
 });
