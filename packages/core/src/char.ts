@@ -1378,17 +1378,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // the post-accept ink, but per-char doesn't go through quiz, so we
     // mirror the same semantic here: reveal the official character at
     // correction time iff the caller wants it (showAcceptedStroke is
-    // the public opt-out, default true).
-    //
-    // Use hanzi-writer's `animateCharacter()` instead of plain
-    // `showCharacter()` so the reveal plays the same per-stroke drawing
-    // animation hanzi-writer uses elsewhere (matches Char.animate() and
-    // the per-stroke quiz accept feel) rather than fading the whole
-    // character in at once. Fire-and-forget; errors are swallowed via
-    // .catch since this is purely cosmetic.
+    // the public opt-out, default true). Plain `showCharacter()` is a
+    // straight fade across all strokes — no per-stroke animation, no
+    // highlight color flash, no stroke-count surprises. The reveal is
+    // purely cosmetic, so the promise is fire-and-forget.
     if (m.options.showAcceptedStroke !== false) {
-      m.hw.animateCharacter().catch((err: unknown) => {
-        log?.(`per-char animateCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
+      m.hw.showCharacter().catch((err: unknown) => {
+        log?.(`per-char showCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
     log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
