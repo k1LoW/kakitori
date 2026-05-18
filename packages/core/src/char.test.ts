@@ -233,6 +233,39 @@ describe("char", () => {
     });
   });
 
+  describe("retainStrokes option", () => {
+    it("does not create the retained-strokes overlay until a stroke is appended", () => {
+      createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        retainStrokes: true,
+      });
+      // Lazy: the overlay only materializes once `appendRetainedStroke`
+      // fires (from an accepted stroke). Mount alone shouldn't add it.
+      expect(container.querySelector("svg.kakitori-retained")).toBeNull();
+    });
+
+    it("leaves the retain overlay absent when the option is off", () => {
+      createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        retainStrokes: false,
+      });
+      expect(container.querySelector("svg.kakitori-retained")).toBeNull();
+    });
+
+    it("reset() / undo() / start() do not crash before any stroke is retained", () => {
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        retainStrokes: true,
+      });
+      expect(() => k.reset()).not.toThrow();
+      expect(() => k.undo()).not.toThrow();
+      expect(() => k.start()).not.toThrow();
+    });
+  });
+
   describe("render", () => {
     it("renders SVG paths for character strokes", () => {
       char.render(container, "あ", {
