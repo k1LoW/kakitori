@@ -13,6 +13,14 @@ export const DEFAULT_PADDING = 0;
 //
 // Mirror of CHARACTER_BOUNDS in hanzi-writer:
 //   [{ x: 0, y: -124 }, { x: 1024, y: 900 }]
+//
+// All four values below are derived from this single bounding box, and
+// the formulas baked into kakitori (projection / Y-flip / char.render
+// transform) rely on these invariants:
+//   HANZI_PRESCALED_SIZE === HANZI_Y_MAX - HANZI_Y_MIN  (square canvas)
+//   HANZI_Y_BASELINE_OFFSET === -HANZI_Y_MIN            (positive equiv.)
+
+/** Side length of hanzi-writer's source canvas (square, 1024 px). */
 export const HANZI_PRESCALED_SIZE = 1024;
 /** Top of character in hanzi-writer Y (Y-up). */
 export const HANZI_Y_MAX = 900;
