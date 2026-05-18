@@ -159,6 +159,82 @@ export function projectToInternal(
 }
 
 /**
+ * SVG polyline attributes for one retained user stroke, suitable for
+ * setting on a `<polyline>` element inside a `viewBox="0 0 size size"`
+ * overlay layered above hanzi-writer's SVG.
+ *
+ * Returned by {@link computeRetainedStrokeAttrs}; consumers (the mount
+ * path) build the element and apply these attributes verbatim.
+ */
+export interface RetainedStrokeAttrs {
+  /** Whitespace-separated `"x,y"` pairs in the overlay's viewBox space. */
+  points: string;
+  stroke: string;
+  /** Stroke width in viewBox (logical) units. */
+  strokeWidth: number;
+}
+
+/**
+ * Pure-math companion to the mount path's retain-strokes overlay. Given
+ * a user stroke (in hanzi-writer internal coords) plus the layer's
+ * geometry, returns the polyline attrs to draw under
+ * `MountOptions.retainStrokes`. Extracted so the inverse projection
+ * (HANZI_Y_MAX-flip + cssScale handling + drawingWidth→display
+ * conversion) can be unit-tested without driving hanzi-writer's quiz.
+ *
+ * `proj` is the same projection that `captureProjection` records on
+ * pointerdown; its `originX/Y` are in client coords and `scale` is in
+ * (HANZI_PRESCALED_SIZE / innerSize_cssScaled). `layerRect` is the
+ * layer element's `getBoundingClientRect()` at the time of rendering.
+ *
+ * Returns null when the stroke is too short to draw (`points.length < 2`).
+ */
+export function computeRetainedStrokeAttrs(
+  points: ReadonlyArray<TimedPoint>,
+  proj: { originX: number; originY: number; scale: number },
+  layerRect: { left: number; top: number; width: number },
+  size: number,
+  padding: number,
+  options: {
+    retainedStrokeColor?: string;
+    retainedStrokeWidth?: number;
+    drawingColor?: string;
+    drawingWidth?: number;
+  },
+): RetainedStrokeAttrs | null {
+  if (points.length < 2) {
+    return null;
+  }
+  // The overlay SVG's viewBox is `0..size`, so convert CSS-px values
+  // back to logical units before writing polyline points.
+  const cssScale = (layerRect.width || size) / size;
+  const padOffsetX = (proj.originX - layerRect.left) / cssScale;
+  const padOffsetY = (proj.originY - layerRect.top) / cssScale;
+  const invScale = 1 / (proj.scale * cssScale);
+  const ptsStr = points
+    .map((p) => {
+      const dx = p.x * invScale + padOffsetX;
+      const dy = (HANZI_Y_MAX - p.y) * invScale + padOffsetY;
+      return `${dx},${dy}`;
+    })
+    .join(" ");
+  // hanzi-writer interprets `drawingWidth` in its internal coord system
+  // and applies the `<g>` scale, so on-screen pen thickness is
+  // `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`. Match it so the
+  // retained ink visually equals the live drawing.
+  const innerSize = size - 2 * padding;
+  const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+  const strokeWidth =
+    options.retainedStrokeWidth ??
+    (options.drawingWidth ?? 4) * hwToDisplayScale;
+  return {
+    points: ptsStr,
+    stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
+    strokeWidth,
+  };
+}
+
+/**
  * A Char instance: a 1-character abstraction. Headless by default in the
  * sense that there is no visible on-screen mount, though judge() still
  * requires a DOM environment because it lazily mounts an offscreen
@@ -628,58 +704,32 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!m.options.retainStrokes) {
       return;
     }
-    if (points.length < 2) {
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return;
+    }
+    const layerRect = m.layerEl.getBoundingClientRect();
+    const attrs = computeRetainedStrokeAttrs(
+      points,
+      proj,
+      layerRect,
+      m.size,
+      m.padding,
+      m.options,
+    );
+    if (!attrs) {
       return;
     }
     const group = ensureRetainedSvg(m);
     if (!group) {
       return;
     }
-    const proj = m.pointerProjection;
-    if (!proj) {
-      return;
-    }
-    // projectFromCache (inverse derived below):
-    //   internal_x = (clientX - originX) * scale
-    //   internal_y = HANZI_Y_MAX - (clientY - originY) * scale
-    //   scale = HANZI_PRESCALED_SIZE / innerSize_cssScaled
-    // The overlay SVG's viewBox is `0 0 m.size m.size` (logical units),
-    // so we have to divide CSS-px values by the layer's CSS scale before
-    // writing them as polyline coords — otherwise a host that CSS-scales
-    // the layer (rect.width !== m.size) would shift / mis-size the ink.
-    const layerRect = m.layerEl.getBoundingClientRect();
-    const cssScale = (layerRect.width || m.size) / m.size;
-    const padOffsetX = (proj.originX - layerRect.left) / cssScale;
-    const padOffsetY = (proj.originY - layerRect.top) / cssScale;
-    // CSS px per internal unit ÷ cssScale → logical (viewBox) px per internal unit.
-    const invScale = 1 / (proj.scale * cssScale);
     const ns = "http://www.w3.org/2000/svg";
     const polyline = document.createElementNS(ns, "polyline");
-    polyline.setAttribute(
-      "points",
-      points
-        .map((p) => {
-          const dx = p.x * invScale + padOffsetX;
-          const dy = (HANZI_Y_MAX - p.y) * invScale + padOffsetY;
-          return `${dx},${dy}`;
-        })
-        .join(" "),
-    );
+    polyline.setAttribute("points", attrs.points);
     polyline.setAttribute("fill", "none");
-    polyline.setAttribute(
-      "stroke",
-      m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555",
-    );
-    // hanzi-writer interprets `drawingWidth` in its internal coord system
-    // (HANZI_PRESCALED_SIZE wide) and applies its `<g>` scale, so the
-    // on-screen pen thickness is `drawingWidth * innerSize / PRESCALED`.
-    // Match that here so the retained ink visually equals the live pen.
-    const innerSize = m.size - 2 * m.padding;
-    const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
-    const widthDisplay =
-      m.options.retainedStrokeWidth ??
-      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
-    polyline.setAttribute("stroke-width", String(widthDisplay));
+    polyline.setAttribute("stroke", attrs.stroke);
+    polyline.setAttribute("stroke-width", String(attrs.strokeWidth));
     polyline.setAttribute("stroke-linecap", "round");
     polyline.setAttribute("stroke-linejoin", "round");
     group.appendChild(polyline);

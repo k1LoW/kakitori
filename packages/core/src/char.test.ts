@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   char,
   computeMedianPathLength,
+  computeRetainedStrokeAttrs,
   projectToInternal,
 } from "./char.js";
 import type {
@@ -1806,5 +1807,154 @@ describe("projectToInternal", () => {
     expect(out[0].y).toBeCloseTo(900);
     expect(out[1].x).toBeCloseTo(1024);
     expect(out[1].y).toBeCloseTo(-124);
+  });
+});
+
+
+describe("computeRetainedStrokeAttrs", () => {
+  // Standard non-CSS-scaled setup mirrors a mounted Char with
+  // size=300, padding=20: inner box is 260 px on a 300 px layer.
+  const SIZE = 300;
+  const PADDING = 20;
+  const INNER = SIZE - 2 * PADDING; // 260
+  // proj.scale = HANZI_PRESCALED_SIZE / innerSize_cssScaled.
+  // In the cssScale=1 setup that's 1024 / 260.
+  const PROJ_1X = {
+    originX: PADDING, // assumes layerRect.left == 0
+    originY: PADDING,
+    scale: 1024 / INNER,
+  };
+  const RECT_1X = { left: 0, top: 0, width: SIZE };
+
+  it("returns null for inputs with fewer than 2 points", () => {
+    expect(
+      computeRetainedStrokeAttrs([], PROJ_1X, RECT_1X, SIZE, PADDING, {}),
+    ).toBeNull();
+    expect(
+      computeRetainedStrokeAttrs(
+        [{ x: 0, y: 0, t: 0 }],
+        PROJ_1X,
+        RECT_1X,
+        SIZE,
+        PADDING,
+        {},
+      ),
+    ).toBeNull();
+  });
+
+  it("maps internal (0, HANZI_Y_MAX) to the inner-box top-left in logical px", () => {
+    // Internal (x=0, y=900) corresponds to the user clicking at the
+    // top-left of the inner box, so the polyline should land at
+    // (padding, padding).
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 900, t: 0 },
+        { x: 1, y: 899, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { drawingWidth: 12 },
+    );
+    expect(attrs).not.toBeNull();
+    const [x0, y0] = attrs!.points.split(" ")[0].split(",").map(Number);
+    expect(x0).toBeCloseTo(PADDING);
+    expect(y0).toBeCloseTo(PADDING);
+  });
+
+  it("maps internal (HANZI_PRESCALED_SIZE, HANZI_Y_MIN) to the inner-box bottom-right", () => {
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1024, y: -124, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { drawingWidth: 12 },
+    );
+    const [xLast, yLast] = attrs!.points.split(" ")[1].split(",").map(Number);
+    expect(xLast).toBeCloseTo(SIZE - PADDING);
+    expect(yLast).toBeCloseTo(SIZE - PADDING);
+  });
+
+  it("respects layer CSS scale: same internal coords land in the same logical px", () => {
+    // When the host CSS-scales the layer (e.g. transform: scale(2)),
+    // captureProjection records originX/Y in CSS coords and scale
+    // against the cssScale-adjusted inner size. The polyline result
+    // should still be in logical viewBox units, not CSS px.
+    const cssScale = 2;
+    const proj2X = {
+      originX: PADDING * cssScale, // layerRect.left=0 + paddingScaled
+      originY: PADDING * cssScale,
+      scale: 1024 / (INNER * cssScale),
+    };
+    const rect2X = { left: 0, top: 0, width: SIZE * cssScale };
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 900, t: 0 },
+        { x: 1024, y: -124, t: 1 },
+      ],
+      proj2X,
+      rect2X,
+      SIZE,
+      PADDING,
+      { drawingWidth: 12 },
+    );
+    const [x0, y0] = attrs!.points.split(" ")[0].split(",").map(Number);
+    const [x1, y1] = attrs!.points.split(" ")[1].split(",").map(Number);
+    expect(x0).toBeCloseTo(PADDING);
+    expect(y0).toBeCloseTo(PADDING);
+    expect(x1).toBeCloseTo(SIZE - PADDING);
+    expect(y1).toBeCloseTo(SIZE - PADDING);
+  });
+
+  it("converts drawingWidth (internal coord units) to display pixels", () => {
+    // hanzi-writer's drawingWidth: 12 internal units displays at
+    // 12 * innerSize / 1024 ≈ 3.05 logical px for SIZE=300, PADDING=20.
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { drawingWidth: 12 },
+    );
+    expect(attrs!.strokeWidth).toBeCloseTo((12 * INNER) / 1024);
+  });
+
+  it("retainedStrokeWidth overrides the drawingWidth-derived default", () => {
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { drawingWidth: 12, retainedStrokeWidth: 7 },
+    );
+    expect(attrs!.strokeWidth).toBe(7);
+  });
+
+  it("retainedStrokeColor overrides drawingColor", () => {
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { drawingColor: "#aaa", retainedStrokeColor: "#222" },
+    );
+    expect(attrs!.stroke).toBe("#222");
   });
 });
