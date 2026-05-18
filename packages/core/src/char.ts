@@ -159,6 +159,82 @@ export function projectToInternal(
 }
 
 /**
+ * SVG polyline attributes for one retained user stroke, suitable for
+ * setting on a `<polyline>` element inside a `viewBox="0 0 size size"`
+ * overlay layered above hanzi-writer's SVG.
+ *
+ * Returned by {@link computeRetainedStrokeAttrs}; consumers (the mount
+ * path) build the element and apply these attributes verbatim.
+ */
+export interface RetainedStrokeAttrs {
+  /** Whitespace-separated `"x,y"` pairs in the overlay's viewBox space. */
+  points: string;
+  stroke: string;
+  /** Stroke width in viewBox (logical) units. */
+  strokeWidth: number;
+}
+
+/**
+ * Pure-math companion to the mount path's retain-strokes overlay. Given
+ * a user stroke (in hanzi-writer internal coords) plus the layer's
+ * geometry, returns the polyline attrs to draw under
+ * `MountOptions.retainStrokes`. Extracted so the inverse projection
+ * (HANZI_Y_MAX-flip + cssScale handling + drawingWidth→display
+ * conversion) can be unit-tested without driving hanzi-writer's quiz.
+ *
+ * `proj` is the same projection that `captureProjection` records on
+ * pointerdown; its `originX/Y` are in client coords and `scale` is in
+ * (HANZI_PRESCALED_SIZE / innerSize_cssScaled). `layerRect` is the
+ * layer element's `getBoundingClientRect()` at the time of rendering.
+ *
+ * Returns null when the stroke is too short to draw (`points.length < 2`).
+ */
+export function computeRetainedStrokeAttrs(
+  points: ReadonlyArray<TimedPoint>,
+  proj: { originX: number; originY: number; scale: number },
+  layerRect: { left: number; top: number; width: number },
+  size: number,
+  padding: number,
+  options: {
+    retainedStrokeColor?: string;
+    retainedStrokeWidth?: number;
+    drawingColor?: string;
+    drawingWidth?: number;
+  },
+): RetainedStrokeAttrs | null {
+  if (points.length < 2) {
+    return null;
+  }
+  // The overlay SVG's viewBox is `0..size`, so convert CSS-px values
+  // back to logical units before writing polyline points.
+  const cssScale = (layerRect.width || size) / size;
+  const padOffsetX = (proj.originX - layerRect.left) / cssScale;
+  const padOffsetY = (proj.originY - layerRect.top) / cssScale;
+  const invScale = 1 / (proj.scale * cssScale);
+  const ptsStr = points
+    .map((p) => {
+      const dx = p.x * invScale + padOffsetX;
+      const dy = (HANZI_Y_MAX - p.y) * invScale + padOffsetY;
+      return `${dx},${dy}`;
+    })
+    .join(" ");
+  // hanzi-writer interprets `drawingWidth` in its internal coord system
+  // and applies the `<g>` scale, so on-screen pen thickness is
+  // `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`. Match it so the
+  // retained ink visually equals the live drawing.
+  const innerSize = size - 2 * padding;
+  const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+  const strokeWidth =
+    options.retainedStrokeWidth ??
+    (options.drawingWidth ?? 4) * hwToDisplayScale;
+  return {
+    points: ptsStr,
+    stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
+    strokeWidth,
+  };
+}
+
+/**
  * A Char instance: a 1-character abstraction. Headless by default in the
  * sense that there is no visible on-screen mount, though judge() still
  * requires a DOM environment because it lazily mounts an offscreen
@@ -312,6 +388,13 @@ interface MountState {
   hwSvg: SVGSVGElement | null;
   gridSvg: SVGSVGElement | null;
   activeOverlay: SVGSVGElement | null;
+  /**
+   * SVG `<g>` (inside a transform-less overlay SVG layered above hwSvg)
+   * that accumulates one `<polyline>` per accepted user stroke when
+   * `MountOptions.retainStrokes` is true. Created lazily on the first
+   * stroke that needs to be retained; cleared on reset / start / undo.
+   */
+  retainedGroup: SVGGElement | null;
   pendingEndingJudgment: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -576,6 +659,92 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return m.timedPoints.map((p) => ({ x: p.x, y: p.y, t: p.t }));
   }
 
+  /**
+   * Lazily set up a transform-less overlay SVG inside layerEl. Retained
+   * polylines are painted directly in layer-relative display coords so
+   * the ink lands exactly where the user's pointer was; we don't share
+   * hanzi-writer's `<g>` transform here because hanzi-writer applies a
+   * baseline-offset translation (for the asymmetric Y range) that we
+   * don't need when working in display coords.
+   */
+  function ensureRetainedSvg(m: MountState): SVGGElement | null {
+    if (m.retainedGroup) {
+      return m.retainedGroup;
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const overlay = document.createElementNS(ns, "svg") as SVGSVGElement;
+    overlay.classList.add("kakitori-retained");
+    overlay.setAttribute("width", String(m.size));
+    overlay.setAttribute("height", String(m.size));
+    overlay.setAttribute("viewBox", `0 0 ${m.size} ${m.size}`);
+    overlay.setAttribute("aria-hidden", "true");
+    overlay.style.position = "absolute";
+    overlay.style.top = "0";
+    overlay.style.left = "0";
+    // Sit above hwSvg (z-index 1) but below the animate overlay (2) so a
+    // mid-stroke `animate()` call still wins visually if it happens.
+    overlay.style.zIndex = "1";
+    overlay.style.pointerEvents = "none";
+    const group = document.createElementNS(ns, "g") as SVGGElement;
+    overlay.appendChild(group);
+    m.layerEl.appendChild(overlay);
+    m.retainedGroup = group;
+    return group;
+  }
+
+  /**
+   * Append one polyline representing a single accepted user stroke into
+   * the retained overlay. Converts captured points back from
+   * hanzi-writer internal coords (Y-up, x ∈ [0, HANZI_PRESCALED_SIZE],
+   * y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]) to layer-relative display pixels so
+   * the ink lands exactly where the user drew it. No-op when
+   * `retainStrokes` is false or the captured points are insufficient.
+   */
+  function appendRetainedStroke(m: MountState, points: TimedPoint[]): void {
+    if (!m.options.retainStrokes) {
+      return;
+    }
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return;
+    }
+    const layerRect = m.layerEl.getBoundingClientRect();
+    const attrs = computeRetainedStrokeAttrs(
+      points,
+      proj,
+      layerRect,
+      m.size,
+      m.padding,
+      m.options,
+    );
+    if (!attrs) {
+      return;
+    }
+    const group = ensureRetainedSvg(m);
+    if (!group) {
+      return;
+    }
+    const ns = "http://www.w3.org/2000/svg";
+    const polyline = document.createElementNS(ns, "polyline");
+    polyline.setAttribute("points", attrs.points);
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", attrs.stroke);
+    polyline.setAttribute("stroke-width", String(attrs.strokeWidth));
+    polyline.setAttribute("stroke-linecap", "round");
+    polyline.setAttribute("stroke-linejoin", "round");
+    group.appendChild(polyline);
+  }
+
+  /** Wipe every retained polyline. Called on reset() / start() / undo(). */
+  function clearRetainedStrokes(m: MountState): void {
+    if (!m.retainedGroup) {
+      return;
+    }
+    while (m.retainedGroup.firstChild) {
+      m.retainedGroup.removeChild(m.retainedGroup.firstChild);
+    }
+  }
+
   function getMountStroke(m: MountState, dataStrokeNum: number) {
     const characterImpl = (
       m.hw as unknown as {
@@ -706,6 +875,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         }
 
         const points = getCapturedPoints(m);
+        // Persist the user's drawn ink (one polyline per data stroke /
+        // pointer cycle) so grouped strokes contribute every stroke
+        // they actually drew, not just the first-in-group.
+        appendRetainedStroke(m, points);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
@@ -1423,6 +1596,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       hwSvg,
       gridSvg,
       activeOverlay: null,
+      retainedGroup: null,
       pendingEndingJudgment: null,
       quizActive: false,
       quizArmed: false,
@@ -1539,6 +1713,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (mounted) {
       mounted.strokeEndingMistakes = 0;
       mounted.pendingEndingJudgment = null;
+      // Retained ink belongs to the previous character; drop it so the
+      // overlay corresponds to whatever is being rendered now.
+      clearRetainedStrokes(mounted);
       await mounted.hw.setCharacter(c);
     }
     if (judger) {
@@ -1555,6 +1732,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   function start(): Char {
     const m = assertMounted();
     cancelActiveAnimation(m);
+    // Starting a new quiz attempt is a clean slate for retained ink —
+    // previous attempts' strokes shouldn't pile up on the new one.
+    clearRetainedStrokes(m);
     m.quizArmed = true;
     const seq = ++requestSeq;
     configReady.then(() => {
@@ -1584,6 +1764,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    clearRetainedStrokes(m);
     m.quizArmed = false;
     resetStrokeColors();
     return api;
@@ -1595,6 +1776,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     ++requestSeq;
     cancelActiveAnimation(m);
     cancelActiveQuiz(m);
+    clearRetainedStrokes(m);
     resetStrokeColors();
     if (wasArmed) {
       // quizArmed remains true: the quiz is being re-armed in place.

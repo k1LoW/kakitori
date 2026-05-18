@@ -64,6 +64,23 @@ export interface MountOptions {
   showGrid?: boolean | GridOptions;
   showOutline?: boolean;
   showCharacter?: boolean;
+  /**
+   * Keep each user-drawn stroke visible after it is accepted, so the
+   * cell builds up the actual ink the user wrote (practice-paper feel)
+   * instead of hanzi-writer's default behavior of fading the drawing
+   * out. Strokes are rendered as raw polylines in layer-relative display
+   * coords; they're cleared on `reset()` / `start()` / `undo()` and on
+   * unmount. Default: `false`.
+   */
+  retainStrokes?: boolean;
+  /** Color used for retained strokes. Defaults to `drawingColor`. */
+  retainedStrokeColor?: string;
+  /**
+   * Stroke width (display pixels) used for retained strokes. Defaults
+   * to the on-screen thickness of hanzi-writer's pen, i.e.
+   * `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`.
+   */
+  retainedStrokeWidth?: number;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;

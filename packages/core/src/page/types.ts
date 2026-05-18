@@ -71,6 +71,16 @@ export interface PageCreateOptions {
   cellBorderWidth?: number;
   cellBorderColor?: string;
   freeCellLeniency?: number;
+  /**
+   * Page-wide default for {@link MountOptions.retainStrokes}: forwarded
+   * to every block's `block.create()`. Per-block / per-cell overrides
+   * still win.
+   */
+  retainStrokes?: boolean;
+  /** Page-wide default for {@link MountOptions.retainedStrokeColor}. */
+  retainedStrokeColor?: string;
+  /** Page-wide default for {@link MountOptions.retainedStrokeWidth}. */
+  retainedStrokeWidth?: number;
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
   logger?: FreeCellLogger;
   /** Debug overlay forwarded to every block's free cells / annotations. */

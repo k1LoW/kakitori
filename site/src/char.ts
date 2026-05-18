@@ -65,6 +65,9 @@ export function setupChar(root: HTMLElement): void {
   const galleryEl = root.querySelector<HTMLElement>("#char-gallery")!;
   const writerEl = root.querySelector<HTMLElement>("#char-writer")!;
   const practiceCharEl = root.querySelector<HTMLElement>("#char-practice-char")!;
+  const retainCheckbox = root.querySelector<HTMLInputElement>(
+    "#char-retain-strokes",
+  );
   const quizBtn = root.querySelector<HTMLElement>("#char-quiz-btn")!;
   const animateBtn = root.querySelector<HTMLElement>("#char-animate-btn")!;
   const highlightBtn = root.querySelector<HTMLElement>("#char-highlight-btn")!;
@@ -155,7 +158,10 @@ export function setupChar(root: HTMLElement): void {
     summaryEl.textContent = "Mistakes: 0, Stroke ending mistakes: 0";
   }
 
+  let currentCharacter = "あ";
+
   function openPractice(character: string) {
+    currentCharacter = character;
     c?.destroy();
     practiceCharEl.textContent = character;
 
@@ -179,6 +185,7 @@ export function setupChar(root: HTMLElement): void {
       size: 300,
       drawingWidth: 12,
       showGrid: true,
+      retainStrokes: retainCheckbox?.checked ?? false,
       onCorrectStroke: (data: CharStrokeData) => {
         log(`onCorrectStroke ${formatStrokeData(data)}`);
         const slot = strokeSlotEls[data.strokeNum];
@@ -212,7 +219,13 @@ export function setupChar(root: HTMLElement): void {
     });
   }
 
-  openPractice("あ");
+  openPractice(currentCharacter);
+
+  retainCheckbox?.addEventListener("change", () => {
+    // Remount with the new retainStrokes setting; mount option is
+    // captured at mount time, not on the fly.
+    openPractice(currentCharacter);
+  });
 
   quizBtn.addEventListener("click", async () => {
     if (!c) {
