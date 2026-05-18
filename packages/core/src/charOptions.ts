@@ -97,7 +97,7 @@ export interface MountOptions {
    */
   showAcceptedStroke?: boolean;
   /**
-   * Granularity at which user input is corrected (添削). Default
+   * Granularity at which user input is corrected. Default
    * `"per-stroke"`.
    *
    * - `"per-stroke"`: hanzi-writer's quiz drives matching. Each stroke

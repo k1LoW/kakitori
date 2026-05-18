@@ -99,7 +99,7 @@ export interface BlockCreateOptions {
    */
   showAcceptedStroke?: boolean;
   /**
-   * Correction (添削) granularity across this block. Default
+   * Correction granularity across this block. Default
    * `"per-stroke"`.
    *
    * - `"per-stroke"`: forwarded to every guided cell (hanzi-writer
