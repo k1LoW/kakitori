@@ -321,8 +321,14 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // Forward page-wide evaluation, mapping `per-page` to block's
         // `per-block` (v1 has no page-level deferred judgment, so the
         // closest cell-level behavior is to defer per character).
+        // Surface the fallback through the page logger so callers who
+        // explicitly opted into `per-page` aren't silently downgraded
+        // without any signal.
         ...(opts.evaluation === "per-page"
-          ? { evaluation: "per-block" as const }
+          ? (opts.logger?.(
+              'page: evaluation "per-page" is not yet implemented; falling back to "per-block"',
+            ),
+            { evaluation: "per-block" as const })
           : opts.evaluation !== undefined
             ? { evaluation: opts.evaluation }
             : {}),

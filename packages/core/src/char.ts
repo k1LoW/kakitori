@@ -1031,10 +1031,6 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // showOutline) stays as a reference, just like the default quiz UX.
     m.hw.hideCharacter();
 
-    const expectedCount = strokeGroups
-      ? strokeGroups.length
-      : characterData?.strokes.length ?? 0;
-
     const onPointerDown = (_e: PointerEvent) => {
       // Bind nothing: startTimingTracking() has already reset
       // m.timedPoints for this new cycle.
@@ -1062,12 +1058,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       appendRetainedStroke(m, points);
 
       // Wait until the user has drawn every stroke before judging.
-      // hanzi-writer's character data is async, so resolve the
-      // expected count again here in case startQuiz fired before data
-      // landed.
-      const charStrokeCount = strokeGroups
-        ? strokeGroups.length
-        : characterData?.strokes.length ?? expectedCount;
+      // Resolve the expected count fresh on every release: hanzi-writer
+      // loads character data asynchronously and it may not be available
+      // yet when startQuiz() ran.
+      const charStrokeCount =
+        strokeGroups?.length ?? characterData?.strokes.length ?? 0;
       if (charStrokeCount === 0 || captures.length < charStrokeCount) {
         return;
       }
@@ -1147,12 +1142,28 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       if (verdict.strokeEnding) {
         charData.strokeEnding = verdict.strokeEnding;
       }
-      m.options.onCorrectStroke?.(charData);
+      // Route through `onCorrectStroke` / `onMistake` based on the
+      // matcher verdict so consumers that filter by callback name keep
+      // working in per-char mode. `mistakesOnStroke` stays 0 (there is
+      // no guided-write retry count in per-char), but `matched: false`
+      // means the stroke was rejected and belongs on the mistake path.
+      if (verdict.matched) {
+        m.options.onCorrectStroke?.(charData);
+      } else {
+        m.options.onMistake?.(charData);
+      }
     }
     if (destroyed || mounted !== m) {
       return;
     }
     m.quizActive = false;
+    // Detach the per-char pointer hooks AND the timing tracker now that
+    // the character is finalized. The per-stroke path tears down via
+    // hw.quiz's onComplete → stopTimingTracking; per-char must do the
+    // same explicitly so the layer doesn't keep accumulating events
+    // until reset() / unmount().
+    stopPerCharCycle(m);
+    stopTimingTracking(m);
     log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
     m.options.onComplete?.({
       character: currentCharacter,
@@ -1710,6 +1721,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       targetEl = found as HTMLElement;
     } else {
       targetEl = target;
+    }
+
+    // Per-char mode skips hanzi-writer's quiz, which also removes its
+    // live-ink rendering as the user drags. Without any retained ink the
+    // user would write onto a completely blank cell with no feedback
+    // until judgment lands. Default `retainStrokes: true` when the
+    // caller picked per-char and did not explicitly opt out.
+    if (
+      mountOpts.evaluation === "per-char" &&
+      mountOpts.retainStrokes === undefined
+    ) {
+      mountOpts = { ...mountOpts, retainStrokes: true };
     }
 
     const size = mountOpts.size ?? DEFAULT_SIZE;

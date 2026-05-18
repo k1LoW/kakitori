@@ -104,11 +104,17 @@ export interface MountOptions {
    *   rejected, and `onMistake` fires per attempt.
    * - `"per-char"`: hanzi-writer's quiz is bypassed. The user freely
    *   draws every stroke without per-stroke rejection. Once the user
-   *   has completed as many pointerdown→up cycles as the character
-   *   has logical strokes, kakitori judges each captured stroke and
-   *   fires `onCorrectStroke` (with `matched` reflecting the verdict)
-   *   plus a single `onComplete`. `mistakesOnStroke` is always `0`
-   *   in this mode (there is no guided-write attempt count).
+   *   has completed as many pointerdown→up cycles as the character has
+   *   logical strokes, kakitori judges each captured stroke. Per-stroke
+   *   verdicts dispatch through the existing callbacks — matched
+   *   strokes fire `onCorrectStroke`, unmatched ones fire `onMistake`
+   *   — followed by a single `onComplete`. `mistakesOnStroke` is
+   *   always `0` in this mode (no guided-write retry count).
+   *
+   *   Since per-char skips hanzi-writer's live-ink rendering,
+   *   {@link MountOptions.retainStrokes} defaults to `true` here so
+   *   the user actually sees what they drew while the verdict is
+   *   deferred. Explicitly pass `retainStrokes: false` to opt out.
    */
   evaluation?: "per-stroke" | "per-char";
   // Animation

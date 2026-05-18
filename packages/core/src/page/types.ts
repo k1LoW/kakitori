@@ -89,12 +89,15 @@ export interface PageCreateOptions {
   showAcceptedStroke?: boolean;
   /**
    * Page-wide default for {@link BlockCreateOptions.evaluation}:
-   * forwarded to every block. `"per-page"` collapses to per-cell
-   * `"per-char"` for now (v1 has no page-level deferred judgment yet);
-   * the value is preserved so consumers and future versions can rely
-   * on the same option name.
+   * forwarded to every block. Per-block / per-cell overrides still win.
    *
-   * Per-block / per-cell overrides still win.
+   * **`"per-page"` is reserved and not yet implemented.** v1 has no
+   * page-level deferred judgment, so picking it currently falls back
+   * to block-level `"per-block"` (per-cell `"per-char"`) and surfaces
+   * a one-time log line through {@link logger}. The option name is
+   * preserved so callers who want page-level deferral can opt in
+   * today and pick up the real behavior in a future version without
+   * changing their call site.
    */
   evaluation?: "per-stroke" | "per-char" | "per-block" | "per-page";
   /** Verbose lifecycle / matching trace shared by every block's free cells. */

@@ -409,14 +409,52 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 50));
 
       expect(onComplete).toHaveBeenCalledTimes(1);
-      expect(onCorrect).toHaveBeenCalledTimes(2);
-      // Per the spec, per-char never produces a "mistake" callback —
-      // mismatched strokes still flow through onCorrectStroke with
-      // `matched: false`.
-      expect(onMistake).not.toHaveBeenCalled();
+      // Every captured stroke dispatches through either onCorrectStroke
+      // (matched: true) or onMistake (matched: false) so consumers can
+      // filter by callback name. Total dispatches == stroke count.
+      expect(onCorrect.mock.calls.length + onMistake.mock.calls.length).toBe(2);
     });
 
-    it("does not bridge to hanzi-writer's quiz (per-stroke rejection is suppressed)", async () => {
+    it("dispatches per-stroke verdicts through onMistake when the matcher rejects", async () => {
+      // In per-char mode, mismatched strokes fire onMistake (matching
+      // the per-stroke callback contract), even though the user is
+      // never interrupted mid-character. mockCharData's strokes are
+      // diagonals; a single horizontal sweep won't satisfy the matcher,
+      // so onMistake must fire when judgment finalizes.
+      const onCorrect = vi.fn();
+      const onMistake = vi.fn();
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        evaluation: "per-char",
+        onCorrectStroke: onCorrect,
+        onMistake,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      // onMistake must fire at least once: at least one of the two
+      // horizontal strokes can't match the diagonals.
+      expect(onMistake.mock.calls.length).toBeGreaterThan(0);
+      // Every per-char dispatch is exclusive: a stroke is EITHER
+      // onCorrectStroke or onMistake, never both, so the totals add up
+      // to the stroke count.
+      expect(onCorrect.mock.calls.length + onMistake.mock.calls.length).toBe(2);
+    });
+
+    it("does not bridge to hanzi-writer's quiz mid-stroke (no early onMistake)", async () => {
+      // The contract is "no mid-stroke rejection in per-char". Verify
+      // that onMistake doesn't fire while the user is still mid-draw —
+      // judgment only happens after the FULL character is captured.
       const onMistake = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
@@ -429,12 +467,10 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getWriterLayer(container);
-      // Deliberately draw outside any plausible matcher tolerance —
-      // hanzi-writer's quiz would reject this with onMistake. per-char
-      // must NOT call onMistake (the verdict is folded into onComplete's
-      // CharResult via matched=false).
+      // Only one of two strokes drawn: judgment must NOT have run yet,
+      // so onMistake stays untouched even though the stroke is wrong.
       drawStroke(layer, [[5, 5], [5, 6]]);
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 50));
       expect(onMistake).not.toHaveBeenCalled();
     });
 
