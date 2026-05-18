@@ -130,11 +130,16 @@ export function computeMedianPathLength(
 }
 
 /**
- * Project drawn points from a source coordinate-space square into the
- * hanzi-writer internal `[0, HANZI_PRESCALED_SIZE]` square. Source is
- * assumed to be Y-down (browser/SVG); internal is Y-up (math) with the
- * character's top at `HANZI_Y_MAX`, so the y axis is flipped during
- * projection.
+ * Project drawn points from a source coordinate-space square into
+ * hanzi-writer's internal coord space:
+ *
+ *   x: `[sourceBox.x, sourceBox.x + size]` → `[0, HANZI_PRESCALED_SIZE]`
+ *   y: `[sourceBox.y, sourceBox.y + size]` → `[HANZI_Y_MAX, HANZI_Y_MIN]`
+ *
+ * Source is assumed to be Y-down (browser/SVG); internal is Y-up (math)
+ * with the character's top at `HANZI_Y_MAX` and descender bottom at
+ * `HANZI_Y_MIN` (= -124). The Y axis flips during projection, and the
+ * resulting Y range is asymmetric, NOT `[0, HANZI_PRESCALED_SIZE]`.
  */
 function projectToInternal(
   points: ReadonlyArray<TimedPoint>,
