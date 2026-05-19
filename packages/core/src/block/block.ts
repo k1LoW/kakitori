@@ -98,6 +98,26 @@ export interface BlockCreateOptions {
    * stroke is accepted. Per-cell `GuidedCell.overrides` still wins.
    */
   showAcceptedStroke?: boolean;
+  /**
+   * Correction granularity across this block. Default
+   * `"per-stroke"`.
+   *
+   * - `"per-stroke"`: forwarded to every guided cell (hanzi-writer
+   *   quiz corrects per stroke).
+   * - `"per-char"`: every guided cell is mounted with `correction:
+   *   "per-char"` — the user writes each character freely and the
+   *   verdict lands when the character is fully drawn.
+   * - `"per-block"`: **today observationally identical to
+   *   `"per-char"`** — every cell still judges at character completion
+   *   and `onBlockComplete` still fires after the final cell. The
+   *   value is preserved so callers who want block-level deferred
+   *   judgment can opt in today and pick up the real behavior (no
+   *   per-cell dispatch until the whole block is drawn) in a future
+   *   version without changing their call site.
+   *
+   * Per-cell `GuidedCell.overrides.correction` still wins.
+   */
+  correction?: "per-stroke" | "per-char" | "per-block";
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -477,6 +497,22 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const innerSize = rect.w - 2 * resolvedPadding;
     const guidedDrawingWidth =
       innerSize > 0 ? (resolvedDrawingWidth * HANZI_PRESCALED_SIZE) / innerSize : resolvedDrawingWidth;
+
+    // Map the block-wide `correction` value to what each guided cell
+    // should be mounted with. Resolved up here (instead of as a
+    // conditional spread) so we can log when an unknown value comes
+    // through — TypeScript catches the public surface, but raw-JS
+    // callers OR a future enum addition (e.g. `"per-page"` reaching
+    // this layer via page.ts) could trip the silent-drop path otherwise.
+    let cellCorrection: MountOptions["correction"] | undefined;
+    if (opts.correction === "per-char" || opts.correction === "per-block") {
+      cellCorrection = "per-char";
+    } else if (opts.correction === "per-stroke") {
+      cellCorrection = "per-stroke";
+    } else if (opts.correction !== undefined) {
+      opts.logger?.(`block: unknown correction "${String(opts.correction)}" ignored`);
+    }
+
     const mountOpts: MountOptions = {
       size: rect.w,
       showGrid: blockShowGrid,
@@ -497,6 +533,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showAcceptedStroke !== undefined
         ? { showAcceptedStroke: opts.showAcceptedStroke }
         : {}),
+      // Per-cell `overrides.correction` (forwarded via
+      // `pickMountOpts(overrides)` below) still wins over this
+      // block-wide default.
+      ...(cellCorrection !== undefined ? { correction: cellCorrection } : {}),
       // In write mode the quiz starts asynchronously after `await ready()`.
       // hanzi-writer's mount default would render the character visibly
       // during that gap — flash the answer to the user. Hide it from the

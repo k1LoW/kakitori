@@ -132,4 +132,82 @@ describe("Block.results", () => {
     b.destroy();
     parent.remove();
   });
+
+  it("block-wide per-block defers per-cell judgment until the character is fully drawn", async () => {
+    // End-to-end verification that block-wide `correction: "per-block"`
+    // makes every guided cell switch to `correction: "per-char"`. The
+    // key behavioral difference: hanzi-writer's strict matcher would
+    // reject a clearly-wrong stroke in per-stroke mode (onMistake, no
+    // completion); per-char captures it anyway and the cell commits
+    // via finalizePerChar -> onComplete.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [{ kind: "guided", char: "あ", mode: "write" }],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    // Give c.ready().then(c.start()) a chance to fire and per-char to
+    // arm its pointer handlers.
+    await new Promise((r) => setTimeout(r, 50));
+
+    const surfaces = parent.querySelectorAll<SVGSVGElement>("svg");
+    // Horizontal stroke is far off from stubLoader's diagonal "M 0 0
+    // L 100 100"; hanzi-writer would reject it under per-stroke. With
+    // per-block forwarded to the cell as per-char, the capture completes
+    // the (1-stroke) character regardless and onCellComplete must fire.
+    strokeAt(surfaces[0] as SVGElement, [[10, 40], [70, 40]], 1);
+    // finalizePerChar judges async (judger init + per-stroke awaits).
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(completedCells).toEqual([0]);
+    b.destroy();
+    parent.remove();
+  });
+
+  it("per-cell overrides.correction: 'per-stroke' wins over block-wide 'per-block'", async () => {
+    // The per-cell override path is the one consumers reach for when
+    // they want a mixed block. Verify that an explicit per-cell
+    // `per-stroke` still rejects clearly-wrong strokes (no completion)
+    // even when the block default is `per-block`.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          {
+            kind: "guided",
+            char: "あ",
+            mode: "write",
+            overrides: { correction: "per-stroke" },
+          },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const surfaces = parent.querySelectorAll<SVGSVGElement>("svg");
+    strokeAt(surfaces[0] as SVGElement, [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(completedCells).toEqual([]);
+    b.destroy();
+    parent.remove();
+  });
 });

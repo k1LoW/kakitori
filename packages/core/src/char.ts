@@ -395,6 +395,42 @@ interface MountState {
    * stroke that needs to be retained; cleared on reset / start / undo.
    */
   retainedGroup: SVGGElement | null;
+  /**
+   * Per-char correction state: each accepted pointer cycle (pointerdown
+   * → pointerup) appends one entry. Once its length equals the logical
+   * stroke count, kakitori runs judgment on the buffered captures and
+   * fires `onComplete`. Always-null when `correction` is `"per-stroke"`
+   * (the hanzi-writer-driven default).
+   */
+  perCharCaptures: TimedPoint[][] | null;
+  /**
+   * Pointer handlers attached only in `correction: "per-char"`. Kept as
+   * `MountState` fields so {@link cancelActiveQuiz} / {@link unmount}
+   * can detach them on teardown.
+   */
+  perCharOnPointerDown: ((e: PointerEvent) => void) | null;
+  perCharOnPointerMove: ((e: PointerEvent) => void) | null;
+  perCharOnPointerUp: ((e: PointerEvent) => void) | null;
+  perCharOnPointerCancel: ((e: PointerEvent) => void) | null;
+  /**
+   * Live `<polyline>` for the stroke the user is currently dragging out
+   * in per-char mode. Created on pointerdown, points re-derived from
+   * `m.timedPoints` on each pointermove, finalized (null'd) on
+   * pointerup. The element itself stays in the retained-strokes
+   * overlay until `clearRetainedStrokes` or `finalizePerChar` decides
+   * what to do with it.
+   */
+  perCharLivePolyline: SVGPolylineElement | null;
+  /**
+   * Monotonically-incrementing token for per-char finalize attempts.
+   * Bumped when onPointerUp launches `finalizePerChar`, also bumped by
+   * `cancelActiveQuiz` / `stopPerCharCycle` to invalidate any in-flight
+   * judgment. `finalizePerChar` captures the value at entry and bails
+   * out mid-loop if the token changes, so writes to `m.perStroke` /
+   * `m.totalMistakes` and the trailing `onComplete` can't pollute a
+   * fresh attempt or a torn-down mount.
+   */
+  perCharSeq: number;
   pendingEndingJudgment: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -704,6 +740,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!m.options.retainStrokes) {
       return;
     }
+    paintUserPolyline(m, points);
+  }
+
+  /**
+   * Paint one finalized polyline into the retained-strokes overlay
+   * (no `retainStrokes` gating). {@link appendRetainedStroke} wraps
+   * this for per-stroke mode; per-char's live-ink path uses
+   * {@link createLivePolyline} + {@link updateLivePolylinePoints}
+   * directly so the stroke grows under the pointer instead of
+   * snapping in on release.
+   */
+  function paintUserPolyline(m: MountState, points: TimedPoint[]): void {
     const proj = m.pointerProjection;
     if (!proj) {
       return;
@@ -854,6 +902,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     startTimingTracking(m);
 
+    if (m.options.correction === "per-char") {
+      // Per-char correction: skip hanzi-writer's quiz entirely; capture
+      // every pointer cycle the user draws and judge them in one batch
+      // once the cycle count matches the character's logical stroke
+      // count. Live ink rendering still flows through the retain-stroke
+      // overlay so the user sees what they drew while the verdict is
+      // deferred.
+      startPerCharCycle(m);
+      return;
+    }
+
     const quizPromise = m.hw.quiz({
       leniency,
       showHintAfterMisses: m.options.showHintAfterMisses,
@@ -981,6 +1040,363 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
       patchQuizForEnding(m);
+    });
+  }
+
+  /**
+   * Per-char correction: arm pointer handlers that snapshot every
+   * completed pointer cycle into `m.perCharCaptures` and, once the
+   * captured count matches the character's logical stroke count, drive
+   * the internal judger over every captured stroke and fire
+   * `onComplete` with the aggregated verdict.
+   *
+   * The existing `startTimingTracking()` already populates
+   * `m.timedPoints` for the active pointer cycle. These per-char hooks
+   * attach in bubble phase so they always run after the capture-phase
+   * timing handlers, i.e. `m.timedPoints` is up to date and
+   * `m.pointerProjection` is set when we read them here.
+   *
+   * `m.perCharCaptures === null` is the single "is per-char accepting
+   * input?" gate: nulling it (in onPointerUp once all strokes are in,
+   * or in stopPerCharCycle on teardown) makes pointer events become
+   * no-ops, so subsequent input during the async finalize window
+   * can't append new polylines or rejudge.
+   */
+  function startPerCharCycle(m: MountState): void {
+    m.perCharCaptures = [];
+
+    // Mirror per-stroke quiz behavior: blank the main character so the
+    // user actually writes onto an empty cell. The outline (per
+    // showOutline) stays as a reference, just like the default quiz UX.
+    // Swallow rejections (animation interrupted, mount torn down
+    // mid-fade) to avoid unhandled-promise noise — symmetric with the
+    // showCharacter() call in finalizePerChar.
+    m.hw.hideCharacter().catch((err: unknown) => {
+      log?.(`per-char hideCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+
+    const onPointerMove = (_e: PointerEvent) => {
+      // Stop accepting input the moment captures are nulled (after the
+      // last release, or on teardown) so we don't keep extending a
+      // polyline for a stroke that won't be judged.
+      if (!m.perCharCaptures) {
+        return;
+      }
+      const polyline = m.perCharLivePolyline;
+      if (!polyline) {
+        return;
+      }
+      // m.timedPoints is the per-cycle buffer: `startTimingTracking`'s
+      // pointerdown handler runs in capture phase (before this) and
+      // resets it for the new stroke, so we are guaranteed to be
+      // looking at only the current stroke's samples here.
+      updateLivePolylinePoints(m, polyline, m.timedPoints);
+    };
+
+    const onPointerUp = (_e: PointerEvent) => {
+      const polyline = m.perCharLivePolyline;
+      m.perCharLivePolyline = null;
+      const captures = m.perCharCaptures;
+      if (!captures) {
+        // Post-finalize stray release: there's no live polyline because
+        // onPointerDown short-circuited too, so nothing to clean up.
+        return;
+      }
+      const points = getCapturedPoints(m);
+      // Filter out taps with no real movement (pointerdown + pointerup
+      // at the same coords): hanzi-writer's pointerup handler appends a
+      // synthetic release sample at the last-move position, so a tap
+      // shows up as ≥2 identical points. Anything that didn't actually
+      // travel any distance is treated as cancelled, not a stroke.
+      const moved = points.length >= 2
+        && points.some((p) => p.x !== points[0].x || p.y !== points[0].y);
+      if (!moved) {
+        // Tap with no movement: drop the empty polyline we created on
+        // pointerdown so the overlay doesn't accumulate empty nodes.
+        polyline?.remove();
+        return;
+      }
+      captures.push(points);
+      // Lock in the final polyline geometry. The live updater already
+      // matches the captured points, but redo it once to make sure the
+      // saved polyline reflects the released stroke exactly.
+      if (polyline) {
+        updateLivePolylinePoints(m, polyline, points);
+      }
+
+      // Wait until the user has drawn every stroke before judging.
+      // Resolve the expected count fresh on every release: hanzi-writer
+      // loads character data asynchronously and it may not be available
+      // yet when startQuiz() ran.
+      const charStrokeCount =
+        strokeGroups?.length ?? characterData?.strokes.length ?? 0;
+      if (charStrokeCount === 0 || captures.length < charStrokeCount) {
+        return;
+      }
+
+      // All strokes are in — kick off batch judgment in the background.
+      // Nulling captures here AND bumping the per-attempt token make
+      // subsequent pointer events no-ops AND let an in-flight
+      // finalizePerChar tell when it's been superseded.
+      m.perCharCaptures = null;
+      const seq = ++m.perCharSeq;
+      finalizePerChar(m, captures, charStrokeCount, seq).catch((err) => {
+        log?.(`per-char finalize failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    };
+
+    const onPointerDown = (_e: PointerEvent) => {
+      // Same captures gate as onPointerMove/onPointerUp: if we already
+      // sent the batch off to judgment (or got torn down), creating a
+      // new polyline would leak into the overlay because onPointerUp's
+      // !captures branch returns without cleaning it up.
+      if (!m.perCharCaptures) {
+        return;
+      }
+      // Single-pointer guard. Kanji practice is inherently one stroke
+      // at a time; a second simultaneous pointerdown (multi-touch, or
+      // a stray secondary pointer the browser routes to this target)
+      // would otherwise overwrite m.perCharLivePolyline and orphan the
+      // first stroke's element in the overlay. Ignore the secondary
+      // pointer entirely until the first one releases.
+      if (m.perCharLivePolyline) {
+        return;
+      }
+      // Pre-create an empty polyline for the new stroke so pointermove
+      // can grow it live (rather than waiting for pointerup to flash a
+      // completed shape in). startTimingTracking() runs in capture
+      // phase before this, so m.pointerProjection is already set.
+      m.perCharLivePolyline = createLivePolyline(m);
+    };
+
+    const onPointerCancel = (_e: PointerEvent) => {
+      // The browser took the pointer away from us mid-stroke (OS
+      // scroll/zoom takeover, contextmenu, palm rejection, etc.).
+      // pointerup will NOT fire for this cycle, so without explicit
+      // cleanup the live polyline stays on the overlay as an orphan
+      // AND the cycle stalls (captures never reaches charStrokeCount).
+      // Treat the cancelled stroke like a zero-distance tap: drop the
+      // in-progress polyline and wait for the user to redraw.
+      const polyline = m.perCharLivePolyline;
+      m.perCharLivePolyline = null;
+      polyline?.remove();
+    };
+
+    m.perCharOnPointerDown = onPointerDown;
+    m.perCharOnPointerMove = onPointerMove;
+    m.perCharOnPointerUp = onPointerUp;
+    m.perCharOnPointerCancel = onPointerCancel;
+    // Bubble phase here so we run AFTER the timing handlers (which use
+    // the capture phase to make sure release samples land before
+    // hanzi-writer would consume the event).
+    m.layerEl.addEventListener("pointerdown", onPointerDown);
+    m.layerEl.addEventListener("pointermove", onPointerMove);
+    m.layerEl.addEventListener("pointerup", onPointerUp);
+    m.layerEl.addEventListener("pointercancel", onPointerCancel);
+  }
+
+  function stopPerCharCycle(m: MountState): void {
+    if (m.perCharOnPointerDown) {
+      m.layerEl.removeEventListener("pointerdown", m.perCharOnPointerDown);
+      m.perCharOnPointerDown = null;
+    }
+    if (m.perCharOnPointerMove) {
+      m.layerEl.removeEventListener("pointermove", m.perCharOnPointerMove);
+      m.perCharOnPointerMove = null;
+    }
+    if (m.perCharOnPointerUp) {
+      m.layerEl.removeEventListener("pointerup", m.perCharOnPointerUp);
+      m.perCharOnPointerUp = null;
+    }
+    if (m.perCharOnPointerCancel) {
+      m.layerEl.removeEventListener("pointercancel", m.perCharOnPointerCancel);
+      m.perCharOnPointerCancel = null;
+    }
+    m.perCharCaptures = null;
+    m.perCharLivePolyline = null;
+    // Invalidate any finalizePerChar that's still awaiting in the
+    // background so it doesn't write into freshly-cleared state when
+    // its per-stroke awaits resolve.
+    m.perCharSeq++;
+  }
+
+  /**
+   * Build a `<polyline>` element for a single in-progress per-char
+   * stroke, sized to match {@link paintUserPolyline}'s styling, and
+   * append it to the retained overlay. Returns the element so
+   * pointermove can keep extending its `points` attribute.
+   */
+  function createLivePolyline(m: MountState): SVGPolylineElement | null {
+    const group = ensureRetainedSvg(m);
+    if (!group) {
+      return null;
+    }
+    const innerSize = m.size - 2 * m.padding;
+    const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+    const strokeWidth =
+      m.options.retainedStrokeWidth ??
+      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
+    const stroke =
+      m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555";
+    const ns = "http://www.w3.org/2000/svg";
+    const polyline = document.createElementNS(ns, "polyline");
+    polyline.setAttribute("fill", "none");
+    polyline.setAttribute("stroke", stroke);
+    polyline.setAttribute("stroke-width", String(strokeWidth));
+    polyline.setAttribute("stroke-linecap", "round");
+    polyline.setAttribute("stroke-linejoin", "round");
+    group.appendChild(polyline);
+    return polyline;
+  }
+
+  /**
+   * Recompute the `points` attribute on a live polyline from a fresh
+   * pointer sample buffer. Shares the same inverse-projection math as
+   * {@link computeRetainedStrokeAttrs} so per-stroke retained ink and
+   * per-char live ink land in identical coords.
+   */
+  function updateLivePolylinePoints(
+    m: MountState,
+    polyline: SVGPolylineElement,
+    points: ReadonlyArray<TimedPoint>,
+  ): void {
+    const proj = m.pointerProjection;
+    if (!proj) {
+      return;
+    }
+    const layerRect = m.layerEl.getBoundingClientRect();
+    const attrs = computeRetainedStrokeAttrs(
+      points,
+      proj,
+      layerRect,
+      m.size,
+      m.padding,
+      m.options,
+    );
+    if (!attrs) {
+      return;
+    }
+    polyline.setAttribute("points", attrs.points);
+  }
+
+  /**
+   * Judge each buffered per-char stroke through the headless judger
+   * (reused via `ensureJudger(allowMount=true)`), populate
+   * `m.perStroke`, then fire `onCorrectStroke` / `onMistake` per
+   * stroke followed by `onComplete`.
+   *
+   * `seq` is the per-attempt token captured at entry. If it changes
+   * between awaits (because reset() / start() / unmount() bumped it
+   * via stopPerCharCycle), the loop bails out without writing into
+   * the freshly-cleared state.
+   *
+   * When `judgeStrokeImpl` throws (infrastructure failure, distinct
+   * from a matcher rejection), the stroke gets a placeholder
+   * `{matched: false}` entry in perStroke for visibility but is NOT
+   * counted toward `totalMistakes` and does NOT fire `onMistake` —
+   * a flaky judger shouldn't show up as "the user wrote it wrong".
+   */
+  async function finalizePerChar(
+    m: MountState,
+    captures: TimedPoint[][],
+    strokeCount: number,
+    seq: number,
+  ): Promise<void> {
+    log?.(`per-char finalize: strokes=${strokeCount}`);
+    for (let strokeNum = 0; strokeNum < strokeCount; strokeNum++) {
+      const points = captures[strokeNum];
+      let verdict: CharStrokeResult;
+      let judgerError = false;
+      try {
+        verdict = await judgeStrokeImpl(strokeNum, points, {}, true);
+      } catch (err) {
+        log?.(`per-char judge stroke ${strokeNum} failed: ${err instanceof Error ? err.message : String(err)}`);
+        verdict = { matched: false, similarity: 0, points };
+        judgerError = true;
+      }
+      if (destroyed || mounted !== m || m.perCharSeq !== seq) {
+        return;
+      }
+      m.perStroke[strokeNum] = verdict;
+      if (judgerError) {
+        // Infrastructure failure: keep the placeholder in perStroke
+        // (so the caller can see SOMETHING for this stroke index) but
+        // don't pretend it was a user mistake and don't dispatch the
+        // mistake callback.
+        continue;
+      }
+      if (!verdict.matched) {
+        m.totalMistakes += 1;
+      }
+      if (verdict.strokeEnding && !verdict.strokeEnding.correct) {
+        m.strokeEndingMistakes += 1;
+      }
+      const charData: CharStrokeData = {
+        character: currentCharacter,
+        strokeNum,
+        matched: verdict.matched,
+        similarity: verdict.similarity,
+        points: verdict.points ?? points,
+        isBackwards: verdict.isBackwards ?? false,
+        mistakesOnStroke: 0,
+        totalMistakes: m.totalMistakes,
+        strokesRemaining: strokeCount - strokeNum - 1,
+      };
+      if (verdict.strokeEnding) {
+        charData.strokeEnding = verdict.strokeEnding;
+      }
+      // Route through `onCorrectStroke` / `onMistake` based on the
+      // matcher verdict so consumers that filter by callback name keep
+      // working in per-char mode. `mistakesOnStroke` stays 0 (there is
+      // no guided-write retry count in per-char), but `matched: false`
+      // means the stroke was rejected and belongs on the mistake path.
+      if (verdict.matched) {
+        m.options.onCorrectStroke?.(charData);
+      } else {
+        m.options.onMistake?.(charData);
+      }
+    }
+    if (destroyed || mounted !== m || m.perCharSeq !== seq) {
+      return;
+    }
+    m.quizActive = false;
+    // Detach the per-char pointer hooks AND the timing tracker now that
+    // the character is finalized. The per-stroke path tears down via
+    // hw.quiz's onComplete → stopTimingTracking; per-char must do the
+    // same explicitly so the layer doesn't keep accumulating events
+    // until reset() / unmount(). Note: stopPerCharCycle bumps
+    // perCharSeq, so we must read m.options.retainStrokes / call
+    // clearRetainedStrokes / fire onComplete BEFORE the next attempt
+    // could possibly start.
+    stopPerCharCycle(m);
+    stopTimingTracking(m);
+    // The drawn polylines were painted unconditionally to give the user
+    // mid-stroke feedback. Now that judgment is done, `retainStrokes`
+    // governs whether they stick around for review — clear them
+    // otherwise so per-char without retain matches the per-stroke
+    // default UX (no leftover ink).
+    if (!m.options.retainStrokes) {
+      clearRetainedStrokes(m);
+    }
+    // Per-char hid the character at startPerCharCycle so the user wrote
+    // onto a blank cell. Per-stroke's quiz uses `strokeColor` to control
+    // the post-accept ink, but per-char doesn't go through quiz, so we
+    // mirror the same semantic here: reveal the official character at
+    // correction time iff the caller wants it (showAcceptedStroke is
+    // the public opt-out, default true). Plain `showCharacter()` is a
+    // straight fade across all strokes — no per-stroke animation, no
+    // highlight color flash, no stroke-count surprises. The reveal is
+    // purely cosmetic, so the promise is fire-and-forget.
+    if (m.options.showAcceptedStroke !== false) {
+      m.hw.showCharacter().catch((err: unknown) => {
+        log?.(`per-char showCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
+    }
+    log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
+    m.options.onComplete?.({
+      character: currentCharacter,
+      totalMistakes: m.totalMistakes,
+      strokeEndingMistakes: m.strokeEndingMistakes,
     });
   }
 
@@ -1176,6 +1592,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.quizActive = false;
     m.hw.cancelQuiz();
     stopTimingTracking(m);
+    stopPerCharCycle(m);
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
     m.perStroke = [];
@@ -1189,9 +1606,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   // ===== judge implementation (offscreen HW) =====
-  async function ensureJudger(): Promise<JudgerState> {
+  async function ensureJudger(allowMount = false): Promise<JudgerState> {
     assertNotDestroyed();
-    if (mounted) {
+    if (!allowMount && mounted) {
       throw new Error(
         "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
       );
@@ -1284,7 +1701,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         if (destroyed) {
           throw new Error("char: instance has been destroyed and cannot be used.");
         }
-        if (mounted) {
+        if (!allowMount && mounted) {
           throw new Error(
             "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
           );
@@ -1339,15 +1756,30 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
       );
     }
-    if (!Number.isInteger(strokeNum) || strokeNum < 0) {
-      throw new Error(`char.judge(): strokeNum must be a non-negative integer, got ${strokeNum}`);
-    }
     // Flag synchronously so a mount() called immediately after judge()
     // (before any await unfreezes ensureJudger) still sees that judging
     // has started.
     judgeStarted = true;
+    return judgeStrokeImpl(strokeNum, points, opts, false);
+  }
+
+  /**
+   * Shared judge implementation used by both the public {@link judge}
+   * (headless mode) and per-char correction on a mounted instance. The
+   * `allowMount` flag toggles the mount-coexistence guard inside
+   * {@link ensureJudger}.
+   */
+  async function judgeStrokeImpl(
+    strokeNum: number,
+    points: TimedPoint[],
+    opts: CharJudgeStrokeOptions,
+    allowMount: boolean,
+  ): Promise<CharStrokeResult> {
+    if (!Number.isInteger(strokeNum) || strokeNum < 0) {
+      throw new Error(`char.judge(): strokeNum must be a non-negative integer, got ${strokeNum}`);
+    }
     await configReady;
-    const j = await ensureJudger();
+    const j = await ensureJudger(allowMount);
 
     if (strokeGroups && strokeNum >= strokeGroups.length) {
       throw new Error(
@@ -1602,6 +2034,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       gridSvg,
       activeOverlay: null,
       retainedGroup: null,
+      perCharCaptures: null,
+      perCharOnPointerDown: null,
+      perCharOnPointerMove: null,
+      perCharOnPointerUp: null,
+      perCharOnPointerCancel: null,
+      perCharLivePolyline: null,
+      perCharSeq: 0,
       pendingEndingJudgment: null,
       quizActive: false,
       quizArmed: false,
@@ -1626,6 +2065,16 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     if (mountOpts.onClick) {
       m.boundOnClick = (e: MouseEvent) => {
+        // Quiz / per-char active = the writer is in drawing mode; the
+        // trailing click event of a drawn stroke must NOT trigger an
+        // onClick callback (and especially must not let consumers paint
+        // the just-accepted stroke a different color via
+        // setStrokeColor, which would interfere with the strokeColor
+        // / showAcceptedStroke contract). Click-to-inspect is only
+        // meaningful while the writer is idle.
+        if (m.quizActive) {
+          return;
+        }
         const strokeIndex = getStrokeIndexAtPoint(e.clientX, e.clientY);
         mountOpts.onClick!({ character: currentCharacter, strokeIndex });
       };
