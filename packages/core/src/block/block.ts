@@ -1140,6 +1140,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     opts.onBlockComplete?.(buildBlockResult());
   }
 
+  // After every cell + annotation has been placed, the block is in
+  // `correction: "deferred"` AND nothing actually opted into deferred
+  // (all show-mode cells, free-write cells without writers, every
+  // guided cell overridden back to per-stroke / per-char) — there's
+  // no captured signal coming for an external coordinator to wait on.
+  // Fire onBlockCaptured immediately so a higher-level coordinator
+  // (page-wide per-page) can drain its pending set, otherwise the
+  // page would never progress past such a block.
+  if (opts.correction === "deferred" && perBlockPending.size === 0) {
+    queueMicrotask(() => {
+      if (destroyed || perBlockTriggered) {
+        return;
+      }
+      perBlockTriggered = true;
+      opts.onBlockCaptured?.();
+    });
+  }
+
   return {
     el: wrapper,
     reset(): void {

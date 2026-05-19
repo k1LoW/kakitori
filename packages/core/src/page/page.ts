@@ -70,6 +70,12 @@ interface AnnotationHandleState {
    * after a completed page would clear the result and never restore it.
    */
   emitSynthetic?: () => void;
+  /**
+   * True when this page-level annotation handle was mounted under
+   * `correction: "per-page"` (deferred). Lets reset() / per-page
+   * burst know to re-register the entry / call check() on it.
+   */
+  usesDeferredCorrection?: boolean;
 }
 
 interface PerBlockState {
@@ -462,6 +468,20 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         handle: noopHandle(),
         committed: false,
       };
+      // Page-level annotations (spanning multiple segment blocks) are
+      // created here, not by the inner block. They also need to defer
+      // when the page is in per-page mode — otherwise a write-mode
+      // page-spanning annotation would settle and fire onCellComplete
+      // mid-page, breaking the "no verdict until the whole page is
+      // captured" promise. Register each as its own pending entry in
+      // the page coordinator.
+      const annotationDeferred = effectiveCorrection === "deferred";
+      const pageAnnotKey = annotationDeferred
+        ? `pageannot:${state.blockIndex}:${annotationIndex}`
+        : null;
+      if (pageAnnotKey) {
+        perPagePending.add(pageAnnotKey);
+      }
       slotState.handle = createFreeCell({
         expected: annotation.expected,
         surfaces: surfaces.map((s) => ({
@@ -478,6 +498,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(annotationDeferred
+          ? {
+              deferred: true,
+              onCellCaptured: () => onPerPageBlockCaptured(pageAnnotKey!),
+            }
+          : {}),
         onCellComplete: (chars) => {
           if (slotState.committed) {
             return;
@@ -499,6 +525,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           });
         },
       });
+      slotState.usesDeferredCorrection = annotationDeferred;
       state.annotationHandles.push(slotState);
     });
   }
@@ -618,6 +645,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       for (const b of state.segmentBlocks) {
         b.check();
       }
+      // Page-level annotations live outside the inner block — fire
+      // their freeCell.check() here so they commit in the same burst.
+      for (const h of state.annotationHandles) {
+        if (h.usesDeferredCorrection) {
+          h.handle.check();
+        }
+      }
     }
   }
 
@@ -641,6 +675,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         for (const h of s.annotationHandles) {
           h.committed = false;
           h.handle.reset();
+          if (h.usesDeferredCorrection) {
+            perPagePending.add(
+              `pageannot:${s.blockIndex}:${h.annotationIndex}`,
+            );
+          }
         }
         // Reset the underlying sub-blocks first — block.reset() queues
         // show-mode cell completions in microtasks, so we want those
@@ -682,6 +721,17 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         if (slotState) {
           slotState.handle.undo();
           slotState.committed = false;
+          if (slotState.usesDeferredCorrection) {
+            // Per-page coordinator must learn the annotation is back
+            // in-flight, mirroring the block-level re-arm. Without
+            // this, the next block's captured signal could drain
+            // perPagePending and burst on an annotation that no
+            // longer has a buffered verdict.
+            perPagePending.add(
+              `pageannot:${target.blockIndex}:${target.annotationIndex}`,
+            );
+            perPageTriggered = false;
+          }
           result = {
             kind: "annotation",
             blockIndex: target.blockIndex,
@@ -697,6 +747,15 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           const cellFrom = state.segmentCellFroms[target.segmentIndex] ?? 0;
           const origIndex = cellFrom + undone.index;
           state.cellChars[origIndex] = null;
+          if (effectiveCorrection === "deferred") {
+            // Same re-arm as the annotation branch: page-level pending
+            // set must accept this segment again. Block-level
+            // perBlockPending was already re-added by Block.undo().
+            perPagePending.add(
+              perPageKey(target.blockIndex, target.segmentIndex),
+            );
+            perPageTriggered = false;
+          }
           result = {
             kind: "block-cell",
             blockIndex: target.blockIndex,
