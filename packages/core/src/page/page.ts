@@ -783,6 +783,11 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         }
       }
       state.done = false;
+      // Re-arm page completion: state.done=false makes maybeCommitPage
+      // wait again for this block, but the pageCompleted idempotency
+      // guard would otherwise block onPageComplete from re-firing on
+      // the next attempt. Clear it so the new completion can land.
+      pageCompleted = false;
       return result;
     },
     result(): PageResult {
