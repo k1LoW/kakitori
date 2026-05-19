@@ -125,22 +125,32 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
   validateAnnotations(opts.blocks, writingMode);
 
-  // Resolve the page-wide `correction` once. `"per-page"` is reserved
-  // for future page-level deferred correction; v1 has no such layer,
-  // so map it to block-level `"per-block"` and surface a single log
-  // line through the page logger. Anything else passes through
-  // unchanged. The result is later spread into every block.create()
-  // call (one per segment), so this must NOT live inside placeBlock
-  // or the log would fire once per segment.
+  // Resolve the page-wide `correction` once. `"per-page"` injects
+  // block-level `"deferred"` into every block (which in turn defers
+  // every cell + annotation) and holds the per-block burst back for
+  // the page coordinator. Anything else passes through unchanged.
+  // The result is later spread into every block.create() call (one
+  // per segment), so this lives outside the placeBlock loop.
   let effectiveCorrection: BlockCreateOptions["correction"] | undefined;
   if (opts.correction === "per-page") {
-    opts.logger?.(
-      'page: correction "per-page" is not yet implemented; falling back to "per-block"',
-    );
-    effectiveCorrection = "per-block";
+    effectiveCorrection = "deferred";
   } else if (opts.correction !== undefined) {
     effectiveCorrection = opts.correction;
   }
+
+  // ===== Per-page real-deferral coordinator =====
+  // Mirrors the per-block coordinator inside Block. Each segment block
+  // mounted under page-wide `"per-page"` (= block-wide `"deferred"`)
+  // signals `onBlockCaptured` once every cell + annotation inside that
+  // segment has captured. We hold off triggering correction on ANY
+  // segment block until every entry in this set has fired; then we
+  // walk every block and call `check()` so the whole page commits in
+  // one burst. Keys are `<blockIndex>:<segArrIndex>` to keep
+  // multi-segment user blocks distinguishable.
+  const perPagePending = new Set<string>();
+  let perPageTriggered = false;
+  const perPageKey = (blockIndex: number, segIdx: number) =>
+    `${blockIndex}:${segIdx}`;
 
   // page.create() is the public entrypoint, so rethrow layoutPage's
   // errors under the same prefix the rest of this function uses —
@@ -368,8 +378,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           });
         },
       };
-      const b = block.create(slotEl, blockOpts);
       const segArrIndex = state.segmentBlocks.length;
+      if (effectiveCorrection === "deferred") {
+        const key = perPageKey(state.blockIndex, segArrIndex);
+        perPagePending.add(key);
+        blockOpts.onBlockCaptured = () => onPerPageBlockCaptured(key);
+      }
+      const b = block.create(slotEl, blockOpts);
       state.segmentBlocks.push(b);
       state.segmentCellFroms.push(seg.cellFrom);
       for (let cellIdx = seg.cellFrom; cellIdx <= seg.cellTo; cellIdx++) {
@@ -575,12 +590,50 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     opts.onPageComplete?.(buildPageResult());
   }
 
+  /**
+   * Per-page coordinator: a segment block mounted under page-wide
+   * deferral just told us every cell + annotation inside it has
+   * captured. Mark its key done; once every pending segment block
+   * has fired, walk all blocks and call `Block.check()` on each so
+   * they all run correction in the same burst. Each Block.check()
+   * fires its block-level `runPerBlockBurst`, which dispatches the
+   * per-cell `onComplete` callbacks → existing `commitGuidedCell` /
+   * annotation `onCellComplete` chain → `onBlockComplete` →
+   * `onPageComplete`.
+   */
+  function onPerPageBlockCaptured(key: string): void {
+    if (destroyed) {
+      return;
+    }
+    perPagePending.delete(key);
+    if (perPagePending.size > 0 || perPageTriggered) {
+      return;
+    }
+    perPageTriggered = true;
+    runPerPageBurst();
+  }
+
+  function runPerPageBurst(): void {
+    for (const state of blockStates) {
+      for (const b of state.segmentBlocks) {
+        b.check();
+      }
+    }
+  }
+
   return {
     el: wrapper,
     reset(): void {
       if (destroyed) {
         return;
       }
+      // Re-arm the per-page coordinator so a fresh attempt waits for
+      // every segment block again. Each block.reset() below clears
+      // its own per-block coordinator (which clears the underlying
+      // Char/FreeCell deferred buffers); we just need to rebuild the
+      // page-level pending set.
+      perPageTriggered = false;
+      perPagePending.clear();
       for (const s of blockStates) {
         for (let i = 0; i < s.cellChars.length; i++) {
           s.cellChars[i] = null;
@@ -594,8 +647,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // queued ahead of the annotation re-emits below to keep cell
         // callbacks ahead of annotation callbacks (matches the initial
         // create() ordering).
-        for (const b of s.segmentBlocks) {
+        for (let segIdx = 0; segIdx < s.segmentBlocks.length; segIdx++) {
+          const b = s.segmentBlocks[segIdx];
           b.reset();
+          if (effectiveCorrection === "deferred") {
+            perPagePending.add(perPageKey(s.blockIndex, segIdx));
+          }
         }
         for (const h of s.annotationHandles) {
           // Show-mode annotations don't have an interactive handle that
@@ -659,6 +716,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
     },
     result(): PageResult {
       return buildPageResult();
+    },
+    check(): void {
+      if (destroyed || opts.correction !== "per-page") {
+        return;
+      }
+      runPerPageBurst();
     },
     destroy(): void {
       destroyed = true;

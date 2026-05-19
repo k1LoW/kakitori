@@ -383,6 +383,59 @@ describe("page.create — mount layout", () => {
   });
 });
 
+describe("page.create — correction: per-page deferral", () => {
+  it("holds onCellComplete / onBlockComplete / onPageComplete until every block is captured", async () => {
+    // Two single-cell user blocks under page-wide `per-page`. Drawing
+    // only block 0 must produce ZERO callbacks (deferred at every
+    // layer); drawing block 1 then drains the page coordinator, which
+    // fires Block.check() on both blocks → cells commit → block
+    // commits → page commits, all in one burst.
+    const cellComplete = vi.fn();
+    const blockComplete = vi.fn();
+    const pageComplete = vi.fn();
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      blocks: [
+        { spec: { cells: [{ kind: "guided", char: "あ", mode: "write" }] } },
+        { spec: { cells: [{ kind: "guided", char: "い", mode: "write" }] } },
+      ],
+      cellSize: 80,
+      columns: 1,
+      cellsPerColumn: 4,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-page",
+      onCellComplete: cellComplete,
+      onBlockComplete: blockComplete,
+      onPageComplete: pageComplete,
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Capture block 0 only — every callback must stay silent.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(cellComplete).not.toHaveBeenCalled();
+    expect(blockComplete).not.toHaveBeenCalled();
+    expect(pageComplete).not.toHaveBeenCalled();
+
+    // Capture block 1 — page coordinator fires every block's check();
+    // cells commit, blocks commit, page commits.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(cellComplete).toHaveBeenCalledTimes(2);
+    expect(blockComplete).toHaveBeenCalledTimes(2);
+    expect(pageComplete).toHaveBeenCalledTimes(1);
+    handle.destroy();
+    parent.remove();
+  });
+});
+
 function flushMicrotasks(): Promise<void> {
   // Two awaits to let the chained `queueMicrotask`s + the surrounding
   // promise resolutions land before assertions.
