@@ -445,11 +445,23 @@ interface MountState {
   perCharSeq: number;
   /**
    * `correction: "deferred"` mode only: buffered per-stroke captures
-   * stashed when the user finishes drawing all N strokes, waiting for
-   * an external `Char.check()` call to trigger correction. Null in
-   * any other mode, or after `check()` consumed the buffer.
+   * + the logical stroke count we expect to correct against, stashed
+   * when the user finishes drawing all N strokes and waiting for an
+   * external `Char.check()` call to trigger correction. Null in any
+   * other mode, or after `check()` consumed the buffer.
+   *
+   * `strokeCount` is captured at stash time (not at `check()` time)
+   * so a late `setCharacter()` / `setStrokeGroups()` can't change the
+   * number we replay against. It can differ from `captures.length`
+   * only in an edge case where N strokes were captured before
+   * character data resolved — in that case using the resolved count
+   * here, not the length of the buffer, keeps the verdict consistent
+   * with what per-char would have produced automatically.
    */
-  deferredCaptures: TimedPoint[][] | null;
+  deferredCaptures: {
+    captures: TimedPoint[][];
+    strokeCount: number;
+  } | null;
   pendingEndingCheck: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -1165,10 +1177,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         // ready. Tear down input capture now so the user can't keep
         // drawing into a buffer the next `check()` would consume.
         // Correction itself runs only when `Char.check()` is called.
-        m.deferredCaptures = captures;
+        //
+        // Hand the consumer its own deep copy so they can't mutate
+        // the strokes/points we'll later replay through correction
+        // (TypeScript's ReadonlyArray doesn't protect at runtime).
+        // Stashing `captures` directly is safe: it never leaks outside
+        // kakitori again.
+        m.deferredCaptures = { captures, strokeCount: charStrokeCount };
         stopPerCharCycle(m);
         stopTimingTracking(m);
-        m.options.onCharCaptured?.(captures);
+        const consumerCopy = captures.map((stroke) =>
+          stroke.map((p) => ({ x: p.x, y: p.y, t: p.t })),
+        );
+        m.options.onCharCaptured?.(consumerCopy);
         return;
       }
       // Per-char: run correction in the background.
@@ -1444,16 +1465,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       return api;
     }
     const m = mounted;
-    const captures = m.deferredCaptures;
-    if (!captures) {
+    const stash = m.deferredCaptures;
+    if (!stash) {
       log?.("char.check(): no buffered captures to correct");
       return api;
     }
     m.deferredCaptures = null;
     const seq = ++m.perCharSeq;
-    finalizePerChar(m, captures, captures.length, seq).catch((err: unknown) => {
-      log?.(`char.check(): finalize failed: ${err instanceof Error ? err.message : String(err)}`);
-    });
+    finalizePerChar(m, stash.captures, stash.strokeCount, seq).catch(
+      (err: unknown) => {
+        log?.(`char.check(): finalize failed: ${err instanceof Error ? err.message : String(err)}`);
+      },
+    );
     return api;
   }
 

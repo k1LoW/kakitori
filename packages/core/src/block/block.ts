@@ -592,8 +592,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         // Register this cell with the per-block coordinator. Its
         // captures arrive via onCharCaptured; correction only kicks
         // off once every pending cell has fired.
+        // Compose with any caller-provided `overrides.onCharCaptured`
+        // so the consumer can still observe the captures (e.g. for
+        // logging or progress UI) without us silently swallowing the
+        // override.
         perBlockPending.add(index);
-        mountOpts.onCharCaptured = () => onPerBlockCellCaptured(index);
+        const userOnCaptured = mountOpts.onCharCaptured;
+        mountOpts.onCharCaptured = (captures) => {
+          userOnCaptured?.(captures);
+          onPerBlockCellCaptured(index);
+        };
         state.usesDeferredCorrection = true;
       }
       c.mount(cellEl, mountOpts);
