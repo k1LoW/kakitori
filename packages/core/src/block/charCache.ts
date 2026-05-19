@@ -13,10 +13,10 @@ import type { BlockLoaders } from "./types.js";
  * offscreen hanzi-writer per call.
  *
  * Invariant: a cached Char is always headless (never mounted). Don't
- * `mount()` an instance returned from here — `mount()` and `judge()` are
+ * `mount()` an instance returned from here — `mount()` and `checkStroke()` are
  * exclusive on the same Char by design.
  */
-export interface JudgeCharEntry {
+export interface CheckCharEntry {
   char: Char;
   /** Number of data strokes in hanzi-writer-data-jp for this character. */
   dataStrokeCount: number;
@@ -35,23 +35,23 @@ export interface JudgeCharEntry {
    */
   normalizeTarget: NormalizeTarget;
   /**
-   * Mutex tail for {@link runWithJudgeLock}. `Char.judge()` mutates
+   * Mutex tail for {@link runWithCheckLock}. `Char.checkStroke()` mutates
    * hanzi-writer's shared quiz state (`_currentStrokeIndex`,
-   * `_userStroke`, `capture`) and awaits during stroke-ending judgment,
+   * `_userStroke`, `capture`) and awaits during stroke-ending check,
    * so concurrent callers against the same cached instance would
    * interleave and corrupt each other's per-stroke results. Hidden from
-   * external callers; use `runWithJudgeLock` instead of touching it.
+   * external callers; use `runWithCheckLock` instead of touching it.
    */
-  judgeLock: Promise<void>;
+  checkLock: Promise<void>;
 }
 
-const cache = new Map<string, JudgeCharEntry>();
+const cache = new Map<string, CheckCharEntry>();
 // In-flight creations keyed the same way as `cache`. Concurrent
-// `getJudgeChar` calls for the same key share this promise so they don't
+// `getCheckChar` calls for the same key share this promise so they don't
 // race to construct two `Char` instances and then leak the loser.
-const inFlight = new Map<string, Promise<JudgeCharEntry>>();
+const inFlight = new Map<string, Promise<CheckCharEntry>>();
 
-export interface GetJudgeCharOptions extends BlockLoaders {
+export interface GetCheckCharOptions extends BlockLoaders {
   /**
    * Stroke-matcher leniency forwarded to `char.create`. Different leniencies
    * for the same character get separate cached instances so callers don't
@@ -61,17 +61,17 @@ export interface GetJudgeCharOptions extends BlockLoaders {
 }
 
 /**
- * Look up (or lazily create) the judge-only Char for a single character.
+ * Look up (or lazily create) the check-only Char for a single character.
  * Awaits both `ready()` (so strokeGroups / strokeEndings are loaded) AND
  * the character data fetch (so stroke counts are known up-front — Char's
- * `getLogicalStrokeCount()` returns 0 on a headless instance until judge()
+ * `getLogicalStrokeCount()` returns 0 on a headless instance until check()
  * has been called once, which is too late for free cells deciding when to
  * trigger a match attempt).
  */
-export function getJudgeChar(
+export function getCheckChar(
   c: string,
-  opts: GetJudgeCharOptions = {},
-): Promise<JudgeCharEntry> {
+  opts: GetCheckCharOptions = {},
+): Promise<CheckCharEntry> {
   const key = cacheKey(c, opts);
   const cached = cache.get(key);
   if (cached) {
@@ -95,18 +95,18 @@ export function getJudgeChar(
       const meta = await loadCharMeta(c, opts.charDataLoader);
       const groups = inst.getStrokeGroups();
       const logicalStrokeCount = groups ? groups.length : meta.dataStrokeCount;
-      const entry: JudgeCharEntry = {
+      const entry: CheckCharEntry = {
         char: inst,
         dataStrokeCount: meta.dataStrokeCount,
         logicalStrokeCount,
         normalizeTarget: meta.normalizeTarget,
-        judgeLock: Promise.resolve(),
+        checkLock: Promise.resolve(),
       };
       cache.set(key, entry);
       return entry;
     } catch (err) {
       // ready() / loadCharMeta() raced past create(), so the inst we just
-      // built would otherwise leak (configReady, judger state, possibly a
+      // built would otherwise leak (configReady, checker state, possibly a
       // pending DOM-side ready) every time a flaky loader rejects.
       inst.destroy();
       throw err;
@@ -126,7 +126,7 @@ export function getJudgeChar(
  * loaders normalize to a stable string so the common path stays a single
  * shared entry per `(character, leniency)`.
  */
-function cacheKey(c: string, opts: GetJudgeCharOptions): string {
+function cacheKey(c: string, opts: GetCheckCharOptions): string {
   const charLoaderKey = loaderId("char", opts.charDataLoader, defaultCharDataLoader);
   const configLoaderKey =
     opts.configLoader === null
@@ -209,7 +209,7 @@ function loadCharMeta(
         reject(
           err instanceof Error
             ? err
-            : new Error(`getJudgeChar(): failed to load character data for "${c}"`),
+            : new Error(`getCheckChar(): failed to load character data for "${c}"`),
         ),
     );
   });
@@ -218,17 +218,17 @@ function loadCharMeta(
 /**
  * Serialize an async section against a cached `Char` so concurrent free
  * cells judging the same character don't interleave on the shared
- * hanzi-writer quiz state. Holds the entry's `judgeLock` for the duration
- * of `fn`; `fn` is responsible for issuing every `judge()` call against
+ * hanzi-writer quiz state. Holds the entry's `checkLock` for the duration
+ * of `fn`; `fn` is responsible for issuing every `checkStroke()` call against
  * `entry.char` that needs to see consistent state.
  */
-export async function runWithJudgeLock<T>(
-  entry: JudgeCharEntry,
+export async function runWithCheckLock<T>(
+  entry: CheckCharEntry,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const previous = entry.judgeLock;
+  const previous = entry.checkLock;
   let release!: () => void;
-  entry.judgeLock = new Promise<void>((resolve) => {
+  entry.checkLock = new Promise<void>((resolve) => {
     release = resolve;
   });
   try {
@@ -243,7 +243,7 @@ export async function runWithJudgeLock<T>(
  * Test-only helper: drop every cached Char. Production code should not call
  * this — the cache is meant to live for the process.
  */
-export function _clearJudgeCharCacheForTests(): void {
+export function _clearCheckCharCacheForTests(): void {
   for (const entry of cache.values()) {
     entry.char.destroy();
   }

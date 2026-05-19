@@ -133,7 +133,7 @@ describe("Block.results", () => {
     parent.remove();
   });
 
-  it("block-wide per-block defers per-cell judgment until the character is fully drawn", async () => {
+  it("block-wide per-block defers per-cell check until the character is fully drawn", async () => {
     // End-to-end verification that block-wide `correction: "per-block"`
     // makes every guided cell switch to `correction: "per-char"`. The
     // key behavioral difference: hanzi-writer's strict matcher would
@@ -165,7 +165,7 @@ describe("Block.results", () => {
     // per-block forwarded to the cell as per-char, the capture completes
     // the (1-stroke) character regardless and onCellComplete must fire.
     strokeAt(surfaces[0] as SVGElement, [[10, 40], [70, 40]], 1);
-    // finalizePerChar judges async (judger init + per-stroke awaits).
+    // finalizePerChar checks async (checker init + per-stroke awaits).
     await new Promise((r) => setTimeout(r, 200));
 
     expect(completedCells).toEqual([0]);

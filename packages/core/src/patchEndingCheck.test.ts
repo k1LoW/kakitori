@@ -1,9 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
-import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
+import { attachEndingCheckPatch } from "./patchEndingCheck.js";
 import type { StrokeEndingResult } from "./types.js";
 import type { HanziQuiz, QuizStrokeMeta } from "./hanziWriterInternals.js";
 
-function failingJudgment(): StrokeEndingResult {
+function failingCheck(): StrokeEndingResult {
   return {
     correct: false,
     expected: ["harai"],
@@ -13,7 +13,7 @@ function failingJudgment(): StrokeEndingResult {
   };
 }
 
-function passingJudgment(): StrokeEndingResult {
+function passingCheck(): StrokeEndingResult {
   return {
     correct: true,
     expected: ["tome"],
@@ -47,24 +47,24 @@ function createFakeQuiz(): {
   return { quiz, originalSuccess, originalFailure };
 }
 
-describe("attachEndingJudgmentPatch", () => {
+describe("attachEndingCheckPatch", () => {
   it("marks the quiz as patched and is idempotent", () => {
     const { quiz, originalSuccess } = createFakeQuiz();
-    attachEndingJudgmentPatch(quiz, { runJudgment: () => null });
+    attachEndingCheckPatch(quiz, { runCheck: () => null });
     expect(quiz.__kakitoriPatched).toBe(true);
     const patchedHandleSuccess = quiz._handleSuccess;
 
     // Second call must be a no-op (does not re-wrap the already-wrapped fn).
-    attachEndingJudgmentPatch(quiz, { runJudgment: () => null });
+    attachEndingCheckPatch(quiz, { runCheck: () => null });
     expect(quiz._handleSuccess).toBe(patchedHandleSuccess);
     void originalSuccess;
   });
 
-  it("calls original _handleSuccess when judgment is null (no config)", () => {
+  it("calls original _handleSuccess when check is null (no config)", () => {
     const { quiz, originalSuccess, originalFailure } = createFakeQuiz();
     const onResolved = vi.fn();
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment: () => null,
+    attachEndingCheckPatch(quiz, {
+      runCheck: () => null,
       onResolved,
     });
 
@@ -74,13 +74,13 @@ describe("attachEndingJudgmentPatch", () => {
     expect(onResolved).toHaveBeenCalledWith(null);
   });
 
-  it("calls original _handleSuccess when judgment passes", () => {
+  it("calls original _handleSuccess when check passes", () => {
     const { quiz, originalSuccess, originalFailure } = createFakeQuiz();
-    const judgment = passingJudgment();
+    const check = passingCheck();
     const onMistake = vi.fn();
     const onResolved = vi.fn();
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment: () => judgment,
+    attachEndingCheckPatch(quiz, {
+      runCheck: () => check,
       onMistake,
       onResolved,
     });
@@ -89,16 +89,16 @@ describe("attachEndingJudgmentPatch", () => {
     expect(originalSuccess).toHaveBeenCalledTimes(1);
     expect(originalFailure).not.toHaveBeenCalled();
     expect(onMistake).not.toHaveBeenCalled();
-    expect(onResolved).toHaveBeenCalledWith(judgment);
+    expect(onResolved).toHaveBeenCalledWith(check);
   });
 
-  it("routes to _handleFailure when judgment fails and strokeEndingAsMiss=true", () => {
+  it("routes to _handleFailure when check fails and strokeEndingAsMiss=true", () => {
     const { quiz, originalSuccess, originalFailure } = createFakeQuiz();
-    const judgment = failingJudgment();
+    const check = failingCheck();
     const onMistake = vi.fn();
     const onResolved = vi.fn();
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment: () => judgment,
+    attachEndingCheckPatch(quiz, {
+      runCheck: () => check,
       onMistake,
       onResolved,
       strokeEndingAsMiss: true,
@@ -108,20 +108,20 @@ describe("attachEndingJudgmentPatch", () => {
     expect(originalFailure).toHaveBeenCalledTimes(1);
     expect(originalSuccess).not.toHaveBeenCalled();
     expect(onMistake).toHaveBeenCalledTimes(1);
-    expect(onMistake.mock.calls[0][0]).toBe(judgment);
+    expect(onMistake.mock.calls[0][0]).toBe(check);
     expect(onMistake.mock.calls[0][1].willAdvance).toBe(false);
     // onResolved is NOT fired on the rejection path: the stroke is going
-    // back to the user, so no judgment is "resolved".
+    // back to the user, so no check is "resolved".
     expect(onResolved).not.toHaveBeenCalled();
   });
 
-  it("routes to _handleSuccess when judgment fails and strokeEndingAsMiss=false (default)", () => {
+  it("routes to _handleSuccess when check fails and strokeEndingAsMiss=false (default)", () => {
     const { quiz, originalSuccess, originalFailure } = createFakeQuiz();
-    const judgment = failingJudgment();
+    const check = failingCheck();
     const onMistake = vi.fn();
     const onResolved = vi.fn();
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment: () => judgment,
+    attachEndingCheckPatch(quiz, {
+      runCheck: () => check,
       onMistake,
       onResolved,
     });
@@ -131,26 +131,26 @@ describe("attachEndingJudgmentPatch", () => {
     expect(originalFailure).not.toHaveBeenCalled();
     expect(onMistake).toHaveBeenCalledTimes(1);
     expect(onMistake.mock.calls[0][1].willAdvance).toBe(true);
-    expect(onResolved).toHaveBeenCalledWith(judgment);
+    expect(onResolved).toHaveBeenCalledWith(check);
   });
 
-  it("passes the current data stroke index to runJudgment and onMistake", () => {
+  it("passes the current data stroke index to runCheck and onMistake", () => {
     const { quiz } = createFakeQuiz();
     quiz._currentStrokeIndex = 3;
-    const runJudgment = vi.fn(
+    const runCheck = vi.fn(
       (_quiz: HanziQuiz, _dataStrokeNum: number, _meta: QuizStrokeMeta) =>
-        failingJudgment(),
+        failingCheck(),
     );
     const onMistake = vi.fn();
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment,
+    attachEndingCheckPatch(quiz, {
+      runCheck,
       onMistake,
       strokeEndingAsMiss: false,
     });
 
     quiz._handleSuccess({ isStrokeBackwards: false });
-    expect(runJudgment).toHaveBeenCalledTimes(1);
-    expect(runJudgment.mock.calls[0][1]).toBe(3);
+    expect(runCheck).toHaveBeenCalledTimes(1);
+    expect(runCheck.mock.calls[0][1]).toBe(3);
     expect(onMistake.mock.calls[0][1].dataStrokeNum).toBe(3);
   });
 });

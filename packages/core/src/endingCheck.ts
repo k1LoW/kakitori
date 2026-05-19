@@ -3,7 +3,7 @@ import type {
   StrokeEndingResult,
   TimedPoint,
 } from "./types.js";
-import { judge } from "./StrokeEndingJudge.js";
+import { checkStrokeEnding } from "./StrokeEndingChecker.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
 import { findDataStroke, type StrokeGroups } from "./strokeGroups.js";
@@ -28,7 +28,7 @@ export function computeDirectionFromMedian(
   ];
 }
 
-export interface EndingJudgmentInput {
+export interface EndingCheckInput {
   /** Data-stroke index (hanzi-writer's perspective). */
   dataStrokeNum: number;
   /** Points the user actually drew, in hanzi-writer coord space, with timestamps. */
@@ -41,12 +41,12 @@ export interface EndingJudgmentInput {
   characterData: HanziCharacterData | null;
   /**
    * Side length of the drawable area in the SAME coord space as `points`.
-   * For internal-coord callers (the default — `Char.judge` and the mounted
+   * For internal-coord callers (the default — `Char.checkStroke` and the mounted
    * quiz path both project into hanzi-writer internal coords) this is
    * `HANZI_PRESCALED_SIZE`. For callers passing CSS-pixel points it is
    * the displayed size minus padding (`size - 2 * padding`). Mismatched
    * units here will skew the speed / distance thresholds in
-   * {@link StrokeEndingJudge.judge}.
+   * {@link StrokeEndingChecker.checkStroke}.
    */
   drawableSize: number;
   /** Stroke ending strictness in [0, 1]. */
@@ -55,15 +55,15 @@ export interface EndingJudgmentInput {
 }
 
 /**
- * Pure judgment: given a drawn stroke + config, decide whether the stroke
- * ending matches the expected types. Returns null when judgment does not
+ * Pure check: given a drawn stroke + config, decide whether the stroke
+ * ending matches the expected types. Returns null when check does not
  * apply (no config, mid-group stroke, or empty `types`).
  *
  * Has no side effects beyond optional logger calls; safe to unit-test
  * without standing up a HanziWriter instance.
  */
-export function computeEndingJudgment(
-  input: EndingJudgmentInput,
+export function computeEndingCheck(
+  input: EndingCheckInput,
 ): StrokeEndingResult | null {
   const {
     dataStrokeNum,
@@ -81,8 +81,8 @@ export function computeEndingJudgment(
   }
 
   // When strokeGroups is configured, only the first stroke of a group
-  // triggers judgment. Without groups, every stroke is its own logical
-  // stroke (1:1) so judgment always applies.
+  // triggers check. Without groups, every stroke is its own logical
+  // stroke (1:1) so check always applies.
   let logicalStrokeNum: number;
   let group: readonly number[] | null = null;
   if (strokeGroups) {
@@ -120,7 +120,7 @@ export function computeEndingJudgment(
     }
   }
 
-  // Match StrokeEndingJudge.judge()'s release-marker detection so the log
+  // Match StrokeEndingChecker.checkStroke()'s release-marker detection so the log
   // does not report a misleading "pause" for motion-only sequences (where
   // the final dt is just the last segment, not a pointerup pause).
   const lastIsRelease =
@@ -131,21 +131,21 @@ export function computeEndingJudgment(
     ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
     : 0;
   log?.(
-    `judge input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
+    `check input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
   );
 
-  const judgment = judge(points, resolvedExpected, {
+  const result = checkStrokeEnding(points, resolvedExpected, {
     drawableSize,
     strictness,
   });
 
   log?.(
-    `judge result: stroke=${logicalStrokeNum + 1} detected=${
-      judgment.correct ? expected.types : "other"
-    } expected=${expected.types} correct=${judgment.correct} confidence=${judgment.confidence.toFixed(
+    `check result: stroke=${logicalStrokeNum + 1} detected=${
+      result.correct ? expected.types : "other"
+    } expected=${expected.types} correct=${result.correct} confidence=${result.confidence.toFixed(
       2,
-    )} velocity=${judgment.velocityProfile}`,
+    )} velocity=${result.velocityProfile}`,
   );
 
-  return judgment;
+  return result;
 }

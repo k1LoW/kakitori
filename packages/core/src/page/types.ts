@@ -92,7 +92,7 @@ export interface PageCreateOptions {
    * forwarded to every block. Per-block / per-cell overrides still win.
    *
    * **`"per-page"` is reserved and not yet implemented.** v1 has no
-   * page-level deferred judgment, so picking it currently falls back
+   * page-level deferred check, so picking it currently falls back
    * to block-level `"per-block"` (per-cell `"per-char"`) and surfaces
    * a one-time log line through {@link logger}. The option name is
    * preserved so callers who want page-level deferral can opt in

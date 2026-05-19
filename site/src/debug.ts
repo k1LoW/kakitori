@@ -35,16 +35,16 @@ const resetBtn = document.getElementById("reset-btn")!;
 const statusEl = document.getElementById("status")!;
 
 let mountChar: Char | null = null;
-let judgeChar: Char | null = null;
+let checkChar: Char | null = null;
 let eventSeq = 0;
-// Char.judge() mutates shared JudgerState (capture slot, quiz._userStroke,
+// Char.checkStroke() mutates shared CheckerState (capture slot, quiz._userStroke,
 // quiz._currentStrokeIndex), so concurrent calls on the same instance race
 // and can mislabel results. Mount callbacks are not awaited, so a fast
-// drawer can stack recordEvent() runs — serialize their judge calls
+// drawer can stack recordEvent() runs — serialize their check calls
 // through a promise chain.
-let judgeQueue: Promise<void> = Promise.resolve();
+let checkQueue: Promise<void> = Promise.resolve();
 // Bumped on every start() so queued tasks from an earlier session can detect
-// they are stale and bail before recreating judgeChar / racing with the new
+// they are stale and bail before recreating checkChar / racing with the new
 // session's replays.
 let sessionId = 0;
 
@@ -52,8 +52,8 @@ interface StrokeEvent {
   seq: number;
   source: "correct" | "mistake" | "ending-mistake";
   mount: CharStrokeData;
-  judgeResult: CharStrokeResult | null;
-  judgeError: string | null;
+  checkResult: CharStrokeResult | null;
+  checkError: string | null;
 }
 
 const events: StrokeEvent[] = [];
@@ -62,13 +62,13 @@ function setStatus(msg: string) {
   statusEl.textContent = msg;
 }
 
-function ensureJudgeChar(): Char {
-  if (!judgeChar) {
-    judgeChar = char.create(TARGET_CHARACTER, {
+function ensureCheckChar(): Char {
+  if (!checkChar) {
+    checkChar = char.create(TARGET_CHARACTER, {
       charDataLoader: cachedCharDataLoader,
     });
   }
-  return judgeChar;
+  return checkChar;
 }
 
 function fmtNum(n: number, digits = 3): string {
@@ -90,14 +90,14 @@ function endingSummary(
 }
 
 function diverged(ev: StrokeEvent): boolean {
-  if (!ev.judgeResult) {
+  if (!ev.checkResult) {
     return false;
   }
-  if (ev.judgeResult.matched !== ev.mount.matched) {
+  if (ev.checkResult.matched !== ev.mount.matched) {
     return true;
   }
   const me = ev.mount.strokeEnding;
-  const je = ev.judgeResult.strokeEnding;
+  const je = ev.checkResult.strokeEnding;
   if (!!me !== !!je) {
     return true;
   }
@@ -137,10 +137,10 @@ function renderEvents() {
     head.appendChild(num);
 
     const verdict = document.createElement("span");
-    if (ev.judgeError) {
+    if (ev.checkError) {
       verdict.className = "verdict diff";
-      verdict.textContent = "judge error";
-    } else if (!ev.judgeResult) {
+      verdict.textContent = "check error";
+    } else if (!ev.checkResult) {
       verdict.className = "verdict";
       verdict.textContent = "judging…";
     } else if (diverged(ev)) {
@@ -159,20 +159,20 @@ function renderEvents() {
     const mountMatched = String(ev.mount.matched);
     const mountSim = fmtNum(ev.mount.similarity);
     const mountEnding = endingSummary(ev.mount.strokeEnding);
-    const judgeMatched = ev.judgeResult ? String(ev.judgeResult.matched) : "…";
-    const judgeSim = ev.judgeResult ? fmtNum(ev.judgeResult.similarity) : "…";
-    const judgeEnding = ev.judgeResult
-      ? endingSummary(ev.judgeResult.strokeEnding)
+    const checkMatched = ev.checkResult ? String(ev.checkResult.matched) : "…";
+    const checkSim = ev.checkResult ? fmtNum(ev.checkResult.similarity) : "…";
+    const checkEnding = ev.checkResult
+      ? endingSummary(ev.checkResult.strokeEnding)
       : "…";
 
     const matchedDiffers =
-      ev.judgeResult && ev.judgeResult.matched !== ev.mount.matched;
+      ev.checkResult && ev.checkResult.matched !== ev.mount.matched;
     const endingDiffers =
-      ev.judgeResult &&
-      (!!ev.judgeResult.strokeEnding !== !!ev.mount.strokeEnding ||
-        (ev.judgeResult.strokeEnding &&
+      ev.checkResult &&
+      (!!ev.checkResult.strokeEnding !== !!ev.mount.strokeEnding ||
+        (ev.checkResult.strokeEnding &&
           ev.mount.strokeEnding &&
-          ev.judgeResult.strokeEnding.correct !==
+          ev.checkResult.strokeEnding.correct !==
             ev.mount.strokeEnding.correct));
     const matchedClass = matchedDiffers ? "diff-cell" : undefined;
     const endingClass = endingDiffers ? "diff-cell" : undefined;
@@ -180,19 +180,19 @@ function renderEvents() {
     compare.append(
       makeCell("", "label col-head"),
       makeCell("mount", "col-head"),
-      makeCell("judge", "col-head"),
+      makeCell("check", "col-head"),
       makeCell("matched", "label"),
       makeCell(mountMatched, matchedClass),
-      makeCell(judgeMatched, matchedClass),
+      makeCell(checkMatched, matchedClass),
       makeCell("similarity", "label"),
       makeCell(mountSim),
-      makeCell(judgeSim),
+      makeCell(checkSim),
       makeCell("ending", "label"),
       makeCell(mountEnding, endingClass),
-      makeCell(judgeEnding, endingClass),
+      makeCell(checkEnding, endingClass),
       makeCell("points", "label"),
       makeCell(
-        `${ev.mount.points.length} (shared input — judge() ran on the same TimedPoint[])`,
+        `${ev.mount.points.length} (shared input — check() ran on the same TimedPoint[])`,
         "span2",
       ),
     );
@@ -209,54 +209,54 @@ async function recordEvent(
     seq: ++eventSeq,
     source,
     mount: data,
-    judgeResult: null,
-    judgeError: null,
+    checkResult: null,
+    checkError: null,
   };
   events.push(ev);
   renderEvents();
 
   // Capture the session at enqueue time. Each await inside the task
   // re-checks it so a Reset between awaits drops the stale task instead
-  // of letting it touch a fresh judgeChar.
+  // of letting it touch a fresh checkChar.
   const taskSession = sessionId;
-  judgeQueue = judgeQueue.then(async () => {
+  checkQueue = checkQueue.then(async () => {
     if (taskSession !== sessionId) {
       return;
     }
-    const headless = ensureJudgeChar();
+    const headless = ensureCheckChar();
     try {
       await headless.ready();
       if (taskSession !== sessionId) {
         return;
       }
-      ev.judgeResult = await headless.judge(data.strokeNum, data.points);
+      ev.checkResult = await headless.checkStroke(data.strokeNum, data.points);
     } catch (err) {
       if (taskSession !== sessionId) {
         return;
       }
-      ev.judgeError = err instanceof Error ? err.message : String(err);
+      ev.checkError = err instanceof Error ? err.message : String(err);
     }
     if (taskSession !== sessionId) {
       return;
     }
     renderEvents();
   });
-  await judgeQueue;
+  await checkQueue;
 }
 
 async function start() {
-  // Bump first so any task currently sitting on the old judgeQueue (between
+  // Bump first so any task currently sitting on the old checkQueue (between
   // its own awaits) sees the new session id and bails before touching the
-  // about-to-be-recreated judgeChar.
+  // about-to-be-recreated checkChar.
   sessionId++;
   mountChar?.destroy();
-  judgeChar?.destroy();
+  checkChar?.destroy();
   events.length = 0;
   eventSeq = 0;
-  judgeChar = null;
-  // Drop any tail of in-flight judge() work from the previous session so
+  checkChar = null;
+  // Drop any tail of in-flight check() work from the previous session so
   // the new session's events are not serialized behind it.
-  judgeQueue = Promise.resolve();
+  checkQueue = Promise.resolve();
   writerEl.innerHTML = "";
   renderEvents();
   setStatus("loading…");

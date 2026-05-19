@@ -2,7 +2,7 @@ import HanziWriter, { type HanziWriterOptions } from "hanzi-writer";
 import type {
   CharCreateOptions,
   CharResult,
-  CharJudgeStrokeOptions,
+  CharCheckStrokeOptions,
   CharStrokeResult,
   CharLogger,
   GridOptions,
@@ -23,8 +23,8 @@ import {
   HANZI_Y_MAX,
   HANZI_Y_BASELINE_OFFSET,
 } from "./constants.js";
-import { computeEndingJudgment } from "./endingJudgment.js";
-import { attachEndingJudgmentPatch } from "./patchEndingJudgment.js";
+import { computeEndingCheck } from "./endingCheck.js";
+import { attachEndingCheckPatch } from "./patchEndingCheck.js";
 import {
   isFirstInGroup as isFirstInGroupPure,
   isLastInGroup as isLastInGroupPure,
@@ -147,7 +147,7 @@ export function projectToInternal(
 ): TimedPoint[] {
   if (sourceBox.size <= 0 || !Number.isFinite(sourceBox.size)) {
     throw new Error(
-      `char.judge(): sourceBox.size must be a positive finite number, got ${sourceBox.size}`,
+      `char.checkStroke(): sourceBox.size must be a positive finite number, got ${sourceBox.size}`,
     );
   }
   const scale = HANZI_PRESCALED_SIZE / sourceBox.size;
@@ -236,7 +236,7 @@ export function computeRetainedStrokeAttrs(
 
 /**
  * A Char instance: a 1-character abstraction. Headless by default in the
- * sense that there is no visible on-screen mount, though judge() still
+ * sense that there is no visible on-screen mount, though check() still
  * requires a DOM environment because it lazily mounts an offscreen
  * (hidden) container so hanzi-writer's matcher can run. Call
  * {@link Char.mount} to attach the character to a `target` element for
@@ -246,9 +246,9 @@ export interface Char {
   /** Wait for the async config (strokeGroups, strokeEndings) to finish loading. */
   ready(): Promise<void>;
 
-  // ───── headless judge API ─────
+  // ───── headless check API ─────
   /**
-   * Judge a single drawn stroke against the corresponding character stroke.
+   * Check a single drawn stroke against the corresponding character stroke.
    * `strokeNum` is the logical stroke index (respects `strokeGroups` when
    * configured). Resolves with the per-stroke result.
    *
@@ -262,24 +262,24 @@ export interface Char {
    * the gap from the previous sample is what tome detection treats as the
    * pause before release.
    *
-   * Tome/hane/harai judgment runs whenever stroke endings are configured for
+   * Tome/hane/harai check runs whenever stroke endings are configured for
    * the logical stroke; it relies on `t` values, so include them.
    *
    * Records the result on the instance so {@link Char.result} returns the
-   * cumulative judgment of every stroke judged so far.
+   * cumulative check of every stroke checked so far.
    *
-   * Throws when called on a mounted instance — judge and mount are
+   * Throws when called on a mounted instance — check and mount are
    * intentionally exclusive (use a separate Char for each role).
    */
-  judge(
+  checkStroke(
     strokeNum: number,
     points: TimedPoint[],
-    opts?: CharJudgeStrokeOptions,
+    opts?: CharCheckStrokeOptions,
   ): Promise<CharStrokeResult>;
   /**
    * Snapshot of this character's writing progress. Works in both
    * directions:
-   * - **headless**: built from {@link Char.judge} calls so far. `mistakes`
+   * - **headless**: built from {@link Char.checkStroke} calls so far. `mistakes`
    *   / `strokeEndingMistakes` stay undefined since hanzi-writer's quiz
    *   path isn't involved.
    * - **mounted quiz**: built from `start()`'s in-flight per-stroke
@@ -305,19 +305,19 @@ export interface Char {
   /**
    * Total logical stroke count. Returns `strokeGroups.length` when groups
    * are configured. Otherwise it counts paths from the mounted SVG when
-   * mounted, falls back to the offscreen judger's data-stroke count when
+   * mounted, falls back to the offscreen checker's data-stroke count when
    * judging has been started, and returns 0 before either of those (i.e.
-   * before mount() and before the first judge() call).
+   * before mount() and before the first check() call).
    */
   getLogicalStrokeCount(): number;
-  /** Change the displayed character. Resets stroke endings and judge result. */
+  /** Change the displayed character. Resets stroke endings and check result. */
   setCharacter(c: string): Promise<Char>;
 
   // ───── mount lifecycle ─────
   /**
    * Mount the character to a DOM element for interactive practice
    * (start / animate / etc.). Returns the same Char instance so callers
-   * can chain `char.create(...).mount(...).start()`. Throws when judge()
+   * can chain `char.create(...).mount(...).start()`. Throws when check()
    * has already been called on this instance.
    */
   mount(target: string | HTMLElement, mountOpts?: MountOptions): Char;
@@ -327,7 +327,7 @@ export interface Char {
   isMounted(): boolean;
 
   // ───── DOM-bound (require mount) ─────
-  /** Start writing practice with stroke order and stroke ending judgment. Returns the same Char for chaining. */
+  /** Start writing practice with stroke order and stroke ending check. Returns the same Char for chaining. */
   start(): Char;
   /**
    * Play stroke-order animation. Always uses the animCJK-style overlay so
@@ -398,7 +398,7 @@ interface MountState {
   /**
    * Per-char correction state: each accepted pointer cycle (pointerdown
    * → pointerup) appends one entry. Once its length equals the logical
-   * stroke count, kakitori runs judgment on the buffered captures and
+   * stroke count, kakitori runs check on the buffered captures and
    * fires `onComplete`. Always-null when `correction` is `"per-stroke"`
    * (the hanzi-writer-driven default).
    */
@@ -425,13 +425,13 @@ interface MountState {
    * Monotonically-incrementing token for per-char finalize attempts.
    * Bumped when onPointerUp launches `finalizePerChar`, also bumped by
    * `cancelActiveQuiz` / `stopPerCharCycle` to invalidate any in-flight
-   * judgment. `finalizePerChar` captures the value at entry and bails
+   * check. `finalizePerChar` captures the value at entry and bails
    * out mid-loop if the token changes, so writes to `m.perStroke` /
    * `m.totalMistakes` and the trailing `onComplete` can't pollute a
    * fresh attempt or a torn-down mount.
    */
   perCharSeq: number;
-  pendingEndingJudgment: StrokeEndingResult | null;
+  pendingEndingCheck: StrokeEndingResult | null;
   quizActive: boolean;
   /**
    * True after start() has armed a write quiz on this mount. Stays true
@@ -453,7 +453,7 @@ interface MountState {
    */
   totalMistakes: number;
   /**
-   * When `strokeEndingAsMiss` is on, an ending-judgment failure fires
+   * When `strokeEndingAsMiss` is on, an ending-check failure fires
    * `onStrokeEndingMistake` (matched: true + ending info) AND
    * hanzi-writer's underlying `onMistake` (matched: false). The ending
    * path records the stroke first; this slot tells the upcoming
@@ -480,14 +480,14 @@ interface MountState {
   padding: number;
 }
 
-interface JudgerState {
+interface CheckerState {
   container: HTMLDivElement;
   hw: HanziWriter;
   // hanzi-writer's Character instance (`Stroke[]`)
   character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
   // accumulated per-stroke results, indexed by logical stroke num
   perStroke: CharStrokeResult[];
-  // patched-handler capture slot for the current judge() call
+  // patched-handler capture slot for the current check() call
   capture: { matched: boolean; isBackwards: boolean } | null;
 }
 
@@ -512,18 +512,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     );
   }
 
-  // mount-bound and judger-bound state are populated lazily.
+  // mount-bound and checker-bound state are populated lazily.
   let mounted: MountState | null = null;
-  let judger: JudgerState | null = null;
-  // Shared promise for the in-flight judger initialisation. Set on the
-  // first judge() call, cleared on failure so retries get a fresh chance.
-  // Successful init also sets `judger`; later judge() calls short-circuit
-  // on `judger` before they ever consult `judgerInit`.
-  let judgerInit: Promise<JudgerState> | null = null;
-  // Flips to true synchronously the moment judge() is called for the
+  let checker: CheckerState | null = null;
+  // Shared promise for the in-flight checker initialisation. Set on the
+  // first check() call, cleared on failure so retries get a fresh chance.
+  // Successful init also sets `checker`; later check() calls short-circuit
+  // on `checker` before they ever consult `checkerInit`.
+  let checkerInit: Promise<CheckerState> | null = null;
+  // Flips to true synchronously the moment check() is called for the
   // first time. mount() checks this so judging-vs-mounting exclusivity
-  // holds even before judge()'s first await has set `judgerInit`.
-  let judgeStarted = false;
+  // holds even before check()'s first await has set `checkerInit`.
+  let checkStarted = false;
 
   // Monotonic counter bumped on every start() / animate() / reset() call.
   // configReady-deferred work captures the seq at scheduling time and bails
@@ -666,7 +666,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // Capture phase (`useCapture: true`) so layerEl's handler fires before
     // hanzi-writer's listener inside the SVG. That matters most for
     // pointerup: hanzi-writer runs the matcher and its onCorrectStroke /
-    // onMistake / ending-judgment patch synchronously from its own
+    // onMistake / ending-check patch synchronously from its own
     // pointerup, so the release sample MUST be appended first or those
     // callbacks would observe `m.timedPoints` without it and tome
     // detection would be skewed. The other two handlers are kept in
@@ -802,14 +802,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return characterImpl?.strokes?.[dataStrokeNum];
   }
 
-  // ===== ending judgment adapter (mount only) =====
-  function runEndingJudgment(
+  // ===== ending check adapter (mount only) =====
+  function runEndingCheck(
     m: MountState,
     _quiz: HanziQuiz,
     dataStrokeNum: number,
     _meta: QuizStrokeMeta,
   ): StrokeEndingResult | null {
-    return computeEndingJudgment({
+    return computeEndingCheck({
       dataStrokeNum,
       points: getCapturedPoints(m),
       strokeEndings,
@@ -826,9 +826,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!quiz) {
       return;
     }
-    attachEndingJudgmentPatch(quiz, {
-      runJudgment: (q, n, meta) => runEndingJudgment(m, q, n, meta),
-      onMistake: (judgment, { quiz: q, dataStrokeNum, willAdvance, meta }) => {
+    attachEndingCheckPatch(quiz, {
+      runCheck: (q, n, meta) => runEndingCheck(m, q, n, meta),
+      onMistake: (check, { quiz: q, dataStrokeNum, willAdvance, meta }) => {
         m.strokeEndingMistakes++;
         const hwData = q._getStrokeData({ isCorrect: willAdvance, meta });
         const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
@@ -837,7 +837,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
           // hanzi-writer's matcher accepted the stroke (success path),
-          // even though the ending judgment rejected it.
+          // even though the ending check rejected it.
           matched: true,
           similarity: computeSimilarity(
             getMountStroke(m, dataStrokeNum),
@@ -853,9 +853,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
             hwData.strokesRemaining,
             willAdvance,
           ),
-          strokeEnding: judgment,
+          strokeEnding: check,
         };
-        // Record the matcher's view (matched=true with ending judgment)
+        // Record the matcher's view (matched=true with ending check)
         // before hanzi-writer's own onMistake handler runs and would
         // otherwise overwrite this slot with matched=false. Tag the
         // stroke so that next onMistake skips the overwrite. Only
@@ -865,7 +865,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         m.perStroke[logicalStrokeNum] = {
           matched: true,
           similarity: charData.similarity,
-          strokeEnding: judgment,
+          strokeEnding: check,
           points: charData.points,
           mistakesOnStroke: hwData.mistakesOnStroke,
           isBackwards: hwData.isBackwards,
@@ -877,7 +877,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         m.options.onStrokeEndingMistake?.(charData);
       },
       onResolved: (j) => {
-        m.pendingEndingJudgment = j;
+        m.pendingEndingCheck = j;
       },
       strokeEndingAsMiss: !!m.options.strokeEndingAsMiss,
       log,
@@ -890,7 +890,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.totalMistakes = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
-    m.pendingEndingJudgment = null;
+    m.pendingEndingCheck = null;
 
     // Pre-load character data for direction auto-computation
     m.hw.getCharacterData().then((c) => {
@@ -904,7 +904,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     if (m.options.correction === "per-char") {
       // Per-char correction: skip hanzi-writer's quiz entirely; capture
-      // every pointer cycle the user draws and judge them in one batch
+      // every pointer cycle the user draws and check them in one batch
       // once the cycle count matches the character's logical stroke
       // count. Live ink rendering still flows through the retain-stroke
       // overlay so the user sees what they drew while the verdict is
@@ -954,9 +954,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           strokesRemaining: logicalStrokesRemaining(dataStrokeNum, hwData.strokesRemaining, true),
         };
 
-        if (m.pendingEndingJudgment != null) {
-          charData.strokeEnding = m.pendingEndingJudgment;
-          m.pendingEndingJudgment = null;
+        if (m.pendingEndingCheck != null) {
+          charData.strokeEnding = m.pendingEndingCheck;
+          m.pendingEndingCheck = null;
         }
 
         if (isFirstInGroup(dataStrokeNum) || !strokeGroups) {
@@ -999,7 +999,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         };
         log?.(`mistake: data=${hwData.strokeNum} logical=${logicalStrokeNum}`);
         // Skip the perStroke overwrite when this onMistake is the
-        // strokeEndingAsMiss=true follow-up of an ending-judgment
+        // strokeEndingAsMiss=true follow-up of an ending-check
         // failure that already wrote { matched: true, strokeEnding } to
         // the same logical stroke. Without this guard the ending data
         // would be clobbered with matched=false.
@@ -1047,7 +1047,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
    * Per-char correction: arm pointer handlers that snapshot every
    * completed pointer cycle into `m.perCharCaptures` and, once the
    * captured count matches the character's logical stroke count, drive
-   * the internal judger over every captured stroke and fire
+   * the internal checker over every captured stroke and fire
    * `onComplete` with the aggregated verdict.
    *
    * The existing `startTimingTracking()` already populates
@@ -1060,7 +1060,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
    * input?" gate: nulling it (in onPointerUp once all strokes are in,
    * or in stopPerCharCycle on teardown) makes pointer events become
    * no-ops, so subsequent input during the async finalize window
-   * can't append new polylines or rejudge.
+   * can't append new polylines or recheck.
    */
   function startPerCharCycle(m: MountState): void {
     m.perCharCaptures = [];
@@ -1078,7 +1078,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     const onPointerMove = (_e: PointerEvent) => {
       // Stop accepting input the moment captures are nulled (after the
       // last release, or on teardown) so we don't keep extending a
-      // polyline for a stroke that won't be judged.
+      // polyline for a stroke that won't be checked.
       if (!m.perCharCaptures) {
         return;
       }
@@ -1134,7 +1134,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
 
-      // All strokes are in — kick off batch judgment in the background.
+      // All strokes are in — kick off batch check in the background.
       // Nulling captures here AND bumping the per-attempt token make
       // subsequent pointer events no-ops AND let an in-flight
       // finalizePerChar tell when it's been superseded.
@@ -1147,7 +1147,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     const onPointerDown = (_e: PointerEvent) => {
       // Same captures gate as onPointerMove/onPointerUp: if we already
-      // sent the batch off to judgment (or got torn down), creating a
+      // sent the batch off to check (or got torn down), creating a
       // new polyline would leak into the overlay because onPointerUp's
       // !captures branch returns without cleaning it up.
       if (!m.perCharCaptures) {
@@ -1280,8 +1280,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   }
 
   /**
-   * Judge each buffered per-char stroke through the headless judger
-   * (reused via `ensureJudger(allowMount=true)`), populate
+   * Check each buffered per-char stroke through the headless checker
+   * (reused via `ensureChecker(allowMount=true)`), populate
    * `m.perStroke`, then fire `onCorrectStroke` / `onMistake` per
    * stroke followed by `onComplete`.
    *
@@ -1290,11 +1290,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
    * via stopPerCharCycle), the loop bails out without writing into
    * the freshly-cleared state.
    *
-   * When `judgeStrokeImpl` throws (infrastructure failure, distinct
+   * When `checkStrokeImpl` throws (infrastructure failure, distinct
    * from a matcher rejection), the stroke gets a placeholder
    * `{matched: false}` entry in perStroke for visibility but is NOT
    * counted toward `totalMistakes` and does NOT fire `onMistake` —
-   * a flaky judger shouldn't show up as "the user wrote it wrong".
+   * a flaky checker shouldn't show up as "the user wrote it wrong".
    */
   async function finalizePerChar(
     m: MountState,
@@ -1306,19 +1306,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     for (let strokeNum = 0; strokeNum < strokeCount; strokeNum++) {
       const points = captures[strokeNum];
       let verdict: CharStrokeResult;
-      let judgerError = false;
+      let checkerError = false;
       try {
-        verdict = await judgeStrokeImpl(strokeNum, points, {}, true);
+        verdict = await checkStrokeImpl(strokeNum, points, {}, true);
       } catch (err) {
-        log?.(`per-char judge stroke ${strokeNum} failed: ${err instanceof Error ? err.message : String(err)}`);
+        log?.(`per-char check stroke ${strokeNum} failed: ${err instanceof Error ? err.message : String(err)}`);
         verdict = { matched: false, similarity: 0, points };
-        judgerError = true;
+        checkerError = true;
       }
       if (destroyed || mounted !== m || m.perCharSeq !== seq) {
         return;
       }
       m.perStroke[strokeNum] = verdict;
-      if (judgerError) {
+      if (checkerError) {
         // Infrastructure failure: keep the placeholder in perStroke
         // (so the caller can see SOMETHING for this stroke index) but
         // don't pretend it was a user mistake and don't dispatch the
@@ -1371,7 +1371,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     stopPerCharCycle(m);
     stopTimingTracking(m);
     // The drawn polylines were painted unconditionally to give the user
-    // mid-stroke feedback. Now that judgment is done, `retainStrokes`
+    // mid-stroke feedback. Now that check is done, `retainStrokes`
     // governs whether they stick around for review — clear them
     // otherwise so per-char without retain matches the per-stroke
     // default UX (no leftover ink).
@@ -1597,7 +1597,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.totalMistakes = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
-    m.pendingEndingJudgment = null;
+    m.pendingEndingCheck = null;
     if (wasActive) {
       m.hw.setCharacter(currentCharacter).catch((err: unknown) => {
         log?.(`cancelActiveQuiz reload failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1605,24 +1605,24 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
   }
 
-  // ===== judge implementation (offscreen HW) =====
-  async function ensureJudger(allowMount = false): Promise<JudgerState> {
+  // ===== check implementation (offscreen HW) =====
+  async function ensureChecker(allowMount = false): Promise<CheckerState> {
     assertNotDestroyed();
     if (!allowMount && mounted) {
       throw new Error(
-        "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+        "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
       );
     }
-    if (judger) {
-      return judger;
+    if (checker) {
+      return checker;
     }
-    // Memoize the in-flight init so concurrent judge() calls (e.g.
+    // Memoize the in-flight init so concurrent check() calls (e.g.
     // Promise.all) share a single offscreen container instead of each
     // racing to create its own and leaking the losers.
-    if (judgerInit) {
-      return judgerInit;
+    if (checkerInit) {
+      return checkerInit;
     }
-    judgerInit = (async (): Promise<JudgerState> => {
+    checkerInit = (async (): Promise<CheckerState> => {
       // Off-screen container so hanzi-writer's renderer can mount and the
       // matcher (which runs through endUserStroke -> renderState) does not
       // throw on missing layout.
@@ -1657,7 +1657,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           padding: 0,
           charDataLoader,
           // Keep hint/highlight off so the matcher path stays as plain as
-          // possible; tome/hane/harai judgment is layered on top of isMatch.
+          // possible; tome/hane/harai check is layered on top of isMatch.
           showHintAfterMisses: false,
           highlightOnComplete: false,
           ...(leniency != null ? { leniency } : {}),
@@ -1680,7 +1680,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           if (quizFailure) {
             throw quizFailure instanceof Error
               ? quizFailure
-              : new Error(`char.judge(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
+              : new Error(`char.checkStroke(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
           }
           quiz = (hw as unknown as { _quiz?: HanziQuiz })._quiz;
           if (!quiz) {
@@ -1691,19 +1691,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           if (quizFailure) {
             throw quizFailure instanceof Error
               ? quizFailure
-              : new Error(`char.judge(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
+              : new Error(`char.checkStroke(): hanzi-writer quiz init failed: ${String(quizFailure)}`);
           }
-          throw new Error("char.judge(): timed out waiting for hanzi-writer quiz to initialise.");
+          throw new Error("char.checkStroke(): timed out waiting for hanzi-writer quiz to initialise.");
         }
         // The await above could have spanned a destroy() or mount() call.
-        // Bail rather than leave a fully-initialised judger lying around
+        // Bail rather than leave a fully-initialised checker lying around
         // alongside a mounted writer or after teardown.
         if (destroyed) {
           throw new Error("char: instance has been destroyed and cannot be used.");
         }
         if (!allowMount && mounted) {
           throw new Error(
-            "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+            "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
           );
         }
 
@@ -1711,7 +1711,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           _character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
         })._character;
 
-        const j: JudgerState = {
+        const j: CheckerState = {
           container,
           hw,
           character: characterImpl,
@@ -1721,7 +1721,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
         // Patch the success / failure handlers so we capture the matcher's
         // verdict without letting hanzi-writer's render-state side effects
-        // advance internal stroke counters; the judger drives the index
+        // advance internal stroke counters; the checker drives the index
         // manually instead.
         quiz._handleSuccess = (meta) => {
           j.capture = { matched: true, isBackwards: meta.isStrokeBackwards };
@@ -1730,71 +1730,71 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           j.capture = { matched: false, isBackwards: meta.isStrokeBackwards };
         };
 
-        judger = j;
+        checker = j;
         return j;
       } catch (err) {
-        // Drop the container so a future judge() can retry from scratch
+        // Drop the container so a future check() can retry from scratch
         // instead of leaving an orphaned hidden node behind.
         container.remove();
-        // Clear the memo so the next judge() retries instead of always
+        // Clear the memo so the next check() retries instead of always
         // reusing the failed promise.
-        judgerInit = null;
+        checkerInit = null;
         throw err;
       }
     })();
-    return judgerInit;
+    return checkerInit;
   }
 
-  async function judge(
+  async function checkStroke(
     strokeNum: number,
     points: TimedPoint[],
-    opts: CharJudgeStrokeOptions = {},
+    opts: CharCheckStrokeOptions = {},
   ): Promise<CharStrokeResult> {
     assertNotDestroyed();
     if (mounted) {
       throw new Error(
-        "char: judge() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+        "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
       );
     }
-    // Flag synchronously so a mount() called immediately after judge()
-    // (before any await unfreezes ensureJudger) still sees that judging
+    // Flag synchronously so a mount() called immediately after check()
+    // (before any await unfreezes ensureChecker) still sees that judging
     // has started.
-    judgeStarted = true;
-    return judgeStrokeImpl(strokeNum, points, opts, false);
+    checkStarted = true;
+    return checkStrokeImpl(strokeNum, points, opts, false);
   }
 
   /**
-   * Shared judge implementation used by both the public {@link judge}
+   * Shared check implementation used by both the public {@link check}
    * (headless mode) and per-char correction on a mounted instance. The
    * `allowMount` flag toggles the mount-coexistence guard inside
-   * {@link ensureJudger}.
+   * {@link ensureChecker}.
    */
-  async function judgeStrokeImpl(
+  async function checkStrokeImpl(
     strokeNum: number,
     points: TimedPoint[],
-    opts: CharJudgeStrokeOptions,
+    opts: CharCheckStrokeOptions,
     allowMount: boolean,
   ): Promise<CharStrokeResult> {
     if (!Number.isInteger(strokeNum) || strokeNum < 0) {
-      throw new Error(`char.judge(): strokeNum must be a non-negative integer, got ${strokeNum}`);
+      throw new Error(`char.checkStroke(): strokeNum must be a non-negative integer, got ${strokeNum}`);
     }
     await configReady;
-    const j = await ensureJudger(allowMount);
+    const j = await ensureChecker(allowMount);
 
     if (strokeGroups && strokeNum >= strokeGroups.length) {
       throw new Error(
-        `char.judge(): strokeNum ${strokeNum} is out of range; strokeGroups configures ${strokeGroups.length} logical stroke(s).`,
+        `char.checkStroke(): strokeNum ${strokeNum} is out of range; strokeGroups configures ${strokeGroups.length} logical stroke(s).`,
       );
     }
     const dataStrokeNum = logicalToFirstDataStroke(strokeNum);
     if (dataStrokeNum >= j.character.strokes.length) {
       throw new Error(
-        `char.judge(): strokeNum ${strokeNum} is out of range; the character has ${j.character.strokes.length} data stroke(s).`,
+        `char.checkStroke(): strokeNum ${strokeNum} is out of range; the character has ${j.character.strokes.length} data stroke(s).`,
       );
     }
     const quiz = (j.hw as unknown as { _quiz?: HanziQuiz })._quiz;
     if (!quiz) {
-      throw new Error("char.judge(): hanzi-writer quiz disappeared between calls.");
+      throw new Error("char.checkStroke(): hanzi-writer quiz disappeared between calls.");
     }
 
     // If a sourceBox was provided, project each point into hanzi-writer's
@@ -1825,7 +1825,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       leniency,
     );
 
-    // Stroke ending judgment runs whenever stroke endings are configured for
+    // Stroke ending check runs whenever stroke endings are configured for
     // the current logical stroke. Timestamps come from `points` (final
     // sample's `t` is the release moment). Lazily fetch character data for
     // the direction auto-derivation if it has not been loaded yet.
@@ -1834,7 +1834,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       if (!characterData) {
         characterData = (await j.hw.getCharacterData()) as unknown as HanziCharacterData;
       }
-      const judgement = computeEndingJudgment({
+      const check = computeEndingCheck({
         dataStrokeNum,
         points: internalPoints,
         strokeEndings,
@@ -1844,14 +1844,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         strictness: strokeEndingStrictness,
         log,
       });
-      if (judgement) {
-        strokeEnding = judgement;
+      if (check) {
+        strokeEnding = check;
       }
     }
 
     // Carry the original caller-supplied points (not the
     // internal-projection) so consumers can re-feed them through
-    // Char.judge for replay without re-projecting. opts.sourceBox is
+    // Char.checkStroke for replay without re-projecting. opts.sourceBox is
     // not part of CharStrokeResult — callers who use a sourceBox should
     // also keep it externally if they want to replay verbatim.
     const strokeResult: CharStrokeResult = strokeEnding
@@ -1866,7 +1866,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     assertNotDestroyed();
     // Pull per-stroke history from whichever path actually wrote to it.
     // The mount path lights up while a quiz is active (or just settled);
-    // the headless path lights up after judge() runs. Mount and judge
+    // the headless path lights up after check() runs. Mount and check
     // are exclusive on the same instance, so only one source can be
     // populated at any time.
     let perStrokeSrc: ReadonlyArray<CharStrokeResult | undefined> = [];
@@ -1876,15 +1876,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perStrokeSrc = mounted.perStroke;
       mistakes = mounted.totalMistakes;
       strokeEndingMistakes = mounted.strokeEndingMistakes;
-    } else if (judger) {
-      perStrokeSrc = judger.perStroke;
+    } else if (checker) {
+      perStrokeSrc = checker.perStroke;
     }
     const perStroke: CharStrokeResult[] = [];
     for (let i = 0; i < perStrokeSrc.length; i++) {
       perStroke.push(perStrokeSrc[i] ?? { matched: false, similarity: 0 });
     }
     // `matched` is rolled up only across observed (real) entries — gaps
-    // from out-of-order judge() calls are placeholder slots that exist
+    // from out-of-order check() calls are placeholder slots that exist
     // for indexing convenience and shouldn't drag the rollup to false.
     // Vacuously true when no strokes have been observed yet.
     let matched = true;
@@ -1896,9 +1896,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
     }
     // `complete` flips true once every logical stroke has been observed.
-    // Count *real* entries in the source array — out-of-order judge()
+    // Count *real* entries in the source array — out-of-order check()
     // calls grow `perStrokeSrc.length` past the index that was just
-    // judged, leaving sparse undefined slots. Comparing the real-entry
+    // checked, leaving sparse undefined slots. Comparing the real-entry
     // count against `totalLogicalStrokes` avoids reporting `complete`
     // before every logical stroke has actually been observed.
     const totalLogicalStrokes = getLogicalStrokeCount();
@@ -1927,14 +1927,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   // ===== mount lifecycle =====
   function mount(target: string | HTMLElement, mountOpts: MountOptions = {}): Char {
     assertNotDestroyed();
-    // judgeStarted flips synchronously when judge() is first called, even
-    // before ensureJudger() runs and assigns judgerInit / judger. All
+    // checkStarted flips synchronously when check() is first called, even
+    // before ensureChecker() runs and assigns checkerInit / checker. All
     // three together cover the windows "before the first await", "during
-    // init" and "after init succeeded", so the documented mount/judge
+    // init" and "after init succeeded", so the documented mount/check
     // exclusivity holds end-to-end.
-    if (judger || judgerInit || judgeStarted) {
+    if (checker || checkerInit || checkStarted) {
       throw new Error(
-        "char: mount() is not supported after judge() has been called. Create a separate Char for mounting.",
+        "char: mount() is not supported after check() has been called. Create a separate Char for mounting.",
       );
     }
     if (mounted) {
@@ -2041,7 +2041,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perCharOnPointerCancel: null,
       perCharLivePolyline: null,
       perCharSeq: 0,
-      pendingEndingJudgment: null,
+      pendingEndingCheck: null,
       quizActive: false,
       quizArmed: false,
       strokeEndingMistakes: 0,
@@ -2153,8 +2153,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (mounted) {
       return getStrokePaths(mounted).length;
     }
-    if (judger) {
-      return judger.character.strokes.length;
+    if (checker) {
+      return checker.character.strokes.length;
     }
     return 0;
   }
@@ -2166,16 +2166,16 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     characterData = null;
     if (mounted) {
       mounted.strokeEndingMistakes = 0;
-      mounted.pendingEndingJudgment = null;
+      mounted.pendingEndingCheck = null;
       // Retained ink belongs to the previous character; drop it so the
       // overlay corresponds to whatever is being rendered now.
       clearRetainedStrokes(mounted);
       await mounted.hw.setCharacter(c);
     }
-    if (judger) {
-      judger.perStroke = [];
-      await judger.hw.setCharacter(c);
-      judger.character = (judger.hw as unknown as {
+    if (checker) {
+      checker.perStroke = [];
+      await checker.hw.setCharacter(c);
+      checker.character = (checker.hw as unknown as {
         _character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
       })._character;
     }
@@ -2355,18 +2355,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       unmount();
     }
     destroyed = true;
-    if (judger) {
-      judger.container.remove();
-      judger = null;
+    if (checker) {
+      checker.container.remove();
+      checker = null;
     }
-    // ensureJudger() re-checks `destroyed` after its polling await and
+    // ensureChecker() re-checks `destroyed` after its polling await and
     // rejects if it flipped during init; the catch in that block already
     // removes the offscreen container. Swallow the rejection here so it
     // does not propagate as unhandled when nobody awaited the in-flight
-    // judge() call.
-    if (judgerInit) {
-      judgerInit.catch(() => {});
-      judgerInit = null;
+    // check() call.
+    if (checkerInit) {
+      checkerInit.catch(() => {});
+      checkerInit = null;
     }
     characterData = null;
   }
@@ -2409,7 +2409,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
   const api: Char = {
     ready,
-    judge,
+    checkStroke,
     result,
     getStrokeEndings,
     setStrokeEndings,
@@ -2505,7 +2505,7 @@ export const char = {
   /**
    * Create a new Char instance for `character`. Headless by default — call
    * {@link Char.mount} to attach it to a DOM element for interactive
-   * practice. {@link Char.judge} works without mounting.
+   * practice. {@link Char.checkStroke} works without mounting.
    * @example
    * const c = char.create("永");
    * c.mount("#target", { size: 300 });
