@@ -780,6 +780,26 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       if (destroyed || opts.correction !== "per-page") {
         return;
       }
+      if (perPageTriggered) {
+        // Auto-burst already fired (the last captured signal drained
+        // perPagePending). Calling check() again would re-invoke
+        // Char.check() / FreeCell.check() on consumed buffers — those
+        // log "no buffered captures" per entry, which is just noise.
+        opts.logger?.(
+          "page.check(): page-wide correction already committed; ignoring",
+        );
+        return;
+      }
+      if (perPagePending.size > 0) {
+        // Manual trigger before every entry captured — bursting now
+        // would commit only the captured subset and leave the rest
+        // hanging mid-write. Refuse.
+        opts.logger?.(
+          `page.check(): ${perPagePending.size} entr${perPagePending.size === 1 ? "y" : "ies"} still pending; refusing partial commit`,
+        );
+        return;
+      }
+      perPageTriggered = true;
       runPerPageBurst();
     },
     destroy(): void {

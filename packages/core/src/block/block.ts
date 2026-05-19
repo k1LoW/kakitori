@@ -758,7 +758,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   function runPerBlockBurst(): void {
     for (const s of cellStates) {
       if (s.usesDeferredCorrection) {
+        // Guided cells use Char.check(); free cells use the
+        // FreeCellHandle.check() on their freeHandle. Either is a
+        // no-op when there's nothing buffered, so we can safely
+        // fire whichever is present without branching on kind.
         s.charInstance?.check();
+        s.freeHandle?.check();
       }
     }
     for (const a of annotationStates) {
@@ -830,6 +835,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return state;
     }
 
+    // Free write cells participate in block-wide deferral too. Without
+    // this, `correction: "per-block"` or `"deferred"` would still let
+    // free write cells settle mid-block and fire onCellComplete
+    // immediately — breaking the "no per-cell verdict until burst"
+    // contract for any block that mixes guided + free cells.
+    const freeCellDeferred =
+      opts.correction === "per-block" || opts.correction === "deferred";
     const handle = createFreeCell({
       expected: cell.expected,
       surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
@@ -843,6 +855,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
       ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
       ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+      ...(freeCellDeferred
+        ? {
+            deferred: true,
+            onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.cell(index)),
+          }
+        : {}),
       onCellComplete: (chars: CharResult[]) => {
         if (state.committed) {
           return;
@@ -859,6 +877,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       committed: false,
       freeHandle: handle,
     };
+    if (freeCellDeferred) {
+      perBlockPending.add(perBlockKey.cell(index));
+      state.usesDeferredCorrection = true;
+    }
     return state;
   }
 
@@ -1228,6 +1250,20 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           });
         }
       }
+      // Mirror the create-time vacuous-captured signal: if there are
+      // no deferred entries to wait on, fire onBlockCaptured again so
+      // a higher-level (page-wide) coordinator can drain its pending
+      // set after a Block.reset() too. Without this, the page-level
+      // perPagePending key for this segment would never go away.
+      if (opts.correction === "deferred" && perBlockPending.size === 0) {
+        queueMicrotask(() => {
+          if (destroyed || perBlockTriggered) {
+            return;
+          }
+          perBlockTriggered = true;
+          opts.onBlockCaptured?.();
+        });
+      }
     },
     undo(): {
       kind: "cell" | "annotation";
@@ -1304,6 +1340,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         // held back to burst-check. Non-deferred blocks already
         // finalize through their own coordinator path (per-block) or
         // through hanzi-writer's quiz directly (per-stroke / per-char).
+        return;
+      }
+      if (perBlockPending.size > 0) {
+        // Refuse to commit a partial block — the caller invoked us
+        // before every entry captured. Without this guard
+        // runPerBlockBurst would skip pending entries (their
+        // deferredCaptures are still null) but commit the rest, which
+        // is a torn block state.
+        opts.logger?.(
+          `block.check(): ${perBlockPending.size} entr${perBlockPending.size === 1 ? "y" : "ies"} still pending; refusing partial commit`,
+        );
         return;
       }
       runPerBlockBurst();
