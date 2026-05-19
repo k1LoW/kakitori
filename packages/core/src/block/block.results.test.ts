@@ -133,13 +133,13 @@ describe("Block.results", () => {
     parent.remove();
   });
 
-  it("block-wide per-block defers per-cell check until the character is fully drawn", async () => {
-    // End-to-end verification that block-wide `correction: "per-block"`
-    // makes every guided cell switch to `correction: "per-char"`. The
-    // key behavioral difference: hanzi-writer's strict matcher would
-    // reject a clearly-wrong stroke in per-stroke mode (onMistake, no
-    // completion); per-char captures it anyway and the cell commits
-    // via finalizePerChar -> onComplete.
+  it("block-wide per-block: single-cell block commits once the cell is captured", async () => {
+    // Per-block injects `correction: "deferred"` into each guided
+    // cell. With a single-cell block, the moment that one cell
+    // finishes drawing, the coordinator's pending set drains, the
+    // coordinator calls check() on the cell, and onCellComplete fires.
+    // The visible result is unchanged from before per-block became
+    // real-deferred, so this test is the baseline.
     const completedCells: number[] = [];
     const parent = document.createElement("div");
     document.body.appendChild(parent);
@@ -155,20 +155,116 @@ describe("Block.results", () => {
       },
     });
     await flushMicrotasks();
-    // Give c.ready().then(c.start()) a chance to fire and per-char to
-    // arm its pointer handlers.
     await new Promise((r) => setTimeout(r, 50));
 
     const surfaces = parent.querySelectorAll<SVGSVGElement>("svg");
-    // Horizontal stroke is far off from stubLoader's diagonal "M 0 0
-    // L 100 100"; hanzi-writer would reject it under per-stroke. With
-    // per-block forwarded to the cell as per-char, the capture completes
-    // the (1-stroke) character regardless and onCellComplete must fire.
     strokeAt(surfaces[0] as SVGElement, [[10, 40], [70, 40]], 1);
-    // finalizePerChar checks async (checker init + per-stroke awaits).
     await new Promise((r) => setTimeout(r, 200));
 
     expect(completedCells).toEqual([0]);
+    b.destroy();
+    parent.remove();
+  });
+
+  it("block-wide per-block: multi-cell block holds onCellComplete until EVERY cell is drawn", async () => {
+    // The defining behavior of real-deferred per-block: with two
+    // cells, drawing only the first one must NOT emit onCellComplete
+    // for either cell. Both completes fire in a burst once the second
+    // cell finishes drawing too.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Each guided cell mounts a hanzi-writer <svg>; with `showGrid:
+    // true` (the block default), the cell wrapper also contains a
+    // sibling grid <svg>. Filter to writer SVGs by looking for the
+    // ones that hold hanzi-writer's `<defs>` / inner <g> path
+    // structure (grid svgs only have <line> children).
+    const allSvgs = Array.from(parent.querySelectorAll<SVGSVGElement>("svg"));
+    const writerSvgs = allSvgs.filter(
+      (s) => s.querySelector(":scope > defs") !== null,
+    );
+    // Cell 0 done — block must still be silent.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(completedCells).toEqual([]);
+
+    // Cell 1 done — coordinator fires check() on both, both commit.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(completedCells.toSorted()).toEqual([0, 1]);
+    b.destroy();
+    parent.remove();
+  });
+
+  it("block-wide per-block: undo of a captured deferred cell re-arms the coordinator", async () => {
+    // Coordinator regression: undoing a cell after it captured must
+    // put it back into perBlockPending and clear perBlockTriggered,
+    // otherwise the next cell's capture drains the set and fires
+    // check() on a cell whose char-level captures have already been
+    // re-armed by Char.undo() and are gone.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Capture cell 0 only.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(completedCells).toEqual([]);
+
+    // Undo cell 0 — coordinator must re-add it to pending. If it
+    // doesn't, capturing cell 1 below would drain the set early.
+    b.undo();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Capture cell 1 — block must STILL be silent because cell 0 is
+    // pending again.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(completedCells).toEqual([]);
+
+    // Re-capture cell 0 — now both pending, coordinator fires check()
+    // on all cells and both commit.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 3);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(completedCells.toSorted()).toEqual([0, 1]);
+
     b.destroy();
     parent.remove();
   });
