@@ -127,10 +127,11 @@ export interface BlockCreateOptions {
    */
   correction?: "per-stroke" | "per-char" | "per-block" | "deferred";
   /**
-   * Fires when {@link correction} is `"deferred"` and every guided
-   * cell + annotation in this block has captured. The block-level
-   * burst-check is held back until {@link Block.check} is invoked —
-   * use this signal to drive a higher-level coordinator
+   * Fires when {@link correction} is `"deferred"` and every
+   * writeable entry in this block has captured — guided cells, free
+   * write cells, and annotation free cells alike. The block-level
+   * burst-check is held back until {@link Block.check} is invoked,
+   * so use this signal to drive a higher-level coordinator
    * (page-wide per-page).
    */
   onBlockCaptured?: () => void;
