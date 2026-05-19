@@ -7,7 +7,7 @@ import {
 } from "../recognition/normalize.js";
 import { projectClientToCell } from "../recognition/projectClientToCell.js";
 import { segmentByStrokeCounts } from "../recognition/segmentation.js";
-import { getJudgeChar, runWithJudgeLock, type JudgeCharEntry } from "./charCache.js";
+import { getCheckChar, runWithCheckLock, type CheckCharEntry } from "./charCache.js";
 import type {
   BlockLoaders,
   Expected,
@@ -145,9 +145,9 @@ interface CandidateInfo {
     logicalStrokeCount: number;
     instance: Char;
     normalizeTarget: NormalizeTarget;
-    /** Cache entry held so `runWithJudgeLock` can serialize judge() calls
+    /** Cache entry held so `runWithCheckLock` can serialize check() calls
      * across cells that share this character's cached Char. */
-    entry: JudgeCharEntry;
+    entry: CheckCharEntry;
   }>;
   totalStrokes: number;
 }
@@ -223,12 +223,12 @@ export function createFreeCell(
   /** Index of the surface that owns the in-flight stroke (-1 when idle). */
   let activeSurfaceIndex = -1;
   let lastMoveTime = 0;
-  let judgeQueue: Promise<void> = Promise.resolve();
+  let checkQueue: Promise<void> = Promise.resolve();
   let sessionId = 0;
   let segmentBoxEls: Array<SVGRectElement | SVGTextElement> = [];
   // Highest-similarity attempt seen across every match round in this session.
   // Used so commitFail() can surface the closest candidate / per-character
-  // judge results instead of empty defaults — useful for callers wanting to
+  // check results instead of empty defaults — useful for callers wanting to
   // explain why a stroke sequence was rejected.
   let bestAttempt: CandidateMatch | null = null;
   /**
@@ -251,7 +251,7 @@ export function createFreeCell(
           const chars = Array.from(text);
           const charInfos = await Promise.all(
             chars.map(async (key) => {
-              const entry = await getJudgeChar(key, {
+              const entry = await getCheckChar(key, {
                 ...(opts.loaders?.charDataLoader
                   ? { charDataLoader: opts.loaders.charDataLoader }
                   : {}),
@@ -386,7 +386,7 @@ export function createFreeCell(
       const releaseTime = performance.now();
       const pause = releaseTime - lastMoveTime;
       // Append a synthetic release sample (same xy as the last move, t = release).
-      // judge() reads `last.t - prev.t` as the pause-before-release for tome.
+      // check() reads `last.t - prev.t` as the pause-before-release for tome.
       const last = activeStroke.points[activeStroke.points.length - 1];
       activeStroke.points.push({ x: last.x, y: last.y, t: releaseTime });
       const finished = activeStroke;
@@ -412,7 +412,7 @@ export function createFreeCell(
       return;
     }
     const taskSession = sessionId;
-    judgeQueue = judgeQueue.then(async () => {
+    checkQueue = checkQueue.then(async () => {
       if (taskSession !== sessionId || status !== "drawing") {
         return;
       }
@@ -447,7 +447,7 @@ export function createFreeCell(
             return;
           }
           const match = await tryCandidate(candidate);
-          // tryCandidate awaits per-stroke judge() calls; reset()/destroy()
+          // tryCandidate awaits per-stroke check() calls; reset()/destroy()
           // (which bump sessionId / set destroyed) may have raced in during
           // any of those awaits, so the result we just collected belongs to
           // a stale session and must be discarded before we touch shared
@@ -488,7 +488,7 @@ export function createFreeCell(
         // matching error: leave status='drawing' so further strokes can try
       }
     });
-    void judgeQueue;
+    void checkQueue;
   }
 
   async function tryCandidate(candidate: CandidateInfo): Promise<CandidateMatch> {
@@ -510,18 +510,18 @@ export function createFreeCell(
         charSegments,
         charInfo.normalizeTarget,
       );
-      // Each character's strokes drive judge() in logical order. The Char
-      // instance is shared across cells via charCache; `runWithJudgeLock`
+      // Each character's strokes drive check() in logical order. The Char
+      // instance is shared across cells via charCache; `runWithCheckLock`
       // serializes the entire per-character sequence so the shared
       // hanzi-writer quiz state (`_currentStrokeIndex`, `_userStroke`,
-      // `capture`) and the awaits inside ending judgment can't interleave
+      // `capture`) and the awaits inside ending check can't interleave
       // with another cell judging the same character.
       const perStroke: CharStrokeResult[] = [];
       let charMatched = normalized.length > 0;
       let charSimSum = 0;
-      await runWithJudgeLock(charInfo.entry, async () => {
+      await runWithCheckLock(charInfo.entry, async () => {
         for (let j = 0; j < normalized.length; j++) {
-          const stroke = await charInfo.instance.judge(j, normalized[j]);
+          const stroke = await charInfo.instance.checkStroke(j, normalized[j]);
           perStroke.push(stroke);
           if (!stroke.matched) {
             charMatched = false;
@@ -646,7 +646,7 @@ export function createFreeCell(
     // centered on the user's bbox center. This matches the matcher's view
     // (longer side scales to the median's longer side; the shorter axis
     // sits within that same square), so the overlay reads as "this is the
-    // judgement cell" rather than "this is exactly what was drawn".
+    // check cell" rather than "this is exactly what was drawn".
     const cx = (minX + maxX) / 2;
     const cy = (minY + maxY) / 2;
     const side = Math.max(maxX - minX, maxY - minY);
@@ -737,9 +737,9 @@ export function createFreeCell(
     segmentBoxEls = [];
     bestAttempt = null;
     settledChars = null;
-    // Drop any pending judge tail so a stale match does not flip the new
+    // Drop any pending check tail so a stale match does not flip the new
     // session into matched/failed.
-    judgeQueue = Promise.resolve();
+    checkQueue = Promise.resolve();
     for (const s of surfaces) {
       while (s.el.firstChild) {
         s.el.removeChild(s.el.firstChild);

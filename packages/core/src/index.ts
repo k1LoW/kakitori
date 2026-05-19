@@ -7,7 +7,7 @@ export {
   HANZI_Y_MIN,
   HANZI_Y_BASELINE_OFFSET,
 } from "./constants.js";
-export { judge as judgeStrokeEnding, type JudgeOptions } from "./StrokeEndingJudge.js";
+export { checkStrokeEnding, type CheckOptions } from "./StrokeEndingChecker.js";
 export { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 export type { CharacterConfig } from "./dataLoader.js";
 export {
@@ -17,7 +17,7 @@ export {
 export type {
   CharCreateOptions,
   MountOptions,
-  CharJudgeStrokeOptions,
+  CharCheckStrokeOptions,
   CharStrokeResult,
   CharResult,
   CharLogger,

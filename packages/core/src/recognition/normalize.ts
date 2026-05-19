@@ -50,7 +50,7 @@ export const DEFAULT_NORMALIZE_TARGET: NormalizeTarget = {
  * longer side to the full canvas, which can over-shoot the natural extent
  * of any one character's median and inflate the matcher's average distance.
  *
- * Timestamps (`t`) pass through unchanged so that ending judgment (which
+ * Timestamps (`t`) pass through unchanged so that ending check (which
  * relies on the release sample's `t - prev.t` gap) keeps working after
  * normalization.
  */

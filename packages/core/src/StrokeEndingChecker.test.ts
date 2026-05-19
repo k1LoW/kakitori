@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { judge } from "./StrokeEndingJudge.js";
+import { checkStrokeEnding } from "./StrokeEndingChecker.js";
 import type { StrokeEnding, TimedPoint } from "./types.js";
 import { DEFAULT_SIZE } from "./constants.js";
 
@@ -22,7 +22,7 @@ function makeTimedPoints(
   return points;
 }
 
-describe("judge", () => {
+describe("check", () => {
   describe("tome detection", () => {
     it("detects tome when pause before release is long", () => {
       const points = makeTimedPoints(
@@ -31,7 +31,7 @@ describe("judge", () => {
         100,
       );
       const expected: StrokeEnding = { types: ["tome"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("decelerating");
     });
@@ -48,7 +48,7 @@ describe("judge", () => {
         { x: 30, y: 30, t: 250 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
 
@@ -62,7 +62,7 @@ describe("judge", () => {
         { x: 50, y: 50, t: 155 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
   });
@@ -77,7 +77,7 @@ describe("judge", () => {
         { x: 50, y: 50, t: 155 },
       ];
       const expected: StrokeEnding = { types: ["harai"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
     });
 
@@ -91,7 +91,7 @@ describe("judge", () => {
       points.push({ x: 90, y: 90, t: 1500 });
       points.push({ x: 95, y: 95, t: 1505 });
       const expected: StrokeEnding = { types: ["harai"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
     });
   });
@@ -107,7 +107,7 @@ describe("judge", () => {
       points.push({ x: 80, y: -30, t: 890 });
       points.push({ x: 80, y: -50, t: 895 });
       const expected: StrokeEnding = { types: ["hane"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("accelerating");
     });
@@ -122,7 +122,7 @@ describe("judge", () => {
       points.push({ x: 80, y: -20, t: 2500 });
       points.push({ x: 80, y: -30, t: 2505 });
       const expected: StrokeEnding = { types: ["hane"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
 
@@ -141,7 +141,7 @@ describe("judge", () => {
       // Synthetic release: same xy as the previous sample, only t advances.
       points.push({ x: 80, y: -50, t: 905 });
       const expected: StrokeEnding = { types: ["hane"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
       expect(result.velocityProfile).toBe("accelerating");
     });
@@ -153,7 +153,7 @@ describe("judge", () => {
         100,
       );
       const expected: StrokeEnding = { types: ["hane"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
   });
@@ -166,16 +166,16 @@ describe("judge", () => {
         100,
       );
       const expected: StrokeEnding = { types: ["tome", "harai"] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
     });
   });
 
-  describe("empty types (skip judgment)", () => {
+  describe("empty types (skip check)", () => {
     it("returns incorrect when types is empty", () => {
       const points = makeTimedPoints([[0, 0], [10, 10]], 50, 0);
       const expected: StrokeEnding = { types: [] };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE });
       expect(result.correct).toBe(false);
     });
   });
@@ -193,7 +193,7 @@ describe("judge", () => {
         types: ["harai"],
         direction: [0.71, 0.71],
       };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
       expect(result.confidence).toBeGreaterThan(0.5);
     });
@@ -211,20 +211,20 @@ describe("judge", () => {
         types: ["harai"],
         direction: [0, 1],
       };
-      const result = judge(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
   });
 
   describe("confidence", () => {
-    it("returns higher confidence for correct judgment", () => {
+    it("returns higher confidence for correct check", () => {
       const points = makeTimedPoints(
         [[0, 0], [10, 10], [20, 20], [30, 30], [40, 40]],
         50,
         100,
       );
-      const correct = judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
-      const incorrect = judge(points, { types: ["hane"] }, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const correct = checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      const incorrect = checkStrokeEnding(points, { types: ["hane"] }, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(correct.confidence).toBeGreaterThan(incorrect.confidence);
     });
   });
@@ -240,7 +240,7 @@ describe("judge", () => {
       ];
       const expected: StrokeEnding = { types: ["harai"] };
 
-      const resultAt300 = judge(baseAt300, expected, { drawableSize: 300, strictness: 0.7 });
+      const resultAt300 = checkStrokeEnding(baseAt300, expected, { drawableSize: 300, strictness: 0.7 });
 
       // Scale up to 600px (2x): points and distances double
       const scaledAt600: TimedPoint[] = [
@@ -251,7 +251,7 @@ describe("judge", () => {
         { x: 100, y: 100, t: 155 },
       ];
 
-      const resultAt600 = judge(scaledAt600, expected, { drawableSize: 600, strictness: 0.7 });
+      const resultAt600 = checkStrokeEnding(scaledAt600, expected, { drawableSize: 600, strictness: 0.7 });
 
       expect(resultAt300.correct).toBe(true);
       expect(resultAt600.correct).toBe(true);
@@ -265,8 +265,8 @@ describe("judge", () => {
         100,
       );
 
-      const resultSmall = judge(points, expected, { drawableSize: 60, strictness: 0.7 });
-      const resultLarge = judge(points, expected, { drawableSize: 600, strictness: 0.7 });
+      const resultSmall = checkStrokeEnding(points, expected, { drawableSize: 60, strictness: 0.7 });
+      const resultLarge = checkStrokeEnding(points, expected, { drawableSize: 600, strictness: 0.7 });
 
       expect(resultSmall.correct).toBe(true);
       expect(resultLarge.correct).toBe(true);
@@ -321,8 +321,8 @@ describe("judge", () => {
         { x: 160, y: -100, t: 845 },
       ];
 
-      const resultAt300 = judge(baseAt300, expected, { drawableSize: 300, strictness: 0.7 });
-      const resultAt600 = judge(scaledAt600, expected, { drawableSize: 600, strictness: 0.7 });
+      const resultAt300 = checkStrokeEnding(baseAt300, expected, { drawableSize: 300, strictness: 0.7 });
+      const resultAt600 = checkStrokeEnding(scaledAt600, expected, { drawableSize: 600, strictness: 0.7 });
 
       expect(resultAt300.correct).toBe(true);
       expect(resultAt600.correct).toBe(true);
@@ -330,22 +330,22 @@ describe("judge", () => {
 
     it("throws when drawableSize is 0", () => {
       const points = makeTimedPoints([[0, 0], [10, 10]], 50, 0);
-      expect(() => judge(points, { types: ["tome"] }, { drawableSize: 0 })).toThrow("drawableSize must be positive");
+      expect(() => checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: 0 })).toThrow("drawableSize must be positive");
     });
 
     it("throws when drawableSize is negative", () => {
       const points = makeTimedPoints([[0, 0], [10, 10]], 50, 0);
-      expect(() => judge(points, { types: ["tome"] }, { drawableSize: -100 })).toThrow("drawableSize must be positive");
+      expect(() => checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: -100 })).toThrow("drawableSize must be positive");
     });
 
     it("throws when drawableSize is NaN", () => {
       const points = makeTimedPoints([[0, 0], [10, 10]], 50, 0);
-      expect(() => judge(points, { types: ["tome"] }, { drawableSize: Number.NaN })).toThrow("drawableSize must be finite");
+      expect(() => checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: Number.NaN })).toThrow("drawableSize must be finite");
     });
 
     it("throws when drawableSize is Infinity", () => {
       const points = makeTimedPoints([[0, 0], [10, 10]], 50, 0);
-      expect(() => judge(points, { types: ["tome"] }, { drawableSize: Number.POSITIVE_INFINITY })).toThrow("drawableSize must be finite");
+      expect(() => checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: Number.POSITIVE_INFINITY })).toThrow("drawableSize must be finite");
     });
   });
 
@@ -357,7 +357,7 @@ describe("judge", () => {
         { x: 20, y: 20, t: 100 },
       ];
       expect(() =>
-        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+        checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
       ).toThrow("points[1] must have finite x/y/t");
     });
 
@@ -367,7 +367,7 @@ describe("judge", () => {
         { x: 10, y: 10, t: Number.POSITIVE_INFINITY },
       ];
       expect(() =>
-        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+        checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
       ).toThrow("points[1] must have finite x/y/t");
     });
 
@@ -377,7 +377,7 @@ describe("judge", () => {
         { x: Number.NaN, y: 10, t: 50 },
       ];
       expect(() =>
-        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+        checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
       ).toThrow("points[1] must have finite x/y/t");
     });
 
@@ -387,7 +387,7 @@ describe("judge", () => {
         { x: 10, y: Number.POSITIVE_INFINITY, t: 50 },
       ];
       expect(() =>
-        judge(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
+        checkStrokeEnding(points, { types: ["tome"] }, { drawableSize: DEFAULT_SIZE }),
       ).toThrow("points[1] must have finite x/y/t");
     });
   });

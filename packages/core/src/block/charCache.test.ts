@@ -1,17 +1,17 @@
 import { describe, it, expect } from "vitest";
-import { runWithJudgeLock, type JudgeCharEntry } from "./charCache.js";
+import { runWithCheckLock, type CheckCharEntry } from "./charCache.js";
 import type { Char } from "../char.js";
 
-// `JudgeCharEntry` requires a real `Char` for everyday use, but
-// `runWithJudgeLock` only ever touches `judgeLock`, so a partial fixture
+// `CheckCharEntry` requires a real `Char` for everyday use, but
+// `runWithCheckLock` only ever touches `checkLock`, so a partial fixture
 // is enough to drive the mutex contract in isolation.
-function fakeEntry(): JudgeCharEntry {
+function fakeEntry(): CheckCharEntry {
   return {
     char: {} as Char,
     dataStrokeCount: 0,
     logicalStrokeCount: 0,
     normalizeTarget: { centerX: 0, centerY: 0, longerSide: 1 },
-    judgeLock: Promise.resolve(),
+    checkLock: Promise.resolve(),
   };
 }
 
@@ -25,19 +25,19 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void; reject: 
   return { promise, resolve, reject };
 }
 
-describe("runWithJudgeLock", () => {
+describe("runWithCheckLock", () => {
   it("serializes overlapping callers against the same entry", async () => {
     const entry = fakeEntry();
     const order: string[] = [];
     const first = deferred<void>();
     const second = deferred<void>();
 
-    const a = runWithJudgeLock(entry, async () => {
+    const a = runWithCheckLock(entry, async () => {
       order.push("a:start");
       await first.promise;
       order.push("a:end");
     });
-    const b = runWithJudgeLock(entry, async () => {
+    const b = runWithCheckLock(entry, async () => {
       order.push("b:start");
       await second.promise;
       order.push("b:end");
@@ -60,13 +60,13 @@ describe("runWithJudgeLock", () => {
     const entry = fakeEntry();
     const reason = new Error("boom");
     await expect(
-      runWithJudgeLock(entry, async () => {
+      runWithCheckLock(entry, async () => {
         throw reason;
       }),
     ).rejects.toBe(reason);
 
     let ran = false;
-    await runWithJudgeLock(entry, async () => {
+    await runWithCheckLock(entry, async () => {
       ran = true;
     });
     expect(ran).toBe(true);
@@ -77,12 +77,12 @@ describe("runWithJudgeLock", () => {
     const entryB = fakeEntry();
     const blocker = deferred<void>();
 
-    const longRunningA = runWithJudgeLock(entryA, async () => {
+    const longRunningA = runWithCheckLock(entryA, async () => {
       await blocker.promise;
     });
 
     let bRan = false;
-    await runWithJudgeLock(entryB, async () => {
+    await runWithCheckLock(entryB, async () => {
       bRan = true;
     });
     expect(bRan).toBe(true);

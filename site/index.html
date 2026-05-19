@@ -4,17 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kakitori — Kanji writing practice library</title>
-    <meta name="description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta name="description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai check, composable practice problems, and a paper-style multi-block layout." />
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://k1low.github.io/kakitori/" />
     <meta property="og:title" content="kakitori — Kanji writing practice library" />
-    <meta property="og:description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta property="og:description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai check, composable practice problems, and a paper-style multi-block layout." />
     <meta property="og:image" content="https://k1low.github.io/kakitori/ogp.png" />
     <meta property="og:image:width" content="1280" />
     <meta property="og:image:height" content="640" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="kakitori — Kanji writing practice library" />
-    <meta name="twitter:description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout." />
+    <meta name="twitter:description" content="A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai check, composable practice problems, and a paper-style multi-block layout." />
     <meta name="twitter:image" content="https://k1low.github.io/kakitori/ogp.png" />
     <meta name="twitter:creator" content="@k1LoW" />
     <style>
@@ -413,7 +413,7 @@
       </div>
       <div class="hero-text">
         <p class="lede">
-          A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
+          A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai check, composable practice problems, and a paper-style multi-block layout.
         </p>
         <pre data-lang="bash">npm install @k1low/kakitori</pre>
         <div class="hero-links">
@@ -436,12 +436,12 @@
       <h2 id="char">char</h2>
       <p>
         <code>char</code> handles a single character. You can render it as a static SVG,
-        mount an interactive writer that judges each stroke, or judge strokes headlessly without a DOM.
+        mount an interactive writer that checks each stroke, or check strokes headlessly without a DOM.
       </p>
 
       <pre data-lang="ts">import { char } from "@k1low/kakitori";
 
-// Mount an interactive writer that judges each stroke.
+// Mount an interactive writer that checks each stroke.
 const target = document.getElementById("writer")!;
 const c = char.create("学");
 c.mount(target, {
@@ -459,7 +459,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       <p>
         Live example. Pick any character from the gallery below to start a practice session.
         The slot row shows the expected stroke ending (tome / hane / harai) for each stroke,
-        and is updated to OK / NG after each stroke is judged.
+        and is updated to OK / NG after each stroke is checked.
       </p>
 
       <div id="char-practice">
@@ -500,7 +500,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       <h3>CharResult</h3>
       <p>
         <code>c.result()</code> returns a <code>CharResult</code>. This is the leaf type used
-        across the whole stack. The same shape comes back from headless <code>Char.judge()</code>
+        across the whole stack. The same shape comes back from headless <code>Char.checkStroke()</code>
         and from the mounted interactive path.
       </p>
       <pre data-lang="ts">interface CharResult {
@@ -619,7 +619,7 @@ interface BlockAnnotationResult {
       <p>
         <code>page</code> lays out multiple blocks on a vertical-rl grid (Japanese practice-sheet style).
         Blocks flow column-by-column. A block that crosses a column boundary is split per-cell automatically,
-        even when it carries a furigana annotation, and strokes drawn across split surfaces are judged
+        even when it carries a furigana annotation, and strokes drawn across split surfaces are checked
         from a shared buffer.
       </p>
 

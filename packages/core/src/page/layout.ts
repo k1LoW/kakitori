@@ -7,7 +7,7 @@ import type { PageBlockEntry } from "./types.js";
  * split greedily at the column boundary regardless of whether they carry
  * annotations: cells become per-segment block.create calls, while page
  * builds a multi-surface freeCell per logical annotation so the strokes
- * the user writes across segments share one judgment buffer (the user
+ * the user writes across segments share one check buffer (the user
  * can write the answer at any character boundary).
  */
 export interface BlockSegment {

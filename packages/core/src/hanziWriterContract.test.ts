@@ -4,7 +4,7 @@ import type { HanziQuiz } from "./hanziWriterInternals.js";
 import type { CharDataLoaderFn } from "./charOptions.js";
 
 // HanziWriter contract tests: char.ts monkey-patches hanzi-writer's internal
-// `_quiz` instance to inject stroke ending judgment between the success
+// `_quiz` instance to inject stroke ending check between the success
 // detection and the stroke-advance step. These tests pin the surface we
 // depend on so that an upstream rename or signature change fails here first
 // (with a clear "this is the hanzi-writer assumption that broke" message)

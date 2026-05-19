@@ -108,10 +108,10 @@ export interface BlockCreateOptions {
    *   "per-char"` — the user writes each character freely and the
    *   verdict lands when the character is fully drawn.
    * - `"per-block"`: **today observationally identical to
-   *   `"per-char"`** — every cell still judges at character completion
+   *   `"per-char"`** — every cell still checks at character completion
    *   and `onBlockComplete` still fires after the final cell. The
    *   value is preserved so callers who want block-level deferred
-   *   judgment can opt in today and pick up the real behavior (no
+   *   check can opt in today and pick up the real behavior (no
    *   per-cell dispatch until the whole block is drawn) in a future
    *   version without changing their call site.
    *

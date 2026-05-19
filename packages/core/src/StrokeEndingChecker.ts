@@ -93,7 +93,7 @@ function analyzeTailFromTimedPoints(
 // Calibration baseline for threshold scaling. Independent from DEFAULT_SIZE (user-facing default); they may diverge.
 const BASE_SIZE = 300;
 
-export interface JudgeOptions {
+export interface CheckOptions {
   /**
    * Side length of the drawable area in the SAME coord space as `points`.
    * Use `HANZI_PRESCALED_SIZE` when `points` are in hanzi-writer internal
@@ -105,30 +105,30 @@ export interface JudgeOptions {
   strictness?: number;
 }
 
-export function judge(
+export function checkStrokeEnding(
   points: ReadonlyArray<TimedPoint>,
   expected: StrokeEnding,
-  options: JudgeOptions,
+  options: CheckOptions,
 ): StrokeEndingResult {
   const { drawableSize, strictness = 0.7 } = options;
   if (!Number.isFinite(drawableSize)) {
-    throw new Error(`judge(): drawableSize must be finite, got ${drawableSize}`);
+    throw new Error(`checkStrokeEnding(): drawableSize must be finite, got ${drawableSize}`);
   }
   if (drawableSize <= 0) {
-    throw new Error(`judge(): drawableSize must be positive, got ${drawableSize}`);
+    throw new Error(`checkStrokeEnding(): drawableSize must be positive, got ${drawableSize}`);
   }
   // Boundary validation: NaN / Infinity in any field would propagate
   // through pauseMs, distance, normalize and the tail-speed calculations
   // and silently produce wrong verdicts (e.g. directionChange = NaN falls
   // through to harai). The mount path only ever feeds finite values, so
-  // this guards external callers of judgeStrokeEnding (and Char.judge by
+  // this guards external callers of checkStrokeEnding (and Char.checkStroke by
   // extension). Monotonicity is intentionally NOT required — the tail-speed
   // math already floors negative dt to 0.
   for (let i = 0; i < points.length; i++) {
     const p = points[i];
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || !Number.isFinite(p.t)) {
       throw new Error(
-        `judge(): points[${i}] must have finite x/y/t, got x=${p.x} y=${p.y} t=${p.t}`,
+        `check(): points[${i}] must have finite x/y/t, got x=${p.x} y=${p.y} t=${p.t}`,
       );
     }
   }

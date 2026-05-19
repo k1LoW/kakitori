@@ -11,9 +11,9 @@ export type StrokeEndingType = "tome" | "hane" | "harai";
  *   `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`, Y-up). Values are NOT clamped: if
  *   the user draws past the inner padded box, `x`/`y` can fall outside
  *   that range.
- * - {@link Char.judge}'s `points` argument expects internal coords by
+ * - {@link Char.checkStroke}'s `points` argument expects internal coords by
  *   default, but accepts arbitrary source coords when `opts.sourceBox` is
- *   provided — judge() projects them into internal coords for you.
+ *   provided — check() projects them into internal coords for you.
  *
  * `t` is milliseconds (typically `performance.now()`).
  *
@@ -30,7 +30,7 @@ export interface TimedPoint {
 
 /** Stroke ending configuration for a single logical stroke. */
 export interface StrokeEnding {
-  /** Acceptable ending types. Empty or omitted disables ending judgment for this stroke. */
+  /** Acceptable ending types. Empty or omitted disables ending check for this stroke. */
   types?: StrokeEndingType[];
   /**
    * Expected end direction as a normalized 2D vector, used for hane/harai validation.
@@ -41,7 +41,7 @@ export interface StrokeEnding {
   direction?: [number, number] | null;
 }
 
-/** Result of stroke ending judgment for a completed stroke. */
+/** Result of stroke ending check for a completed stroke. */
 export interface StrokeEndingResult {
   /** True if the detected ending type is in the expected list. */
   correct: boolean;
@@ -77,7 +77,7 @@ export interface CharStrokeData {
   matched: boolean;
   /**
    * Similarity in [0, 1], derived from hanzi-writer's `getAverageDistance`
-   * with the same threshold {@link Char.judge} uses (1 at perfect match,
+   * with the same threshold {@link Char.checkStroke} uses (1 at perfect match,
    * clamped to 0 once the average distance reaches the leniency-scaled
    * threshold).
    * Mirrors {@link CharStrokeResult.similarity}.
@@ -86,7 +86,7 @@ export interface CharStrokeData {
   /**
    * Sampled points the user drew for this stroke, in hanzi-writer internal
    * coords with timestamps. Suitable as the second argument to
-   * {@link Char.judge} so the same stroke can be replayed against a headless
+   * {@link Char.checkStroke} so the same stroke can be replayed against a headless
    * Char.
    */
   points: TimedPoint[];

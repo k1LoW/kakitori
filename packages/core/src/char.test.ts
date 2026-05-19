@@ -381,7 +381,7 @@ describe("char", () => {
       return svg.parentElement as HTMLElement;
     }
 
-    it("defers judgment until every stroke is drawn and then fires onComplete", async () => {
+    it("defers check until every stroke is drawn and then fires onComplete", async () => {
       const onCorrect = vi.fn();
       const onMistake = vi.fn();
       const onComplete = vi.fn();
@@ -405,7 +405,7 @@ describe("char", () => {
 
       // Second pointer cycle completes the character (mockCharData has 2 strokes).
       drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
-      // finalizePerChar is async (judger init + per-stroke awaits).
+      // finalizePerChar is async (checker init + per-stroke awaits).
       await new Promise((r) => setTimeout(r, 50));
 
       expect(onComplete).toHaveBeenCalledTimes(1);
@@ -420,7 +420,7 @@ describe("char", () => {
       // the per-stroke callback contract), even though the user is
       // never interrupted mid-character. mockCharData's strokes are
       // diagonals; a single horizontal sweep won't satisfy the matcher,
-      // so onMistake must fire when judgment finalizes.
+      // so onMistake must fire when check finalizes.
       const onCorrect = vi.fn();
       const onMistake = vi.fn();
       const onComplete = vi.fn();
@@ -454,7 +454,7 @@ describe("char", () => {
     it("does not bridge to hanzi-writer's quiz mid-stroke (no early onMistake)", async () => {
       // The contract is "no mid-stroke rejection in per-char". Verify
       // that onMistake doesn't fire while the user is still mid-draw —
-      // judgment only happens after the FULL character is captured.
+      // check only happens after the FULL character is captured.
       const onMistake = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
@@ -467,7 +467,7 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getWriterLayer(container);
-      // Only one of two strokes drawn: judgment must NOT have run yet,
+      // Only one of two strokes drawn: check must NOT have run yet,
       // so onMistake stays untouched even though the stroke is wrong.
       drawStroke(layer, [[5, 5], [5, 6]]);
       await new Promise((r) => setTimeout(r, 50));
@@ -807,10 +807,10 @@ describe("char", () => {
       expect(() => k.isMounted()).toThrow(expectedMessage);
       expect(() => k.mount(container)).toThrow(expectedMessage);
       expect(() => k.result()).toThrow(expectedMessage);
-      // setCharacter and judge are async; synchronous throw becomes a
+      // setCharacter and check are async; synchronous throw becomes a
       // rejected promise.
       await expect(k.setCharacter("い")).rejects.toThrow(expectedMessage);
-      await expect(k.judge(0, [])).rejects.toThrow(expectedMessage);
+      await expect(k.checkStroke(0, [])).rejects.toThrow(expectedMessage);
     });
   });
 
@@ -1161,10 +1161,10 @@ describe("char", () => {
   // _quiz directly via (k as any).hw to verify the patch behavior. Those
   // tests have been split across pure-function suites and a contract test:
   //   - hanziWriterContract.test.ts pins the hanzi-writer private API.
-  //   - endingJudgment.test.ts covers computeEndingJudgment routing
+  //   - endingCheck.test.ts covers computeEndingCheck routing
   //     (skipped when no config, mid-group skip, etc.).
-  //   - patchEndingJudgment.test.ts covers attachEndingJudgmentPatch routing
-  //     (advance vs reject based on judgment + strokeEndingAsMiss).
+  //   - patchEndingCheck.test.ts covers attachEndingCheckPatch routing
+  //     (advance vs reject based on check + strokeEndingAsMiss).
   //   - strokeGroups.test.ts covers logicalStrokesRemaining behavior across
   //     groups, fallback to hanzi-writer's count, etc.
 
@@ -1647,44 +1647,44 @@ describe("char", () => {
       expect(() => k.destroy()).not.toThrow();
     });
 
-    it("mount() throws after judge() has been called on the same Char", async () => {
+    it("mount() throws after check() has been called on the same Char", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      await k.judge(0, [
+      await k.checkStroke(0, [
         { x: 0, y: 0, t: 0 },
         { x: 100, y: 100, t: 0 },
       ]);
-      expect(() => k.mount(container)).toThrow("after judge");
+      expect(() => k.mount(container)).toThrow("after check");
     });
 
-    it("mount() throws when judge() is in flight (judgerInit set, judger still null)", async () => {
+    it("mount() throws when check() is in flight (checkerInit set, checker still null)", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      // Kick off judge but do not await yet — judger is still null at this
-      // point but judgerInit has been assigned.
-      const inFlight = k.judge(0, [
+      // Kick off check but do not await yet — checker is still null at this
+      // point but checkerInit has been assigned.
+      const inFlight = k.checkStroke(0, [
         { x: 0, y: 0, t: 0 },
         { x: 100, y: 100, t: 0 },
       ]);
-      expect(() => k.mount(container)).toThrow("after judge");
-      // Drain the in-flight judge so it resolves before the test exits.
+      expect(() => k.mount(container)).toThrow("after check");
+      // Drain the in-flight check so it resolves before the test exits.
       await inFlight;
     });
 
-    it("judge() throws on a mounted instance", async () => {
+    it("check() throws on a mounted instance", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       k.mount(container);
       await expect(
-        k.judge(0, [
+        k.checkStroke(0, [
           { x: 0, y: 0, t: 0 },
           { x: 100, y: 100, t: 0 },
         ]),
@@ -1692,7 +1692,7 @@ describe("char", () => {
     });
   });
 
-  describe("judge() / result()", () => {
+  describe("check() / result()", () => {
     it("returns matched=true for a stroke that traces hanzi-writer's median", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
@@ -1708,7 +1708,7 @@ describe("char", () => {
         { x: 75, y: 75, t: 0 },
         { x: 100, y: 100, t: 0 },
       ];
-      const r = await k.judge(0, trace);
+      const r = await k.checkStroke(0, trace);
       expect(r.matched).toBe(true);
       expect(r.similarity).toBeGreaterThan(0);
       expect(r.similarity).toBeLessThanOrEqual(1);
@@ -1720,7 +1720,7 @@ describe("char", () => {
         configLoader: null,
       });
       await k.ready();
-      const r = await k.judge(0, [
+      const r = await k.checkStroke(0, [
         { x: 0, y: 0, t: 0 },
         { x: -500, y: -500, t: 0 },
       ]);
@@ -1733,7 +1733,7 @@ describe("char", () => {
         configLoader: null,
       });
       await k.ready();
-      const r = await k.judge(0, [
+      const r = await k.checkStroke(0, [
         { x: 9999, y: 9999, t: 0 },
         { x: 10000, y: 10000, t: 0 },
       ]);
@@ -1756,8 +1756,8 @@ describe("char", () => {
         { x: 250, y: 250, t: 0 },
         { x: 300, y: 300, t: 0 },
       ];
-      await k.judge(0, goodTrace0);
-      await k.judge(1, goodTrace1);
+      await k.checkStroke(0, goodTrace0);
+      await k.checkStroke(1, goodTrace1);
       const res = k.result();
       expect(res.perStroke).toHaveLength(2);
       expect(res.perStroke[0].matched).toBe(true);
@@ -1788,7 +1788,7 @@ describe("char", () => {
         configLoader: null,
       });
       await k.ready();
-      await k.judge(2, [
+      await k.checkStroke(2, [
         { x: 0, y: 0, t: 0 },
         { x: 50, y: 50, t: 0 },
       ]);
@@ -1800,18 +1800,18 @@ describe("char", () => {
       expect(res.perStroke[1].similarity).toBe(0);
     });
 
-    it("result() reports matched=false when at least one judged stroke missed", async () => {
+    it("result() reports matched=false when at least one checked stroke missed", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
-      await k.judge(0, [
+      await k.checkStroke(0, [
         { x: 0, y: 0, t: 0 },
         { x: 50, y: 50, t: 0 },
         { x: 100, y: 100, t: 0 },
       ]);
-      await k.judge(1, [
+      await k.checkStroke(1, [
         { x: -999, y: -999, t: 0 },
         { x: -888, y: -888, t: 0 },
       ]);
@@ -1825,19 +1825,19 @@ describe("char", () => {
         configLoader: null,
       });
       await k.ready();
-      await expect(k.judge(-1, [])).rejects.toThrow("non-negative integer");
-      await expect(k.judge(0.5, [])).rejects.toThrow("non-negative integer");
+      await expect(k.checkStroke(-1, [])).rejects.toThrow("non-negative integer");
+      await expect(k.checkStroke(0.5, [])).rejects.toThrow("non-negative integer");
     });
 
     it("rejects strokeNum past the character's stroke count", async () => {
-      // mockCharData has 2 strokes; judge(2, ...) is one past the end.
+      // mockCharData has 2 strokes; check(2, ...) is one past the end.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
       await k.ready();
       await expect(
-        k.judge(2, [
+        k.checkStroke(2, [
           { x: 0, y: 0, t: 0 },
           { x: 50, y: 50, t: 0 },
         ]),
@@ -1846,7 +1846,7 @@ describe("char", () => {
 
     it("rejects strokeNum past the configured strokeGroups length", async () => {
       // strokeGroups merges the 2 data strokes into 1 logical stroke;
-      // judge(1, ...) targets a logical index that is not in the configured
+      // check(1, ...) targets a logical index that is not in the configured
       // groups even though data index 1 still exists.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
@@ -1855,14 +1855,14 @@ describe("char", () => {
       });
       await k.ready();
       await expect(
-        k.judge(1, [
+        k.checkStroke(1, [
           { x: 0, y: 0, t: 0 },
           { x: 50, y: 50, t: 0 },
         ]),
       ).rejects.toThrow("strokeGroups configures 1 logical stroke");
     });
 
-    it("destroy() while judge() is in flight cleans up the offscreen container", async () => {
+    it("destroy() while check() is in flight cleans up the offscreen container", async () => {
       const offscreenBefore = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",
       ).length;
@@ -1871,11 +1871,11 @@ describe("char", () => {
         configLoader: null,
       });
       await k.ready();
-      const inFlight = k.judge(0, [
+      const inFlight = k.checkStroke(0, [
         { x: 0, y: 0, t: 0 },
         { x: 50, y: 50, t: 0 },
       ]);
-      // Synchronously destroy before the judger init resolves. ensureJudger
+      // Synchronously destroy before the checker init resolves. ensureChecker
       // re-checks `destroyed` after its polling await and the catch path
       // drops the offscreen container; destroy() also absorbs the eventual
       // rejection so it does not bubble up as unhandled.
@@ -1889,7 +1889,7 @@ describe("char", () => {
       expect(offscreenAfter).toBe(offscreenBefore);
     });
 
-    it("propagates a charDataLoader failure as a real error from judge()", async () => {
+    it("propagates a charDataLoader failure as a real error from check()", async () => {
       const failingLoader: CharDataLoaderFn = (_char, _onLoad, onError) => {
         onError(new Error("load failed: 永"));
       };
@@ -1898,17 +1898,17 @@ describe("char", () => {
         configLoader: null,
       });
       // The exact error message hanzi-writer surfaces here is not stable
-      // across versions, so just assert that judge() rejects (rather than
+      // across versions, so just assert that check() rejects (rather than
       // hanging on the polling timeout) when the underlying loader fails.
       await expect(
-        k.judge(0, [
+        k.checkStroke(0, [
           { x: 0, y: 0, t: 0 },
           { x: 1, y: 1, t: 0 },
         ]),
       ).rejects.toThrow();
     });
 
-    it("concurrent judge() calls share a single offscreen container", async () => {
+    it("concurrent check() calls share a single offscreen container", async () => {
       const offscreenBefore = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",
       ).length;
@@ -1922,14 +1922,14 @@ describe("char", () => {
         { x: 50, y: 50, t: 0 },
         { x: 100, y: 100, t: 0 },
       ];
-      // Without memoization, each Promise.all entry would race ensureJudger
+      // Without memoization, each Promise.all entry would race ensureChecker
       // and append its own offscreen container before any awaited step
       // resolves; the losers leak. Verify only one new offscreen container
       // ever lands on document.body.
       await Promise.all([
-        k.judge(0, trace),
-        k.judge(0, trace),
-        k.judge(0, trace),
+        k.checkStroke(0, trace),
+        k.checkStroke(0, trace),
+        k.checkStroke(0, trace),
       ]);
       const offscreenAfter = document.body.querySelectorAll(
         "div[aria-hidden=\"true\"]",
@@ -1942,7 +1942,7 @@ describe("char", () => {
       // mockCharData stroke 0 median is [(0, 0), (100, 100)] in internal
       // coords (Y up). The same shape on a HANZI_PRESCALED_SIZE-square
       // source (Y down, origin top-left) would draw from (0, HANZI_Y_MAX)
-      // to (100, HANZI_Y_MAX - 100). With sourceBox set, judge() must
+      // to (100, HANZI_Y_MAX - 100). With sourceBox set, check() must
       // flip Y around HANZI_Y_MAX and pass through unchanged in X
       // (since size matches HANZI_PRESCALED_SIZE).
       const k = char.create("あ", {
@@ -1958,7 +1958,7 @@ describe("char", () => {
         { x: 75, y: 825, t: 0 },
         { x: 100, y: 800, t: 0 },
       ];
-      const r = await k.judge(0, trace, { sourceBox });
+      const r = await k.checkStroke(0, trace, { sourceBox });
       expect(r.matched).toBe(true);
       expect(r.similarity).toBeGreaterThan(0);
     });
@@ -1985,8 +1985,8 @@ describe("char", () => {
         { x: 250, y: 650, t: 0 },
         { x: 300, y: 600, t: 0 },
       ];
-      const r0 = await k.judge(0, stroke0, { sourceBox });
-      const r1 = await k.judge(1, stroke1, { sourceBox });
+      const r0 = await k.checkStroke(0, stroke0, { sourceBox });
+      const r1 = await k.checkStroke(1, stroke1, { sourceBox });
       expect(r0.matched).toBe(true);
       expect(r1.matched).toBe(true);
     });
@@ -1998,13 +1998,13 @@ describe("char", () => {
       });
       await k.ready();
       await expect(
-        k.judge(0, [
+        k.checkStroke(0, [
           { x: 0, y: 0, t: 0 },
           { x: 1, y: 1, t: 0 },
         ], { sourceBox: { x: 0, y: 0, size: 0 } }),
       ).rejects.toThrow("sourceBox.size must be a positive finite number");
       await expect(
-        k.judge(0, [
+        k.checkStroke(0, [
           { x: 0, y: 0, t: 0 },
           { x: 1, y: 1, t: 0 },
         ], { sourceBox: { x: 0, y: 0, size: Number.POSITIVE_INFINITY } }),

@@ -1,5 +1,5 @@
 // Default canvas size for char.create() and char.render().
-// Independent from BASE_SIZE in StrokeEndingJudge (calibration baseline); they may diverge.
+// Independent from BASE_SIZE in StrokeEndingChecker (calibration baseline); they may diverge.
 export const DEFAULT_SIZE = 300;
 
 // Default padding for char.create() and char.render().
@@ -9,7 +9,7 @@ export const DEFAULT_PADDING = 0;
 // hanzi-writer-data live inside `x ∈ [0, HANZI_PRESCALED_SIZE]` and
 // `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`. The canvas is square (1024 × 1024).
 // kakitori projects pointer input to this same space so it can be passed
-// to hanzi-writer's matcher / `Char.judge`.
+// to hanzi-writer's matcher / `Char.checkStroke`.
 //
 // Mirror of CHARACTER_BOUNDS in hanzi-writer:
 //   [{ x: 0, y: -124 }, { x: 1024, y: 900 }]

@@ -29,7 +29,7 @@ export interface RenderOptions {
 /**
  * Options that apply to a Char instance regardless of whether it is mounted
  * to the DOM. Cover headless judging and the character-level configuration
- * that judge / quiz / animate share.
+ * that check / quiz / animate share.
  */
 export interface CharCreateOptions {
   logger?: CharLogger;
@@ -150,11 +150,11 @@ export interface MountOptions {
 }
 
 /**
- * Per-call options for {@link Char.judge}.
+ * Per-call options for {@link Char.checkStroke}.
  */
-export interface CharJudgeStrokeOptions {
+export interface CharCheckStrokeOptions {
   /**
-   * Source coordinate-space square. When provided, judge() linearly maps
+   * Source coordinate-space square. When provided, check() linearly maps
    * each source axis into hanzi-writer's internal coords:
    *
    *   x: `[sourceBox.x, sourceBox.x + size]` → `[0, HANZI_PRESCALED_SIZE]`
@@ -180,13 +180,13 @@ export interface CharJudgeStrokeOptions {
 /**
  * Per-stroke result, indexed by logical stroke number in
  * {@link CharResult.perStroke}. The same shape is used for both the
- * headless judge ({@link Char.judge}) and the mounted quiz
+ * headless check ({@link Char.checkStroke}) and the mounted quiz
  * ({@link Char.start}) paths — a stroke result is a stroke result.
  */
 export interface CharStrokeResult {
   /**
    * Whether this stroke was accepted by the matcher. Placeholder
-   * entries (filling gaps from out-of-order judge calls) come back
+   * entries (filling gaps from out-of-order check calls) come back
    * `false`.
    */
   matched: boolean;
@@ -197,15 +197,15 @@ export interface CharStrokeResult {
    */
   similarity: number;
   /**
-   * Tome / hane / harai judgment for this stroke. Present only when an
+   * Tome / hane / harai check for this stroke. Present only when an
    * ending was actually evaluated — i.e. on guided write strokes that
-   * had an expected ending registered, or on headless `Char.judge`
+   * had an expected ending registered, or on headless `Char.checkStroke`
    * calls that requested ending evaluation. Undefined otherwise.
    */
   strokeEnding?: StrokeEndingResult;
   /**
    * Raw drawn samples for this stroke, with timestamps. Suitable as
-   * the second argument to {@link Char.judge} for replay / re-judging.
+   * the second argument to {@link Char.checkStroke} for replay / re-judging.
    *
    * **Coordinate space depends on the path that produced the result:**
    *
@@ -213,8 +213,8 @@ export interface CharStrokeResult {
    *   internal coords (Y-up, `x ∈ [0, HANZI_PRESCALED_SIZE]`,
    *   `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`). The capture pipeline projects
    *   the user's client-space pointer events into this space before
-   *   storing them. Replay via `Char.judge` should omit `opts.sourceBox`.
-   * - **Headless `Char.judge`**: exactly the points the caller passed
+   *   storing them. Replay via `Char.checkStroke` should omit `opts.sourceBox`.
+   * - **Headless `Char.checkStroke`**: exactly the points the caller passed
    *   in. If the caller used `opts.sourceBox`, those are in the
    *   caller's source space (Y-down browser convention); without
    *   `sourceBox`, they are already in hanzi-writer internal coords.
@@ -227,7 +227,7 @@ export interface CharStrokeResult {
   /**
    * Guided write only: how many misses occurred on this stroke before
    * the matcher accepted it. `0` for first-try success. Undefined on
-   * the headless judge path and on synthetic show-mode strokes.
+   * the headless check path and on synthetic show-mode strokes.
    */
   mistakesOnStroke?: number;
   /**
@@ -245,7 +245,7 @@ export interface CharStrokeResult {
  * trees.
  *
  * Same shape regardless of whether the data came from the headless
- * judger or the mounted quiz, with `mistakes` / `strokeEndingMistakes`
+ * checker or the mounted quiz, with `mistakes` / `strokeEndingMistakes`
  * populated only on the guided (mount + quiz) path and `similarity` /
  * `candidate` populated only inside a free cell or annotation.
  */
@@ -259,7 +259,7 @@ export interface CharResult {
    */
   complete: boolean;
   /**
-   * Every **observed** stroke matched. Out-of-order judge() calls that
+   * Every **observed** stroke matched. Out-of-order check() calls that
    * leave gaps don't drag this rollup to `false` — only real per-stroke
    * results count. Vacuously `true` before any stroke has been observed.
    * Pair with `complete` to distinguish "still in progress" / "done and
@@ -270,7 +270,7 @@ export interface CharResult {
    * Per-logical-stroke history. Length equals the highest observed
    * stroke index + 1; gaps are filled with placeholder
    * `{ matched: false, similarity: 0 }` entries (mirrors the shape the
-   * headless judger has always returned).
+   * headless checker has always returned).
    */
   perStroke: CharStrokeResult[];
   /** Guided-only: cumulative mistakes from hanzi-writer's quiz. */
