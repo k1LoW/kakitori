@@ -496,6 +496,155 @@ describe("char", () => {
     });
   });
 
+  describe("correction: deferred", () => {
+    function drawStroke(
+      el: HTMLElement,
+      points: Array<[number, number]>,
+      pointerId = 1,
+    ): void {
+      const rect = el.getBoundingClientRect();
+      const dispatch = (type: string, x: number, y: number) => {
+        const evt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+          type,
+          {
+            bubbles: true,
+            cancelable: true,
+            pointerId,
+            clientX: rect.left + x,
+            clientY: rect.top + y,
+          },
+        );
+        el.dispatchEvent(evt);
+      };
+      dispatch("pointerdown", points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) {
+        dispatch("pointermove", points[i][0], points[i][1]);
+      }
+      const last = points[points.length - 1];
+      dispatch("pointerup", last[0], last[1]);
+    }
+
+    function getWriterLayer(root: HTMLElement): HTMLElement {
+      const svg = root.querySelector("svg");
+      if (!svg) {
+        throw new Error("test setup: hanzi-writer SVG not found");
+      }
+      return svg.parentElement as HTMLElement;
+    }
+
+    it("fires onCharCaptured (not onComplete) when all strokes are drawn", async () => {
+      const onCharCaptured = vi.fn();
+      const onComplete = vi.fn();
+      const onCorrect = vi.fn();
+      const onMistake = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        onCharCaptured,
+        onComplete,
+        onCorrectStroke: onCorrect,
+        onMistake,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+
+      // Deferred: onCharCaptured fires immediately, the rest stay
+      // silent until check() runs.
+      expect(onCharCaptured).toHaveBeenCalledTimes(1);
+      expect(onComplete).not.toHaveBeenCalled();
+      expect(onCorrect).not.toHaveBeenCalled();
+      expect(onMistake).not.toHaveBeenCalled();
+      // Captures arg has one entry per stroke (mockCharData has 2).
+      const captures = onCharCaptured.mock.calls[0][0] as ReadonlyArray<
+        ReadonlyArray<{ x: number; y: number; t: number }>
+      >;
+      expect(captures).toHaveLength(2);
+    });
+
+    it("runs correction (firing onComplete + per-stroke callbacks) when Char.check() is called", async () => {
+      const onCharCaptured = vi.fn();
+      const onComplete = vi.fn();
+      const onCorrect = vi.fn();
+      const onMistake = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        onCharCaptured,
+        onComplete,
+        onCorrectStroke: onCorrect,
+        onMistake,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+
+      // Now trigger correction.
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      // Each captured stroke produces exactly one callback (correct or
+      // mistake) — total dispatches == stroke count.
+      expect(onCorrect.mock.calls.length + onMistake.mock.calls.length).toBe(2);
+    });
+
+    it("Char.check() is a no-op (logs) when there is nothing buffered", async () => {
+      const log = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        logger: log,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      // No strokes drawn — buffer is empty.
+      k.check();
+      const messages = log.mock.calls.map((c) => c[0]);
+      expect(messages.some((m) => m.includes("no buffered captures"))).toBe(true);
+    });
+
+    it("reset() drops the buffered captures so a stale check() becomes a no-op", async () => {
+      const onComplete = vi.fn();
+      const log = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        onComplete,
+        logger: log,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+
+      k.reset();
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).not.toHaveBeenCalled();
+      const messages = log.mock.calls.map((c) => c[0]);
+      expect(messages.some((m) => m.includes("no buffered captures"))).toBe(true);
+    });
+  });
+
   describe("render", () => {
     it("renders SVG paths for character strokes", () => {
       char.render(container, "あ", {

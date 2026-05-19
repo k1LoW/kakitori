@@ -277,6 +277,18 @@ export interface Char {
     opts?: CharCheckStrokeOptions,
   ): Promise<CharStrokeResult>;
   /**
+   * Run correction on the buffered captures saved by a `correction:
+   * "deferred"` mount. Triggers the same finalize-and-dispatch flow
+   * as `correction: "per-char"` would run automatically (per-stroke
+   * `onCorrectStroke` / `onMistake` + a single `onComplete`, optional
+   * `showCharacter` reveal).
+   *
+   * No-op (logs a warning) when there are no buffered captures —
+   * either because the user hasn't drawn the full character yet, or
+   * because correction already ran on the buffer.
+   */
+  check(): Char;
+  /**
    * Snapshot of this character's writing progress. Works in both
    * directions:
    * - **headless**: built from {@link Char.checkStroke} calls so far. `mistakes`
@@ -431,6 +443,13 @@ interface MountState {
    * fresh attempt or a torn-down mount.
    */
   perCharSeq: number;
+  /**
+   * `correction: "deferred"` mode only: buffered per-stroke captures
+   * stashed when the user finishes drawing all N strokes, waiting for
+   * an external `Char.check()` call to trigger correction. Null in
+   * any other mode, or after `check()` consumed the buffer.
+   */
+  deferredCaptures: TimedPoint[][] | null;
   pendingEndingCheck: StrokeEndingResult | null;
   quizActive: boolean;
   /**
@@ -828,7 +847,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
     attachEndingCheckPatch(quiz, {
       runCheck: (q, n, meta) => runEndingCheck(m, q, n, meta),
-      onMistake: (check, { quiz: q, dataStrokeNum, willAdvance, meta }) => {
+      onMistake: (endingCheck, { quiz: q, dataStrokeNum, willAdvance, meta }) => {
         m.strokeEndingMistakes++;
         const hwData = q._getStrokeData({ isCorrect: willAdvance, meta });
         const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
@@ -853,7 +872,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
             hwData.strokesRemaining,
             willAdvance,
           ),
-          strokeEnding: check,
+          strokeEnding: endingCheck,
         };
         // Record the matcher's view (matched=true with ending check)
         // before hanzi-writer's own onMistake handler runs and would
@@ -865,7 +884,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         m.perStroke[logicalStrokeNum] = {
           matched: true,
           similarity: charData.similarity,
-          strokeEnding: check,
+          strokeEnding: endingCheck,
           points: charData.points,
           mistakesOnStroke: hwData.mistakesOnStroke,
           isBackwards: hwData.isBackwards,
@@ -902,13 +921,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
 
     startTimingTracking(m);
 
-    if (m.options.correction === "per-char") {
-      // Per-char correction: skip hanzi-writer's quiz entirely; capture
-      // every pointer cycle the user draws and check them in one batch
-      // once the cycle count matches the character's logical stroke
-      // count. Live ink rendering still flows through the retain-stroke
-      // overlay so the user sees what they drew while the verdict is
-      // deferred.
+    if (
+      m.options.correction === "per-char" ||
+      m.options.correction === "deferred"
+    ) {
+      // Per-char / deferred correction: skip hanzi-writer's quiz
+      // entirely; capture every pointer cycle the user draws and live
+      // -render the polylines. Per-char then auto-runs correction at
+      // N captures; deferred stashes the captures and waits for an
+      // external `Char.check()` call.
       startPerCharCycle(m);
       return;
     }
@@ -1134,12 +1155,23 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
 
-      // All strokes are in — kick off batch check in the background.
-      // Nulling captures here AND bumping the per-attempt token make
-      // subsequent pointer events no-ops AND let an in-flight
-      // finalizePerChar tell when it's been superseded.
+      // All strokes are in. Nulling captures here AND bumping the
+      // per-attempt token make subsequent pointer events no-ops AND let
+      // an in-flight finalizePerChar tell when it's been superseded.
       m.perCharCaptures = null;
       const seq = ++m.perCharSeq;
+      if (m.options.correction === "deferred") {
+        // Deferred mode: stash the buffer + tell the caller we're
+        // ready. Tear down input capture now so the user can't keep
+        // drawing into a buffer the next `check()` would consume.
+        // Correction itself runs only when `Char.check()` is called.
+        m.deferredCaptures = captures;
+        stopPerCharCycle(m);
+        stopTimingTracking(m);
+        m.options.onCharCaptured?.(captures);
+        return;
+      }
+      // Per-char: run correction in the background.
       finalizePerChar(m, captures, charStrokeCount, seq).catch((err) => {
         log?.(`per-char finalize failed: ${err instanceof Error ? err.message : String(err)}`);
       });
@@ -1400,6 +1432,31 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     });
   }
 
+  /**
+   * Public trigger for `correction: "deferred"` mounts: runs
+   * correction on the buffer that {@link onCharCaptured} announced.
+   * The actual logic is the same finalize-and-dispatch path per-char
+   * uses; we just call it on demand instead of automatically.
+   */
+  function check(): Char {
+    if (!mounted) {
+      log?.("char.check(): no mounted instance");
+      return api;
+    }
+    const m = mounted;
+    const captures = m.deferredCaptures;
+    if (!captures) {
+      log?.("char.check(): no buffered captures to correct");
+      return api;
+    }
+    m.deferredCaptures = null;
+    const seq = ++m.perCharSeq;
+    finalizePerChar(m, captures, captures.length, seq).catch((err: unknown) => {
+      log?.(`char.check(): finalize failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
+    return api;
+  }
+
   /** Build the animate-overlay and play it on top of the mounted SVG. */
   async function animateWithGroups(m: MountState): Promise<void> {
     const rawSpeed = m.options.strokeAnimationSpeed ?? 1;
@@ -1598,6 +1655,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
+    // Drop any stashed deferred-correction buffer too: the cell is
+    // being abandoned (reset / start / undo / unmount), so the
+    // pending captures must NOT survive into a fresh attempt or a
+    // post-teardown `Char.check()` call.
+    m.deferredCaptures = null;
     if (wasActive) {
       m.hw.setCharacter(currentCharacter).catch((err: unknown) => {
         log?.(`cancelActiveQuiz reload failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -1834,7 +1896,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       if (!characterData) {
         characterData = (await j.hw.getCharacterData()) as unknown as HanziCharacterData;
       }
-      const check = computeEndingCheck({
+      const endingCheck = computeEndingCheck({
         dataStrokeNum,
         points: internalPoints,
         strokeEndings,
@@ -1844,8 +1906,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         strictness: strokeEndingStrictness,
         log,
       });
-      if (check) {
-        strokeEnding = check;
+      if (endingCheck) {
+        strokeEnding = endingCheck;
       }
     }
 
@@ -2041,6 +2103,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perCharOnPointerCancel: null,
       perCharLivePolyline: null,
       perCharSeq: 0,
+      deferredCaptures: null,
       pendingEndingCheck: null,
       quizActive: false,
       quizArmed: false,
@@ -2410,6 +2473,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   const api: Char = {
     ready,
     checkStroke,
+    check,
     result,
     getStrokeEndings,
     setStrokeEndings,

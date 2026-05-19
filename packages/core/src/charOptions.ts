@@ -119,8 +119,27 @@ export interface MountOptions {
    *   accept moment to draw the official stroke instead. After
    *   correction, `retainStrokes` decides whether those polylines
    *   stay on screen (`true`) or are cleared (`false`, the default).
+   * - `"deferred"`: same capture flow as `"per-char"` (no per-stroke
+   *   rejection, live-ink polylines as the user drags) BUT correction
+   *   does not run automatically once all strokes are captured.
+   *   Instead, `onCharCaptured` fires with the buffered captures and
+   *   kakitori waits for an external trigger via {@link Char.check}
+   *   to run correction. Used by higher-level orchestrators (block
+   *   per-block, page per-page) to hold off cell-by-cell verdicts
+   *   until the surrounding group is fully drawn.
    */
-  correction?: "per-stroke" | "per-char";
+  correction?: "per-stroke" | "per-char" | "deferred";
+  /**
+   * Fires when {@link correction} is `"deferred"` and the user has
+   * drawn enough pointer cycles to match the character's logical
+   * stroke count. `captures` is the buffered per-stroke point arrays
+   * in draw order; pass it back via {@link Char.check} to actually
+   * run correction. The callback is fire-and-forget — kakitori holds
+   * the buffer internally until `check()` is invoked.
+   */
+  onCharCaptured?: (
+    captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
+  ) => void;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;

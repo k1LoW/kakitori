@@ -225,6 +225,13 @@ interface PerCellState {
   charInstance?: Char;
   freeHandle?: FreeCellHandle;
   charCellEl?: HTMLDivElement;
+  /**
+   * True when this guided write cell was mounted under per-block
+   * deferral (its char has `correction: "deferred"`). Lets the
+   * coordinator re-register the cell with `perBlockPending` on
+   * `reset()` without re-resolving the block-wide option.
+   */
+  usesDeferredCorrection?: boolean;
 }
 
 interface PerAnnotationState {
@@ -353,6 +360,19 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // queueMicrotask) can no-op instead of touching DOM / Char instances
   // that have already been torn down.
   let destroyed = false;
+
+  // ===== Per-block real-deferral coordinator =====
+  // Populated for every guided cell mounted with `correction: "deferred"`
+  // (when block-wide `correction` is `"per-block"`). The cell fires
+  // `onCharCaptured` once the user finishes drawing the character; we
+  // hold off triggering correction on ANY cell until every entry in
+  // this set has fired. When the set drains, we call `check()` on each
+  // cell in turn — that fires their `onComplete` callbacks, which
+  // route through the existing `commitGuidedCell` → `onCellComplete`
+  // chain, so the block emits per-cell verdicts in one burst at the
+  // end instead of letting each cell judge itself mid-write.
+  const perBlockPending = new Set<number>();
+  let perBlockTriggered = false;
 
   /**
    * Activity history for {@link Block.undo}. Most recent target is at
@@ -505,7 +525,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     // callers OR a future enum addition (e.g. `"per-page"` reaching
     // this layer via page.ts) could trip the silent-drop path otherwise.
     let cellCorrection: MountOptions["correction"] | undefined;
-    if (opts.correction === "per-char" || opts.correction === "per-block") {
+    if (opts.correction === "per-block") {
+      // Real block-wide deferral: every guided cell captures strokes
+      // but does NOT auto-correct. The block coordinator collects
+      // captures across cells and fires correction on all of them
+      // together once every cell has finished writing.
+      cellCorrection = "deferred";
+    } else if (opts.correction === "per-char") {
       cellCorrection = "per-char";
     } else if (opts.correction === "per-stroke") {
       cellCorrection = "per-stroke";
@@ -558,6 +584,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
       mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, data);
       mountOpts.onComplete = () => commitGuidedCell(state);
+      // pickMountOpts(overrides) above can swap the cell's correction
+      // back to per-stroke / per-char via per-cell overrides; honor
+      // the EFFECTIVE value here, not the block-wide one.
+      const effectiveCorrection = mountOpts.correction;
+      if (effectiveCorrection === "deferred") {
+        // Register this cell with the per-block coordinator. Its
+        // captures arrive via onCharCaptured; correction only kicks
+        // off once every pending cell has fired.
+        perBlockPending.add(index);
+        mountOpts.onCharCaptured = () => onPerBlockCellCaptured(index);
+        state.usesDeferredCorrection = true;
+      }
       c.mount(cellEl, mountOpts);
       // Kick off the quiz once ready.
       void c.ready().then(() => {
@@ -596,6 +634,32 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     _data: CharStrokeData,
   ): void {
     markActive("cell", state.index);
+  }
+
+  /**
+   * Per-block coordinator: a guided cell mounted with `correction:
+   * "deferred"` just told us it captured a full character. Mark it
+   * done; once every registered cell has fired, walk the cells in
+   * order and call `check()` on each so they all run correction in
+   * the same burst. The `onComplete` callback each `check()` fires
+   * routes through `commitGuidedCell` → `onCellComplete`, and the
+   * existing `maybeCommitBlock` then emits `onBlockComplete` once the
+   * last cell settles — preserving the public callback order without
+   * the block needing to learn about correction internals.
+   */
+  function onPerBlockCellCaptured(cellIndex: number): void {
+    if (destroyed) {
+      return;
+    }
+    markActive("cell", cellIndex);
+    perBlockPending.delete(cellIndex);
+    if (perBlockPending.size > 0 || perBlockTriggered) {
+      return;
+    }
+    perBlockTriggered = true;
+    for (const s of cellStates) {
+      s.charInstance?.check();
+    }
   }
 
   function commitGuidedCell(state: PerCellState): void {
@@ -959,11 +1023,19 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       }
       activityStack.length = 0;
       blockCommitted = false;
+      // Re-arm the per-block coordinator so a fresh attempt waits for
+      // every cell again. The Char-level `reset()` we call below drops
+      // each cell's deferredCaptures buffer too.
+      perBlockTriggered = false;
+      perBlockPending.clear();
       for (const state of cellStates) {
         state.committed = false;
         if (state.cell.kind === "guided" && state.charInstance && state.charCellEl) {
           state.charInstance.reset();
           if (state.cell.mode === "write") {
+            if (state.usesDeferredCorrection) {
+              perBlockPending.add(state.index);
+            }
             const inst = state.charInstance;
             void inst.ready().then(() => {
               if (destroyed) {
