@@ -269,6 +269,59 @@ describe("Block.results", () => {
     parent.remove();
   });
 
+  it("block-wide per-block: mixed guided + free write cells all defer together", async () => {
+    // Per-block now defers free write cells too. With one guided cell
+    // and one free write cell, drawing only the guided one must not
+    // fire any onCellComplete; drawing the free cell after that
+    // drains the coordinator and both commit in a burst.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "free", expected: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Capture the guided cell only — free cell hasn't been touched,
+    // so block-level pending still has cell:1. Coordinator must
+    // remain silent.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(completedCells).toEqual([]);
+
+    // Now drive the free cell. With stubLoader's 1-stroke chars,
+    // one stroke settles the い candidate and triggers
+    // onCellCaptured for the free cell. The coordinator now drains
+    // and runs the burst.
+    const allSvgs = Array.from(parent.querySelectorAll<SVGSVGElement>("svg"));
+    const freeSvgs = allSvgs.filter(
+      (s) => s.querySelector(":scope > defs") === null,
+    );
+    const freeTarget = freeSvgs[freeSvgs.length - 1] ?? writerSvgs[1];
+    strokeAt(freeTarget, [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(completedCells.toSorted()).toEqual([0, 1]);
+    b.destroy();
+    parent.remove();
+  });
+
   it("per-cell overrides.correction: 'per-stroke' wins over block-wide 'per-block'", async () => {
     // The per-cell override path is the one consumers reach for when
     // they want a mixed block. Verify that an explicit per-cell
