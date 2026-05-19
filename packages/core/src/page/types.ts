@@ -91,13 +91,18 @@ export interface PageCreateOptions {
    * Page-wide default for {@link BlockCreateOptions.correction}:
    * forwarded to every block. Per-block / per-cell overrides still win.
    *
-   * - `"per-page"`: real page-wide deferral. Injects block-level
-   *   `"deferred"` into every block, which in turn defers every cell
-   *   + annotation. The page coordinator holds off ALL verdicts
-   *   until every segment block has captured; then it walks each
-   *   block in order and fires `Block.check()`, so
-   *   `onCellComplete` / `onBlockComplete` / `onPageComplete` all
-   *   land once the whole page is written.
+   * - `"per-page"`: real page-wide deferral of **writeable** cells
+   *   (guided write, free write, write-mode annotations). Injects
+   *   block-level `"deferred"` into every block. The page
+   *   coordinator holds off every writeable verdict until every
+   *   segment block has captured; then it walks each block in order
+   *   and fires `Block.check()`, so the write-mode
+   *   `onCellComplete` / `onBlockComplete` / `onPageComplete` land
+   *   in one burst once the whole page is written. Show-mode cells
+   *   and blank cells are not writable inputs — their synthetic
+   *   `onCellComplete` still fires at create time as before, and
+   *   block / page commits wait on the write-mode cells alongside
+   *   them.
    */
   correction?: "per-stroke" | "per-char" | "per-block" | "per-page";
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
