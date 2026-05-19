@@ -1068,7 +1068,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // Mirror per-stroke quiz behavior: blank the main character so the
     // user actually writes onto an empty cell. The outline (per
     // showOutline) stays as a reference, just like the default quiz UX.
-    m.hw.hideCharacter();
+    // Swallow rejections (animation interrupted, mount torn down
+    // mid-fade) to avoid unhandled-promise noise — symmetric with the
+    // showCharacter() call in finalizePerChar.
+    m.hw.hideCharacter().catch((err: unknown) => {
+      log?.(`per-char hideCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
+    });
 
     const onPointerMove = (_e: PointerEvent) => {
       // Stop accepting input the moment captures are nulled (after the
