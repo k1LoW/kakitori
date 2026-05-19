@@ -1350,6 +1350,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         }
       }
+      // Mirror the create-time / reset-time vacuous-captured signal:
+      // if the block is in deferred mode AND nothing is pending now
+      // (the undone entry wasn't deferred, or was the only deferred
+      // entry that captured and is now re-armed — wait, that path
+      // re-adds itself; the case we cover here is "all entries are
+      // non-deferred"), fire onBlockCaptured immediately so a
+      // page-level coordinator can drain its segment key. Without
+      // this, undoing a per-char/per-stroke cell inside an otherwise
+      // deferred-mode block leaves the page-pending key stuck.
+      if (opts.correction === "deferred" && perBlockPending.size === 0) {
+        queueMicrotask(() => {
+          if (destroyed) {
+            return;
+          }
+          perBlockTriggered = true;
+          opts.onBlockCaptured?.();
+        });
+      }
       return {
         kind: target.kind,
         index: target.index,
