@@ -657,8 +657,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return;
     }
     perBlockTriggered = true;
+    // Only walk cells that actually opted into deferred correction.
+    // Non-deferred cells (per-cell `overrides.correction` pointing to
+    // per-stroke / per-char, or show-mode cells without a writer) have
+    // no buffered captures, and calling Char.check() on them would
+    // produce a "no buffered captures" log line per cell.
     for (const s of cellStates) {
-      s.charInstance?.check();
+      if (s.usesDeferredCorrection) {
+        s.charInstance?.check();
+      }
     }
   }
 

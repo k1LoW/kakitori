@@ -318,8 +318,8 @@ export interface Char {
    * Total logical stroke count. Returns `strokeGroups.length` when groups
    * are configured. Otherwise it counts paths from the mounted SVG when
    * mounted, falls back to the offscreen checker's data-stroke count when
-   * judging has been started, and returns 0 before either of those (i.e.
-   * before mount() and before the first check() call).
+   * headless checking has been started, and returns 0 before either of
+   * those (i.e. before mount() and before the first checkStroke() call).
    */
   getLogicalStrokeCount(): number;
   /** Change the displayed character. Resets stroke endings and check result. */
@@ -506,7 +506,7 @@ interface CheckerState {
   character: { strokes: Array<{ getAverageDistance(points: Pt[]): number }> };
   // accumulated per-stroke results, indexed by logical stroke num
   perStroke: CharStrokeResult[];
-  // patched-handler capture slot for the current check() call
+  // patched-handler capture slot for the current checkStroke() call
   capture: { matched: boolean; isBackwards: boolean } | null;
 }
 
@@ -535,8 +535,8 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   let mounted: MountState | null = null;
   let checker: CheckerState | null = null;
   // Shared promise for the in-flight checker initialisation. Set on the
-  // first check() call, cleared on failure so retries get a fresh chance.
-  // Successful init also sets `checker`; later check() calls short-circuit
+  // first checkStroke() call, cleared on failure so retries get a fresh chance.
+  // Successful init also sets `checker`; later checkStroke() calls short-circuit
   // on `checker` before they ever consult `checkerInit`.
   let checkerInit: Promise<CheckerState> | null = null;
   // Flips to true synchronously the moment check() is called for the
@@ -926,9 +926,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.options.correction === "deferred"
     ) {
       // Per-char / deferred correction: skip hanzi-writer's quiz
-      // entirely; capture every pointer cycle the user draws and live
-      // -render the polylines. Per-char then auto-runs correction at
-      // N captures; deferred stashes the captures and waits for an
+      // entirely; capture every pointer cycle the user draws and
+      // live-render the polylines. Per-char then auto-runs correction
+      // at N captures; deferred stashes the captures and waits for an
       // external `Char.check()` call.
       startPerCharCycle(m);
       return;
@@ -1672,13 +1672,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     assertNotDestroyed();
     if (!allowMount && mounted) {
       throw new Error(
-        "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+        "char: checkStroke() is not supported on a mounted instance. Create a separate Char (without mount) for headless checking.",
       );
     }
     if (checker) {
       return checker;
     }
-    // Memoize the in-flight init so concurrent check() calls (e.g.
+    // Memoize the in-flight init so concurrent checkStroke() calls (e.g.
     // Promise.all) share a single offscreen container instead of each
     // racing to create its own and leaking the losers.
     if (checkerInit) {
@@ -1765,7 +1765,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         }
         if (!allowMount && mounted) {
           throw new Error(
-            "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+            "char: checkStroke() is not supported on a mounted instance. Create a separate Char (without mount) for headless checking.",
           );
         }
 
@@ -1815,7 +1815,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     assertNotDestroyed();
     if (mounted) {
       throw new Error(
-        "char: check() is not supported on a mounted instance. Create a separate Char (without mount) for judging.",
+        "char: checkStroke() is not supported on a mounted instance. Create a separate Char (without mount) for headless checking.",
       );
     }
     // Flag synchronously so a mount() called immediately after check()
@@ -1946,7 +1946,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perStroke.push(perStrokeSrc[i] ?? { matched: false, similarity: 0 });
     }
     // `matched` is rolled up only across observed (real) entries — gaps
-    // from out-of-order check() calls are placeholder slots that exist
+    // from out-of-order checkStroke() calls are placeholder slots that exist
     // for indexing convenience and shouldn't drag the rollup to false.
     // Vacuously true when no strokes have been observed yet.
     let matched = true;
@@ -2426,7 +2426,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // rejects if it flipped during init; the catch in that block already
     // removes the offscreen container. Swallow the rejection here so it
     // does not propagate as unhandled when nobody awaited the in-flight
-    // check() call.
+    // checkStroke() call.
     if (checkerInit) {
       checkerInit.catch(() => {});
       checkerInit = null;
