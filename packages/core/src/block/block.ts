@@ -108,18 +108,20 @@ export interface BlockCreateOptions {
    *   "per-char"` — the user writes each character freely and the
    *   verdict lands when the character is fully drawn.
    * - `"per-block"`: every guided cell goes into `correction:
-   *   "deferred"` and annotation free cells go into `deferred: true`.
-   *   The block coordinator holds off ALL per-cell verdicts until
-   *   every entry (cell + annotation) has captured; then it fires
-   *   `Char.check()` / `FreeCell.check()` on each in a single burst,
-   *   so `onCellComplete` / `onBlockComplete` only land once the
-   *   whole block is written.
-   * - `"deferred"`: same per-cell / annotation setup as `"per-block"`,
-   *   but the block-level burst is held back for an external
-   *   {@link Block.check} call. Fires {@link onBlockCaptured} when
-   *   every entry has captured so a higher-level coordinator (e.g.
-   *   the page-wide `correction: "per-page"`) can wait on the signal
-   *   and trigger correction across multiple blocks in lock-step.
+   *   "deferred"`; free write cells and annotation free cells go
+   *   into `deferred: true`. The block coordinator holds off ALL
+   *   per-cell verdicts until every entry (guided cell + free cell +
+   *   annotation) has captured; then it fires `Char.check()` /
+   *   `FreeCell.check()` on each in a single burst, so
+   *   `onCellComplete` / `onBlockComplete` only land once the whole
+   *   block is written.
+   * - `"deferred"`: same per-cell / free / annotation setup as
+   *   `"per-block"`, but the block-level burst is held back for an
+   *   external {@link Block.check} call. Fires {@link onBlockCaptured}
+   *   when every entry has captured so a higher-level coordinator
+   *   (e.g. the page-wide `correction: "per-page"`) can wait on the
+   *   signal and trigger correction across multiple blocks in
+   *   lock-step.
    *
    * Per-cell `GuidedCell.overrides.correction` still wins.
    */
@@ -192,10 +194,19 @@ export interface Block {
   result(): BlockResult;
   /**
    * External burst-check trigger for `correction: "deferred"` blocks.
-   * Calls `check()` on every deferred entry (guided cells +
-   * annotations), which fires their `onComplete` / `onCellComplete`
-   * callbacks and ultimately `onBlockComplete`. No-op on blocks
-   * mounted under any other correction mode.
+   * Calls `check()` on every deferred entry (guided cells, free
+   * cells, annotations), which fires their `onComplete` /
+   * `onCellComplete` callbacks and ultimately `onBlockComplete`.
+   *
+   * Refuses to run (logs through the block's logger and no-ops)
+   * unless every deferred entry has already fired its captured
+   * signal — partial-commit would leave un-captured entries hanging
+   * mid-write. Call this from a `Submit`-style host UI only AFTER
+   * `onBlockCaptured`, or skip it entirely and rely on the
+   * automatic burst that fires when the last entry captures
+   * (per-block mode) / when a higher-level coordinator drives the
+   * call (per-page mode). No-op on blocks mounted under any other
+   * correction mode.
    */
   check(): void;
   /** Destroy every child Char / freeCell and detach the block. */
@@ -1218,6 +1229,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         } else if (state.freeHandle) {
           state.freeHandle.reset();
+          if (state.usesDeferredCorrection) {
+            // Free write cells also participate in the deferred
+            // coordinator (added at create-time). Mirror the
+            // guided-cell re-arm so a subsequent capture from
+            // another entry can't drain perBlockPending early.
+            perBlockPending.add(perBlockKey.cell(state.index));
+          }
         } else if (state.cell.kind === "free" && state.cell.mode === "show") {
           queueMicrotask(() => {
             if (destroyed) {
@@ -1302,6 +1320,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         } else if (state.freeHandle) {
           state.freeHandle.undo();
+          if (state.usesDeferredCorrection) {
+            // Free write cells participate in deferred too — same
+            // re-arm as the guided-cell branch above.
+            perBlockPending.add(perBlockKey.cell(target.index));
+            perBlockTriggered = false;
+          }
         }
         // blank / show-mode cells have nothing to undo (they don't
         // accept strokes, so they should never have been the

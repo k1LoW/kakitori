@@ -150,9 +150,20 @@ export interface Page {
    * External burst-check trigger for `correction: "per-page"` pages.
    * Calls `Block.check()` on every block; each block then runs its
    * burst-check, which fires `onCellComplete` /
-   * `onBlockComplete` / `onPageComplete` in order. No-op on pages
-   * mounted under any other correction mode — those finalize through
-   * their own per-cell / per-block paths.
+   * `onBlockComplete` / `onPageComplete` in order.
+   *
+   * Refuses to run (logs through the page's logger and no-ops)
+   * unless every deferred entry across every block has already
+   * fired its captured signal — partial-commit would leave
+   * un-captured entries hanging. Also no-ops when the automatic
+   * burst already fired (the last captured signal across the page
+   * triggers the burst on its own). The method is primarily useful
+   * as a `Submit`-style host trigger in a window where you want to
+   * manually own the burst BEFORE the auto-trigger fires (e.g.
+   * `reset()` immediately followed by `check()` on an empty page).
+   *
+   * No-op on pages mounted under any other correction mode — those
+   * finalize through their own per-cell / per-block paths.
    */
   check(): void;
   /** Destroy every child block and detach the page. */
