@@ -361,9 +361,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
-        // effectiveCorrection is resolved once in createPage; the
-        // "per-page" -> "per-block" downgrade log fired there too, so
-        // we never log per-segment.
+        // effectiveCorrection is resolved once in createPage — for
+        // "per-page" it maps to block-level "deferred", everything
+        // else passes through. Either way we forward the same value
+        // to every segment block.
         ...(effectiveCorrection !== undefined ? { correction: effectiveCorrection } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),

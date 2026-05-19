@@ -260,10 +260,12 @@ interface PerCellState {
   freeHandle?: FreeCellHandle;
   charCellEl?: HTMLDivElement;
   /**
-   * True when this guided write cell was mounted under per-block
-   * deferral (its char has `correction: "deferred"`). Lets the
+   * True when this write-mode cell was mounted under block-wide
+   * deferral — guided cells get char-level `correction: "deferred"`,
+   * free cells get `deferred: true` on their freeHandle. Lets the
    * coordinator re-register the cell with `perBlockPending` on
-   * `reset()` without re-resolving the block-wide option.
+   * `reset()` / `undo()` without re-resolving the block-wide option,
+   * and tells `runPerBlockBurst` which entries to call `check()` on.
    */
   usesDeferredCorrection?: boolean;
 }
@@ -277,11 +279,11 @@ interface PerAnnotationState {
   /** For show-mode annotations the chars are synthesized once and stay fixed. */
   syntheticChars?: CharResult[];
   /**
-   * Same role as `PerCellState.usesDeferredCorrection`. True when this
-   * write-mode annotation was mounted with `deferred: true` (block-wide
-   * correction is `"per-block"`); the per-block coordinator triggers
-   * its commit via `freeHandle.check()` rather than letting it
-   * commit itself when matching settles.
+   * Same role as `PerCellState.usesDeferredCorrection`. True when
+   * this write-mode annotation was mounted with `deferred: true`
+   * (block-wide correction is `"per-block"` or `"deferred"`); the
+   * block coordinator triggers its commit via `freeHandle.check()`
+   * rather than letting it commit itself when matching settles.
    */
   usesDeferredCorrection?: boolean;
 }
@@ -1066,12 +1068,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     }
 
     // Annotation participates in block-wide deferred correction the
-    // same way guided cells do: when block-wide `correction` is
-    // "per-block", the FreeCell holds off its visible commit (no
-    // matched / failed color, no onCellComplete) and instead fires
-    // onCellCaptured. The per-block coordinator then triggers all
-    // commits in one burst via FreeCell.check() once every pending
-    // entry has fired.
+    // same way guided / free write cells do: when block-wide
+    // `correction` is "per-block" OR "deferred" (page-driven), the
+    // FreeCell holds off its visible commit (no matched / failed
+    // color, no onCellComplete) and instead fires onCellCaptured.
+    // The block coordinator then triggers all commits in one burst
+    // via FreeCell.check() once every pending entry has fired.
     const annotationDeferred =
       opts.correction === "per-block" || opts.correction === "deferred";
     const state: PerAnnotationState = {
