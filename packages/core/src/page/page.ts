@@ -230,6 +230,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   // stays visually uniform along the user-supplied blocks.
 
   let destroyed = false;
+  // Idempotency guard for onPageComplete. maybeCommitPage() is reached
+  // from multiple paths (the empty-page create-time microtask, every
+  // block's onBlockComplete, and the per-page Page.check() trailer),
+  // and a manual check() racing the create-time microtask used to fire
+  // onPageComplete twice. Cleared by reset() so a fresh attempt can
+  // emit completion again.
+  let pageCompleted = false;
   /**
    * Activity history powering {@link Page.undo}. `block-cell` entries
    * are keyed by (blockIndex, segmentIndex) so a multi-segment block
@@ -293,12 +300,15 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
 
   // An empty page has nothing to commit — fire onPageComplete via a
-  // microtask so the lifecycle still resolves deterministically.
+  // microtask so the lifecycle still resolves deterministically. The
+  // pageCompleted guard makes sure a manual Page.check() racing this
+  // microtask doesn't double-emit.
   if (blockStates.length === 0) {
     queueMicrotask(() => {
-      if (destroyed) {
+      if (destroyed || pageCompleted) {
         return;
       }
+      pageCompleted = true;
       opts.onPageComplete?.({ complete: true, matched: true, blocks: [] });
     });
   }
@@ -608,12 +618,13 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   }
 
   function maybeCommitPage(): void {
-    if (destroyed) {
+    if (destroyed || pageCompleted) {
       return;
     }
     if (blockStates.some((s) => !s.done)) {
       return;
     }
+    pageCompleted = true;
     opts.onPageComplete?.(buildPageResult());
   }
 
@@ -668,6 +679,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       // page-level pending set.
       perPageTriggered = false;
       perPagePending.clear();
+      pageCompleted = false;
       for (const s of blockStates) {
         for (let i = 0; i < s.cellChars.length; i++) {
           s.cellChars[i] = null;
