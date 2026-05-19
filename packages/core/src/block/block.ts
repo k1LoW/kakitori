@@ -242,6 +242,14 @@ interface PerAnnotationState {
   committed: boolean;
   /** For show-mode annotations the chars are synthesized once and stay fixed. */
   syntheticChars?: CharResult[];
+  /**
+   * Same role as `PerCellState.usesDeferredCorrection`. True when this
+   * write-mode annotation was mounted with `deferred: true` (block-wide
+   * correction is `"per-block"`); the per-block coordinator triggers
+   * its commit via `freeHandle.check()` rather than letting it
+   * commit itself when matching settles.
+   */
+  usesDeferredCorrection?: boolean;
 }
 
 function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
@@ -363,16 +371,26 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
 
   // ===== Per-block real-deferral coordinator =====
   // Populated for every guided cell mounted with `correction: "deferred"`
-  // (when block-wide `correction` is `"per-block"`). The cell fires
-  // `onCharCaptured` once the user finishes drawing the character; we
-  // hold off triggering correction on ANY cell until every entry in
-  // this set has fired. When the set drains, we call `check()` on each
-  // cell in turn — that fires their `onComplete` callbacks, which
-  // route through the existing `commitGuidedCell` → `onCellComplete`
-  // chain, so the block emits per-cell verdicts in one burst at the
-  // end instead of letting each cell judge itself mid-write.
-  const perBlockPending = new Set<number>();
+  // AND every annotation free cell mounted with `deferred: true`
+  // (both happen when block-wide `correction` is `"per-block"`). Each
+  // pending entry is a tagged key — `cell:<idx>` for guided cells,
+  // `annot:<idx>` for annotation free cells — so the two name spaces
+  // don't collide.
+  //
+  // The cell / annotation fires its captured signal once the user
+  // finishes writing the character; we hold off triggering correction
+  // on ANY cell or annotation until every entry in this set has
+  // fired. When the set drains, we call `check()` on each in turn —
+  // that fires their `onComplete` callbacks, which route through the
+  // existing `commitGuidedCell` / annotation onCellComplete chain, so
+  // the block emits all verdicts in one burst at the end instead of
+  // letting each cell judge itself mid-write.
+  const perBlockPending = new Set<string>();
   let perBlockTriggered = false;
+  const perBlockKey = {
+    cell: (i: number) => `cell:${i}`,
+    annot: (i: number) => `annot:${i}`,
+  };
 
   /**
    * Activity history for {@link Block.undo}. Most recent target is at
@@ -591,16 +609,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       if (effectiveCorrection === "deferred") {
         // Register this cell with the per-block coordinator. Its
         // captures arrive via onCharCaptured; correction only kicks
-        // off once every pending cell has fired.
+        // off once every pending entry (guided + annotation) has fired.
         // Compose with any caller-provided `overrides.onCharCaptured`
         // so the consumer can still observe the captures (e.g. for
         // logging or progress UI) without us silently swallowing the
         // override.
-        perBlockPending.add(index);
+        perBlockPending.add(perBlockKey.cell(index));
         const userOnCaptured = mountOpts.onCharCaptured;
         mountOpts.onCharCaptured = (captures) => {
           userOnCaptured?.(captures);
-          onPerBlockCellCaptured(index);
+          onPerBlockEntryCaptured(perBlockKey.cell(index));
         };
         state.usesDeferredCorrection = true;
       }
@@ -645,34 +663,44 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   }
 
   /**
-   * Per-block coordinator: a guided cell mounted with `correction:
-   * "deferred"` just told us it captured a full character. Mark it
-   * done; once every registered cell has fired, walk the cells in
-   * order and call `check()` on each so they all run correction in
-   * the same burst. The `onComplete` callback each `check()` fires
-   * routes through `commitGuidedCell` → `onCellComplete`, and the
-   * existing `maybeCommitBlock` then emits `onBlockComplete` once the
-   * last cell settles — preserving the public callback order without
-   * the block needing to learn about correction internals.
+   * Per-block coordinator: a guided cell or annotation free cell that
+   * was mounted under per-block deferral just told us it finished
+   * capturing. Mark its key done; once every pending entry has
+   * fired, walk all deferred targets in order and call `check()` on
+   * each so they all run correction in the same burst. The
+   * `onComplete` callbacks each `check()` fires route through the
+   * existing `commitGuidedCell` (cells) / annotation `onCellComplete`
+   * (annotations) chain, so the block emits every verdict in one
+   * burst at the end instead of letting any single cell judge itself
+   * mid-write.
    */
-  function onPerBlockCellCaptured(cellIndex: number): void {
+  function onPerBlockEntryCaptured(key: string): void {
     if (destroyed) {
       return;
     }
-    markActive("cell", cellIndex);
-    perBlockPending.delete(cellIndex);
+    if (key.startsWith("cell:")) {
+      markActive("cell", Number(key.slice(5)));
+    } else if (key.startsWith("annot:")) {
+      markActive("annotation", Number(key.slice(6)));
+    }
+    perBlockPending.delete(key);
     if (perBlockPending.size > 0 || perBlockTriggered) {
       return;
     }
     perBlockTriggered = true;
-    // Only walk cells that actually opted into deferred correction.
-    // Non-deferred cells (per-cell `overrides.correction` pointing to
-    // per-stroke / per-char, or show-mode cells without a writer) have
-    // no buffered captures, and calling Char.check() on them would
-    // produce a "no buffered captures" log line per cell.
+    // Walk every target that actually opted into deferred correction.
+    // Non-deferred guided cells (per-cell `overrides.correction`
+    // pointing to per-stroke / per-char, or show-mode cells without
+    // a writer) and non-deferred annotations have no buffered
+    // captures, and calling check() on them would log noise per entry.
     for (const s of cellStates) {
       if (s.usesDeferredCorrection) {
         s.charInstance?.check();
+      }
+    }
+    for (const a of annotationStates) {
+      if (a.usesDeferredCorrection) {
+        a.freeHandle?.check();
       }
     }
   }
@@ -940,6 +968,14 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return state;
     }
 
+    // Annotation participates in block-wide deferred correction the
+    // same way guided cells do: when block-wide `correction` is
+    // "per-block", the FreeCell holds off its visible commit (no
+    // matched / failed color, no onCellComplete) and instead fires
+    // onCellCaptured. The per-block coordinator then triggers all
+    // commits in one burst via FreeCell.check() once every pending
+    // entry has fired.
+    const annotationDeferred = opts.correction === "per-block";
     const state: PerAnnotationState = {
       index,
       annotation,
@@ -958,6 +994,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(annotationDeferred
+          ? {
+              deferred: true,
+              onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.annot(index)),
+            }
+          : {}),
         onCellComplete: (chars: CharResult[]) => {
           if (state.committed) {
             return;
@@ -969,6 +1011,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         onStroke: () => markActive("annotation", index),
       }),
     };
+    if (annotationDeferred) {
+      perBlockPending.add(perBlockKey.annot(index));
+      state.usesDeferredCorrection = true;
+    }
     return state;
   }
 
@@ -1049,7 +1095,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           state.charInstance.reset();
           if (state.cell.mode === "write") {
             if (state.usesDeferredCorrection) {
-              perBlockPending.add(state.index);
+              perBlockPending.add(perBlockKey.cell(state.index));
             }
             const inst = state.charInstance;
             void inst.ready().then(() => {
@@ -1088,6 +1134,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         state.committed = false;
         if (state.freeHandle) {
           state.freeHandle.reset();
+          if (state.usesDeferredCorrection) {
+            perBlockPending.add(perBlockKey.annot(state.index));
+          }
         } else {
           queueMicrotask(() => {
             if (destroyed) {
@@ -1130,7 +1179,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
             // captures. Also clear `perBlockTriggered` so a later
             // re-completion can still kick off correction (otherwise
             // the coordinator believes it already fired).
-            perBlockPending.add(target.index);
+            perBlockPending.add(perBlockKey.cell(target.index));
             perBlockTriggered = false;
           }
         } else if (state.freeHandle) {
@@ -1148,6 +1197,14 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         blockCommitted = false;
         if (state.freeHandle) {
           state.freeHandle.undo();
+          if (state.usesDeferredCorrection) {
+            // Same re-arm as the guided-cell undo path: the annotation
+            // had been removed from perBlockPending when it captured;
+            // put it back so a later capture from another entry can't
+            // drain the set early.
+            perBlockPending.add(perBlockKey.annot(target.index));
+            perBlockTriggered = false;
+          }
         }
       }
       return {

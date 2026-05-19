@@ -31,6 +31,7 @@ export function setupBlock(root: HTMLElement): void {
   const undoBtn = root.querySelector<HTMLButtonElement>("#block-undo")!;
   const statusBtn = root.querySelector<HTMLButtonElement>("#block-status-btn")!;
   const useCaseSelect = root.querySelector<HTMLSelectElement>("#block-usecase")!;
+  const correctionSelect = root.querySelector<HTMLSelectElement>("#block-correction");
 
   let currentBlock: Block | null = null;
 
@@ -138,12 +139,15 @@ export function setupBlock(root: HTMLElement): void {
       `build use case ${useCaseSelect.value}: cells=${spec.cells.length} annotations=${spec.annotations?.length ?? 0}`,
     );
 
+    const correction = (correctionSelect?.value ??
+      "per-stroke") as "per-stroke" | "per-char" | "per-block";
     currentBlock = block.create(hostEl, {
       spec,
       cellSize: 140,
       loaders: { charDataLoader: cachedCharDataLoader },
       logger: (msg) => log(msg),
       showSegmentBoxes: true,
+      correction,
       onCellComplete: (index, kind, chars) => {
         const ok = chars.every((c) => c.matched);
         const summary = chars
@@ -192,6 +196,7 @@ export function setupBlock(root: HTMLElement): void {
   });
 
   useCaseSelect.addEventListener("change", rebuild);
+  correctionSelect?.addEventListener("change", rebuild);
 
   rebuild();
 }

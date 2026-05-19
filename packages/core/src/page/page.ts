@@ -682,6 +682,7 @@ function noopHandle(): FreeCellHandle {
     els: [],
     reset(): void {},
     undo(): void {},
+    check(): void {},
     results: () => [],
     destroy(): void {},
   };

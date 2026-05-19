@@ -108,6 +108,26 @@ export interface FreeCellCreateOptions {
    * active target so a later undo() can be routed here.
    */
   onStroke?: () => void;
+  /**
+   * When true, the freeCell still runs candidate matching as the user
+   * writes, but holds off on the visible commit: it does NOT paint the
+   * matched / failed color and does NOT fire `onCellComplete`. Instead
+   * it fires {@link onCellCaptured} with the settled per-character
+   * result, and waits for an external {@link FreeCellHandle.check}
+   * call to actually commit (paint + fire `onCellComplete`).
+   *
+   * Used by the block-level per-block deferral coordinator so
+   * annotation free cells stay visually neutral until the whole
+   * block has been written.
+   */
+  deferred?: boolean;
+  /**
+   * Fires when {@link deferred} is true and the candidate-matching
+   * loop settled (matched or exhausted). Same payload as
+   * `onCellComplete`. Call {@link FreeCellHandle.check} when ready to
+   * actually commit; until then the cell stays visually neutral.
+   */
+  onCellCaptured?: (chars: CharResult[]) => void;
 }
 
 export interface FreeCellHandle {
@@ -120,6 +140,14 @@ export interface FreeCellHandle {
    * the block / page undo() entry points.
    */
   undo(): void;
+  /**
+   * When the cell was mounted with `deferred: true` and has already
+   * fired {@link FreeCellCreateOptions.onCellCaptured}, this commits
+   * the held-back verdict: paints the matched / failed color and
+   * fires `onCellComplete` with the same `chars` payload the
+   * captured callback delivered. No-op (logs) otherwise.
+   */
+  check(): void;
   /**
    * Snapshot of the freeCell's per-character progress. Three cases:
    * 1. The freeCell has settled (matched or failed): returns the
@@ -215,6 +243,14 @@ export function createFreeCell(
 
   let destroyed = false;
   let status: "drawing" | "matched" | "failed" = "drawing";
+  // Deferred-mode book-keeping (set when opts.deferred is true). The
+  // matching loop still runs and settles internally — paintAll() +
+  // onCellComplete are held off here, waiting for an external check()
+  // call. `deferredVerdict` holds the chars from the would-be commit so
+  // check() can re-emit it; `deferredKind` remembers whether the
+  // verdict was a match or a fail so check() paints the right color.
+  let deferredVerdict: CharResult[] | null = null;
+  let deferredKind: "matched" | "failed" | null = null;
   let candidates: CandidateInfo[] | null = null;
   let candidatesLoad: Promise<CandidateInfo[]> | null = null;
   let strokes: DrawnStroke[] = [];
@@ -665,8 +701,16 @@ export function createFreeCell(
     }
     status = "matched";
     settledChars = lockChars(m.chars);
-    paintAll(matchedColor);
     log?.(`commit match "${m.candidateText}" sim=${m.similarity.toFixed(2)}`);
+    if (opts.deferred) {
+      // Hold the verdict for an external check() call. Don't paint and
+      // don't fire onCellComplete yet — those run when the host commits.
+      deferredVerdict = settledChars;
+      deferredKind = "matched";
+      opts.onCellCaptured?.(settledChars);
+      return;
+    }
+    paintAll(matchedColor);
     opts.onCellComplete?.(settledChars);
   }
 
@@ -675,13 +719,12 @@ export function createFreeCell(
       return;
     }
     status = "failed";
-    paintAll(failedColor);
+    let chars: CharResult[];
     if (bestAttempt) {
       log?.(
         `commit fail (best attempt "${bestAttempt.candidateText}" sim=${bestAttempt.similarity.toFixed(2)})`,
       );
-      settledChars = lockChars(bestAttempt.chars);
-      opts.onCellComplete?.(settledChars);
+      chars = lockChars(bestAttempt.chars);
     } else {
       log?.(`commit fail (no candidate matched)`);
       // Emit a synthetic failure snapshot keyed to the first candidate
@@ -690,7 +733,7 @@ export function createFreeCell(
       // matched: false on every entry forces the rolled-up
       // BlockResult.matched / PageResult.matched to be false too.
       const fallbackCandidate = candidatesText[0] ?? "";
-      settledChars = Array.from(fallbackCandidate).map<CharResult>((ch) => ({
+      chars = Array.from(fallbackCandidate).map<CharResult>((ch) => ({
         character: ch,
         complete: true,
         matched: false,
@@ -700,8 +743,35 @@ export function createFreeCell(
         source: opts.resultSource ?? "free",
         mode: "write",
       }));
-      opts.onCellComplete?.(settledChars);
     }
+    settledChars = chars;
+    if (opts.deferred) {
+      // Defer the visible commit; the host calls check() when ready.
+      deferredVerdict = chars;
+      deferredKind = "failed";
+      opts.onCellCaptured?.(chars);
+      return;
+    }
+    paintAll(failedColor);
+    opts.onCellComplete?.(chars);
+  }
+
+  /**
+   * External commit trigger for `deferred: true` cells. Paints the
+   * held-back color and fires `onCellComplete` with the same `chars`
+   * the captured callback already announced. No-op otherwise.
+   */
+  function check(): void {
+    if (!deferredVerdict || !deferredKind) {
+      log?.(`check(): no deferred verdict to commit`);
+      return;
+    }
+    const chars = deferredVerdict;
+    const kind = deferredKind;
+    deferredVerdict = null;
+    deferredKind = null;
+    paintAll(kind === "matched" ? matchedColor : failedColor);
+    opts.onCellComplete?.(chars);
   }
 
   /**
@@ -740,6 +810,10 @@ export function createFreeCell(
     // Drop any pending check tail so a stale match does not flip the new
     // session into matched/failed.
     checkQueue = Promise.resolve();
+    // Drop any deferred-mode verdict awaiting commit so a reset()/undo()
+    // mid-deferral can't have its old verdict surface on a later check().
+    deferredVerdict = null;
+    deferredKind = null;
     for (const s of surfaces) {
       while (s.el.firstChild) {
         s.el.removeChild(s.el.firstChild);
@@ -786,6 +860,7 @@ export function createFreeCell(
     els,
     reset: clearAll,
     undo: clearAll,
+    check,
     results: snapshotResults,
     destroy(): void {
       if (destroyed) {
