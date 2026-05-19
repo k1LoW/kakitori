@@ -801,6 +801,14 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       }
       perPageTriggered = true;
       runPerPageBurst();
+      // Cover the empty-page (or all-non-writable) case: each
+      // block.check() above normally cascades into commitGuidedCell
+      // → maybeCommitBlock → maybeCommitPage, but when there's
+      // nothing to dispatch the cascade never starts. Call
+      // maybeCommitPage explicitly so the Submit-style flow on an
+      // empty page (e.g. after a reset()) still fires
+      // onPageComplete.
+      maybeCommitPage();
     },
     destroy(): void {
       destroyed = true;
