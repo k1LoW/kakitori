@@ -762,6 +762,13 @@ export function createFreeCell(
    * the captured callback already announced. No-op otherwise.
    */
   function check(): void {
+    if (destroyed) {
+      // A stale handle calling check() after the freeCell was torn
+      // down must not paint into the (now-detached) SVGs or fire the
+      // host callback. destroy() also clears the buffer below, but
+      // guard here too so the no-buffer log isn't surprising.
+      return;
+    }
     if (!deferredVerdict || !deferredKind) {
       log?.(`check(): no deferred verdict to commit`);
       return;
@@ -868,6 +875,11 @@ export function createFreeCell(
       }
       destroyed = true;
       sessionId++;
+      // Drop any deferred-mode verdict awaiting commit so a stale
+      // post-destroy check() can't fire onCellComplete or paint into
+      // the SVGs we're about to detach.
+      deferredVerdict = null;
+      deferredKind = null;
       surfaces.forEach((s, i) => {
         const h = surfaceHandlers[i];
         s.el.removeEventListener("pointerdown", h.onPointerDown, true);

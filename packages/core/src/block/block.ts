@@ -605,6 +605,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       // pickMountOpts(overrides) above can swap the cell's correction
       // back to per-stroke / per-char via per-cell overrides; honor
       // the EFFECTIVE value here, not the block-wide one.
+      //
+      // A subtle case: `overrides.correction: "deferred"` is only
+      // meaningful when the BLOCK is in per-block mode (so the block
+      // coordinator triggers Char.check() for the deferred cell at
+      // the right moment). If the block isn't per-block and the user
+      // still sets a deferred override, the cell would capture and
+      // wait forever (block has no public API to reach the Char and
+      // call check()). Reject it explicitly here — log a warning,
+      // fall back to per-char so the cell at least auto-commits.
+      if (
+        mountOpts.correction === "deferred" &&
+        opts.correction !== "per-block"
+      ) {
+        opts.logger?.(
+          `block: per-cell overrides.correction: "deferred" requires block-wide correction: "per-block"; falling back to "per-char" for cell ${index}`,
+        );
+        mountOpts.correction = "per-char";
+      }
       const effectiveCorrection = mountOpts.correction;
       if (effectiveCorrection === "deferred") {
         // Register this cell with the per-block coordinator. Its
