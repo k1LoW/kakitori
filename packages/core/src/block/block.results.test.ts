@@ -213,6 +213,62 @@ describe("Block.results", () => {
     parent.remove();
   });
 
+  it("block-wide per-block: undo of a captured deferred cell re-arms the coordinator", async () => {
+    // Coordinator regression: undoing a cell after it captured must
+    // put it back into perBlockPending and clear perBlockTriggered,
+    // otherwise the next cell's capture drains the set and fires
+    // check() on a cell whose char-level captures have already been
+    // re-armed by Char.undo() and are gone.
+    const completedCells: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => {
+        completedCells.push(idx);
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Capture cell 0 only.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(completedCells).toEqual([]);
+
+    // Undo cell 0 — coordinator must re-add it to pending. If it
+    // doesn't, capturing cell 1 below would drain the set early.
+    b.undo();
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Capture cell 1 — block must STILL be silent because cell 0 is
+    // pending again.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(completedCells).toEqual([]);
+
+    // Re-capture cell 0 — now both pending, coordinator fires check()
+    // on all cells and both commit.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 3);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(completedCells.toSorted()).toEqual([0, 1]);
+
+    b.destroy();
+    parent.remove();
+  });
+
   it("per-cell overrides.correction: 'per-stroke' wins over block-wide 'per-block'", async () => {
     // The per-cell override path is the one consumers reach for when
     // they want a mixed block. Verify that an explicit per-cell

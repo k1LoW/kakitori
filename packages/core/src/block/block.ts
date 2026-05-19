@@ -1106,6 +1106,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         blockCommitted = false;
         if (state.cell.kind === "guided" && state.charInstance) {
           state.charInstance.undo();
+          if (state.usesDeferredCorrection) {
+            // Per-block coordinator must learn that this cell is back
+            // in-flight: it had been removed from `perBlockPending`
+            // when its captures arrived. Without re-adding it, the
+            // next cell's capture could drain the set early and
+            // trigger `check()` on a cell that no longer has buffered
+            // captures. Also clear `perBlockTriggered` so a later
+            // re-completion can still kick off correction (otherwise
+            // the coordinator believes it already fired).
+            perBlockPending.add(target.index);
+            perBlockTriggered = false;
+          }
         } else if (state.freeHandle) {
           state.freeHandle.undo();
         }

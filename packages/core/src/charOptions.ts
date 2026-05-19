@@ -133,9 +133,10 @@ export interface MountOptions {
    * Fires when {@link correction} is `"deferred"` and the user has
    * drawn enough pointer cycles to match the character's logical
    * stroke count. `captures` is the buffered per-stroke point arrays
-   * in draw order; pass it back via {@link Char.check} to actually
-   * run correction. The callback is fire-and-forget — kakitori holds
-   * the buffer internally until `check()` is invoked.
+   * in draw order, exposed for inspection only — kakitori retains
+   * the same buffer internally. Call {@link Char.check} (no args)
+   * whenever you're ready to run correction; it consumes the
+   * internal buffer.
    */
   onCharCaptured?: (
     captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
