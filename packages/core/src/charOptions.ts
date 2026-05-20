@@ -142,16 +142,29 @@ export interface MountOptions {
     captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
   ) => void;
   /**
-   * Fires when {@link correction} is `"deferred"` and a {@link Char.check}
-   * call lands an NG verdict (at least one stroke didn't match). Mirrors
-   * `correction: "per-char"`'s in-place retry semantics for deferred
-   * mode: the retained ink is wiped, the per-char capture cycle is
-   * re-armed for a fresh attempt, and `onComplete` is held back until
-   * a future attempt lands OK. Used by higher-level orchestrators
-   * (block, page) to reverse a cell's "captured" state in their
-   * pending bookkeeping so the user-rewrite triggers another burst.
+   * Fires every time the char wipes itself for an NG retry. Surfaces
+   * the rejection from both retry paths:
+   *
+   * 1. `correction: "per-char"`: a finalize attempt landed NG, the
+   *    retained ink was wiped, and the capture buffer was reset for
+   *    a fresh attempt.
+   * 2. `correction: "deferred"`: a {@link Char.check} call from a
+   *    higher-level coordinator (block / page) landed NG; same wipe
+   *    + per-char cycle re-arm as path 1, plus the rejection is
+   *    propagated up so the coordinator can reverse its "captured"
+   *    pending bookkeeping.
+   *
+   * `data` mirrors the shape passed to {@link onComplete} so a host
+   * showing retry feedback can read the same counters: `totalMistakes`
+   * and `strokeEndingMistakes` accumulate across every NG attempt
+   * (matching per-stroke's `totalMistakes` rollup). `onComplete` is
+   * held back until a future attempt lands OK.
    */
-  onCharRejected?: () => void;
+  onCharRejected?: (data: {
+    character: string;
+    totalMistakes: number;
+    strokeEndingMistakes: number;
+  }) => void;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;

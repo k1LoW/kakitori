@@ -1451,7 +1451,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       startTimingTracking(m);
       startPerCharCycle(m);
       log?.(`deferred NG attempt: re-armed for retry`);
-      m.options.onCharRejected?.();
+      m.options.onCharRejected?.({
+        character: currentCharacter,
+        totalMistakes: m.totalMistakes,
+        strokeEndingMistakes: m.strokeEndingMistakes,
+      });
       return;
     }
     if (!charMatched && m.options.correction === "per-char") {
@@ -1479,6 +1483,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.perCharCaptures = [];
       m.perCharSeq++;
       log?.(`per-char NG attempt: re-armed for retry`);
+      m.options.onCharRejected?.({
+        character: currentCharacter,
+        totalMistakes: m.totalMistakes,
+        strokeEndingMistakes: m.strokeEndingMistakes,
+      });
       return;
     }
     // Swallow the trailing `click` that the browser dispatches right
