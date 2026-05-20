@@ -155,10 +155,16 @@ export interface MountOptions {
    * - `N`: up to `N` retries allowed; the `(N + 1)`-th NG attempt
    *   commits as failed.
    *
-   * Mistake counters (`totalMistakes`, `strokeEndingMistakes`) and
-   * the per-stroke verdicts in {@link Char.result} accumulate
-   * across every attempt, so the final `onComplete` carries the
-   * full attempt history.
+   * Mistake counters (`totalMistakes`, `strokeEndingMistakes`)
+   * accumulate across every attempt, so the final `onComplete`
+   * carries the cumulative count. The per-stroke verdicts in
+   * {@link Char.result} are NOT cumulative — each retry wipes the
+   * previous attempt's verdicts so the final verdict array
+   * reflects only the attempt that ultimately settled (OK on a
+   * successful retry, or the final NG on an exhausted budget).
+   * This keeps `perStroke` aligned with the displayed ink: a
+   * half-good prior attempt won't leave stale OK strokes hanging
+   * around in the result.
    */
   maxRetries?: number;
   /**

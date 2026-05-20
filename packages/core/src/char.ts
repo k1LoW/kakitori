@@ -482,14 +482,24 @@ interface MountState {
   quizArmed: boolean;
   /**
    * Number of retries already consumed by NG attempts on this mount
-   * (per-char / deferred modes). Compared against
-   * `options.maxRetries` to decide whether the next NG verdict
-   * should re-arm (`retries < maxRetries`) or commit-as-failed
-   * (`retries >= maxRetries`). Increments on every NG attempt; the
-   * Nth attempt's NG bumps it to `N - 1`, so the (N+1)-th attempt's
-   * NG sees `retries === N`. Cleared on `start()` / `reset()` /
-   * `undo()`. Independent of `m.perCharSeq`, which is a finalize
-   * token that flips on every cycle (retry or OK).
+   * (per-char / deferred modes). The next NG verdict re-arms when
+   * `retries < maxRetries` and commits-as-failed when
+   * `retries >= maxRetries`. Sequencing:
+   *
+   * - Before the first attempt: `retries === 0`.
+   * - Inside the retry branch (NG taken as a retry, not a commit),
+   *   the counter is bumped to `retries + 1` AFTER the verdict and
+   *   BEFORE `onCharRejected` fires, so the callback's `attempts`
+   *   field reports the 1-indexed count of the attempt that just
+   *   landed NG.
+   * - Inside the OK / exhausted-commit path, the counter is left
+   *   alone; `onComplete`'s `attempts` is computed as
+   *   `retries + 1` so it likewise reports the 1-indexed count of
+   *   the attempt that just settled (OK or final NG).
+   *
+   * Cleared on `start()` / `reset()` / `undo()`. Independent of
+   * `m.perCharSeq`, which is a finalize token that flips on every
+   * cycle (retry or OK).
    */
   retries: number;
   strokeEndingMistakes: number;
