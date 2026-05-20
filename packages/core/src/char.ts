@@ -465,6 +465,16 @@ interface MountState {
   pendingEndingCheck: StrokeEndingResult | null;
   quizActive: boolean;
   /**
+   * One-shot teardown for the trailing-click guard armed at quiz /
+   * per-char finalize. Browsers dispatch a synthetic `click` after the
+   * `pointerup` that ends a drawing gesture; without this guard the
+   * trailing click would reach `boundOnClick` AFTER `quizActive` has
+   * flipped false and consumers wiring click-to-inspect (e.g.
+   * `setStrokeColor`) would recolor a just-finalized stroke. Null
+   * unless a guard is currently armed.
+   */
+  trailingClickGuard: (() => void) | null;
+  /**
    * True after start() has armed a write quiz on this mount. Stays true
    * across quiz completion so undo() can re-arm the same quiz; cleared
    * by reset() (intentional opt-out) and on unmount/destroy.
@@ -1057,6 +1067,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       },
 
       onComplete: (summary) => {
+        // Swallow the trailing `click` that the browser dispatches
+        // right after this `pointerup`, so click-to-inspect consumers
+        // never see the gesture that just finalized the quiz.
+        armTrailingClickGuard(m);
         m.quizActive = false;
         stopTimingTracking(m);
         log?.(`complete: totalMistakes=${summary.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
@@ -1412,6 +1426,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed || mounted !== m || m.perCharSeq !== seq) {
       return;
     }
+    // Swallow the trailing `click` that the browser dispatches right
+    // after this `pointerup`, so click-to-inspect consumers never see
+    // the gesture that just finalized the per-char cycle.
+    armTrailingClickGuard(m);
     m.quizActive = false;
     // Detach the per-char pointer hooks AND the timing tracker now that
     // the character is finalized. The per-stroke path tears down via
@@ -1657,6 +1675,62 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return Array.from(mainGroup.querySelectorAll("path[clip-path]")) as SVGPathElement[];
   }
 
+  /**
+   * Arm a one-shot trailing-click guard on the layer. The browser
+   * dispatches a synthetic `click` event after every `pointerup`,
+   * including the `pointerup` that completes the last stroke of a quiz
+   * or per-char cycle. That trailing click reaches `boundOnClick` AFTER
+   * `quizActive` has already flipped false, so the consumer's onClick
+   * (typically click-to-inspect via {@link setStrokeColor}) would
+   * recolor the just-finalized stroke and clobber the `strokeColor` /
+   * `showAcceptedStroke` contract.
+   *
+   * Strategy: install a capture-phase listener on `m.layerEl` that
+   * `stopImmediatePropagation()`s the next click (capture-phase
+   * listeners on the target element fire before bubble-phase listeners
+   * on the same element, so `boundOnClick` never sees it), then tears
+   * itself down. The guard also disarms on the next `pointerdown` —
+   * that signals a genuine new gesture, so its eventual click must
+   * pass through normally. A fallback timeout covers touch / pen
+   * devices that may not emit a synthetic click.
+   *
+   * Idempotent: re-arming disarms any previous guard first.
+   */
+  function armTrailingClickGuard(m: MountState): void {
+    if (m.trailingClickGuard) {
+      m.trailingClickGuard();
+    }
+    const layer = m.layerEl;
+    let armed = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const teardown = (): void => {
+      if (!armed) {
+        return;
+      }
+      armed = false;
+      layer.removeEventListener("click", onClick, true);
+      layer.removeEventListener("pointerdown", onPointerDown, true);
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+      if (m.trailingClickGuard === teardown) {
+        m.trailingClickGuard = null;
+      }
+    };
+    const onClick = (e: MouseEvent): void => {
+      e.stopImmediatePropagation();
+      teardown();
+    };
+    const onPointerDown = (): void => {
+      teardown();
+    };
+    layer.addEventListener("click", onClick, true);
+    layer.addEventListener("pointerdown", onPointerDown, true);
+    timer = setTimeout(teardown, 200);
+    m.trailingClickGuard = teardown;
+  }
+
   function cancelActiveAnimation(m: MountState): void {
     if (m.activeOverlay) {
       m.activeOverlay.remove();
@@ -1670,6 +1744,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
   function cancelActiveQuiz(m: MountState): void {
     const wasActive = m.quizActive;
     m.quizActive = false;
+    if (m.trailingClickGuard) {
+      m.trailingClickGuard();
+    }
     m.hw.cancelQuiz();
     stopTimingTracking(m);
     stopPerCharCycle(m);
@@ -2129,6 +2206,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       deferredCaptures: null,
       pendingEndingCheck: null,
       quizActive: false,
+      trailingClickGuard: null,
       quizArmed: false,
       strokeEndingMistakes: 0,
       perStroke: [],
@@ -2192,6 +2270,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (m.boundOnClick) {
       m.layerEl.removeEventListener("click", m.boundOnClick);
       m.boundOnClick = null;
+    }
+    if (m.trailingClickGuard) {
+      m.trailingClickGuard();
     }
     // Symmetric with mount(), which only appends layerEl. Removing just
     // layerEl leaves any unrelated DOM the host may already have inside

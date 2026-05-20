@@ -494,6 +494,68 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 50));
       expect(onComplete).not.toHaveBeenCalled();
     });
+
+    it("swallows the trailing click that follows the gesture finalizing the cycle", async () => {
+      // Browsers dispatch a synthetic `click` after every `pointerup`,
+      // including the `pointerup` that completes the last stroke of a
+      // per-char cycle. Without the trailing-click guard, that click
+      // reaches `boundOnClick` AFTER `quizActive` flipped false, and a
+      // consumer wiring click-to-inspect would recolor a freshly
+      // finalized stroke.
+      const onClick = vi.fn();
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "per-char",
+        onClick,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onComplete).toHaveBeenCalledTimes(1);
+
+      layer.click();
+      expect(onClick).not.toHaveBeenCalled();
+    });
+
+    it("re-enables onClick after a fresh pointerdown disarms the trailing guard", async () => {
+      // A genuine new gesture (pointerdown) must disarm the trailing
+      // guard so the user can immediately click-to-inspect after the
+      // per-char cycle finalizes; the guard only exists to eat the ONE
+      // trailing click of the finalizing gesture.
+      const onClick = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "per-char",
+        onClick,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      await new Promise((r) => setTimeout(r, 50));
+
+      const rect = layer.getBoundingClientRect();
+      const downEvt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+        "pointerdown",
+        { bubbles: true, cancelable: true, pointerId: 99, clientX: rect.left + 5, clientY: rect.top + 5 },
+      );
+      layer.dispatchEvent(downEvt);
+
+      layer.click();
+      expect(onClick).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("correction: deferred", () => {
