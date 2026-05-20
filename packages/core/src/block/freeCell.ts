@@ -128,6 +128,18 @@ export interface FreeCellCreateOptions {
    * actually commit; until then the cell stays visually neutral.
    */
   onCellCaptured?: (chars: CharResult[]) => void;
+  /**
+   * Fires when {@link deferred} is true and a {@link FreeCellHandle.check}
+   * call lands a failed verdict. Mirrors `onCharRejected` on Char: the
+   * entire freeCell is wiped (every stroke across every surface) and
+   * the cell goes back to `status: "drawing"` so the user can rewrite
+   * the whole string in place. `onCellComplete` is held back until a
+   * future check lands an OK verdict. The reject granularity is the
+   * full cell, not per-character — free cells don't know which
+   * character within the string the matcher rejected on, so the only
+   * actionable signal is "rewrite the whole thing".
+   */
+  onCellRejected?: () => void;
 }
 
 export interface FreeCellHandle {
@@ -777,7 +789,19 @@ export function createFreeCell(
     const kind = deferredKind;
     deferredVerdict = null;
     deferredKind = null;
-    paintAll(kind === "matched" ? matchedColor : failedColor);
+    if (kind === "failed") {
+      // NG retry, full-cell granularity: clear every stroke across
+      // every surface and reset matcher bookkeeping so the user can
+      // rewrite the entire string in place. The block / page
+      // coordinator subscribes to `onCellRejected` to reverse its
+      // "captured" pending bookkeeping symmetrically with the
+      // `onCellCaptured` path.
+      log?.(`check(): NG → wipe + re-arm for retry`);
+      clearAll();
+      opts.onCellRejected?.();
+      return;
+    }
+    paintAll(matchedColor);
     opts.onCellComplete?.(chars);
   }
 

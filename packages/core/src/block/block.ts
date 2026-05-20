@@ -931,6 +931,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ? {
             deferred: true,
             onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.cell(index)),
+            onCellRejected: () => onPerBlockEntryRejected(perBlockKey.cell(index)),
           }
         : {}),
       onCellComplete: (chars: CharResult[]) => {
@@ -1156,6 +1157,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           ? {
               deferred: true,
               onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.annot(index)),
+              onCellRejected: () => onPerBlockEntryRejected(perBlockKey.annot(index)),
             }
           : {}),
         onCellComplete: (chars: CharResult[]) => {

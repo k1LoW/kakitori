@@ -502,13 +502,16 @@ describe("page.create — correction: per-page deferral", () => {
     const stripSvgs = allSvgs.filter(
       (s) => s.querySelector(":scope > defs") === null,
     );
-    // Draw 10 quick strokes to drive がっこう's matcher to settle
-    // (stubLoader makes every char 1 stroke, so 4 chars = 4 strokes —
-    // give it a few extras to be safe).
-    for (let i = 0; i < 10; i++) {
+    // Draw exactly 4 horizontal strokes (stubLoader makes every char
+    // 1 stroke, so がっこう = 4 strokes). The strokes span the strip
+    // width so the matcher accepts each one against the horizontal
+    // stub median — under the new NG-retry path, anything less than
+    // an OK verdict would clear the annotation in place instead of
+    // firing onCellComplete.
+    for (let i = 0; i < 4; i++) {
       strokeAt(
         stripSvgs[stripSvgs.length - 1] ?? writerSvgs[0],
-        [[10 + i, 5], [20 + i, 5]],
+        [[5, 10], [70, 10]],
         100 + i,
       );
     }

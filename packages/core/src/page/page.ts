@@ -514,6 +514,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           ? {
               deferred: true,
               onCellCaptured: () => onPerPageBlockCaptured(pageAnnotKey!),
+              onCellRejected: () => onPerPageBlockRejected(pageAnnotKey!),
             }
           : {}),
         onCellComplete: (chars) => {

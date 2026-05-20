@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createFreeCell } from "./freeCell.js";
 import type { CharDataLoaderFn } from "../charOptions.js";
 
@@ -8,6 +8,32 @@ const stubLoader: CharDataLoaderFn = (_c, onLoad) => {
     medians: [[[0, 0], [100, 100]]],
   });
 };
+
+function strokeAt(
+  el: SVGElement,
+  points: Array<[number, number]>,
+  pointerId = 1,
+): void {
+  const rect = el.getBoundingClientRect();
+  const dispatch = (type: string, x: number, y: number) => {
+    const evt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+      type,
+      {
+        bubbles: true,
+        cancelable: true,
+        pointerId,
+        clientX: rect.left + x,
+        clientY: rect.top + y,
+      },
+    );
+    el.dispatchEvent(evt);
+  };
+  dispatch("pointerdown", points[0][0], points[0][1]);
+  for (let i = 1; i < points.length; i++) {
+    dispatch("pointermove", points[i][0], points[i][1]);
+  }
+  dispatch("pointerup", points[points.length - 1][0], points[points.length - 1][1]);
+}
 
 describe("FreeCellHandle.results", () => {
   it("returns placeholder entries for the first candidate when no strokes have been drawn", () => {
@@ -47,6 +73,49 @@ describe("FreeCellHandle.results", () => {
         loaders: { charDataLoader: stubLoader, configLoader: null },
       }),
     ).toThrow();
+  });
+
+  it("deferred check() with a failed verdict wipes the cell and fires onCellRejected", async () => {
+    // Full-cell NG retry: when the matcher exhausts every candidate
+    // and commits fail, a subsequent Char.check() must clear every
+    // surface (drop the polylines + reset matcher bookkeeping) and
+    // fire onCellRejected instead of onCellComplete, so the user can
+    // rewrite the whole string in place.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onCellCaptured = vi.fn();
+    const onCellComplete = vi.fn();
+    const onCellRejected = vi.fn();
+    const handle = createFreeCell({
+      expected: "あ",
+      surfaces: [{ parent, width: 200, height: 200 }],
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      deferred: true,
+      onCellCaptured,
+      onCellComplete,
+      onCellRejected,
+    });
+    const surface = handle.els[0];
+
+    // "あ" via stubLoader has 1 stroke. Drawing two strokes exhausts
+    // every candidate length (max=1), so the second stroke commits a
+    // failure; the diagonal median + horizontal user stroke also
+    // pushes per-stroke similarity well below the matcher threshold.
+    strokeAt(surface, [[10, 10], [80, 80]], 1);
+    strokeAt(surface, [[10, 80], [80, 10]], 2);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onCellCaptured).toHaveBeenCalledTimes(1);
+    expect(onCellComplete).not.toHaveBeenCalled();
+
+    handle.check();
+    expect(onCellRejected).toHaveBeenCalledTimes(1);
+    expect(onCellComplete).not.toHaveBeenCalled();
+    // Every polyline across every surface dropped.
+    expect(surface.querySelectorAll("polyline").length).toBe(0);
+
+    handle.destroy();
+    parent.remove();
   });
 
   it("reset() drops settled / in-flight state back to placeholder", () => {
