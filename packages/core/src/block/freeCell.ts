@@ -127,17 +127,26 @@ export interface FreeCellCreateOptions {
    */
   onCellCaptured?: (chars: CharResult[]) => void;
   /**
-   * Fires when {@link deferred} is true and a {@link FreeCellHandle.check}
-   * call lands a failed verdict. Mirrors `onCharRejected` on Char: the
-   * entire freeCell is wiped (every stroke across every surface) and
-   * the cell goes back to `status: "drawing"` so the user can rewrite
-   * the whole string in place. `onCellComplete` is held back until a
-   * future check lands an OK verdict. The reject granularity is the
-   * full cell, not per-character — free cells don't know which
-   * character within the string the matcher rejected on, so the only
-   * actionable signal is "rewrite the whole thing".
+   * Fires whenever the cell wipes itself for an NG retry — the only
+   * actionable signal at the full-cell granularity. Triggered from
+   * two paths:
+   *
+   * 1. {@link deferred} freeCells: when {@link FreeCellHandle.check}
+   *    lands a failed verdict, the cell is wiped and `onCellRejected`
+   *    fires (mirroring `onCharRejected` on Char).
+   * 2. Non-deferred freeCells: when the candidate-matching loop
+   *    exhausts every candidate (`commitFail`), the cell is wiped
+   *    and `onCellRejected` fires in the same shape.
+   *
+   * In both paths the cell goes back to `status: "drawing"` so the
+   * user can rewrite the whole string in place. `onCellComplete` is
+   * held back until a future attempt commits a match.
+   *
+   * The rejected verdict's `chars` are passed through so hosts can
+   * observe per-character matched flags, candidate text, similarity,
+   * etc. even though `results()` has already been reset by the wipe.
    */
-  onCellRejected?: () => void;
+  onCellRejected?: (chars: CharResult[]) => void;
 }
 
 export interface FreeCellHandle {
@@ -766,12 +775,13 @@ export function createFreeCell(
     // retry: a rejected attempt wipes every stroke across every
     // surface and resets matcher bookkeeping so the user can rewrite
     // the whole string in place. `onCellComplete` is held back until
-    // a future attempt commits a match; `onCellRejected` fires so
-    // hosts that care (e.g. score tracking) can observe the rejected
-    // attempt.
+    // a future attempt commits a match; `onCellRejected` fires with
+    // the rejected `chars` so hosts that care (e.g. score tracking)
+    // can observe what was attempted even though `results()` has
+    // been wiped.
     log?.(`commitFail (non-deferred): wipe + re-arm for retry`);
     clearAll();
-    opts.onCellRejected?.();
+    opts.onCellRejected?.(chars);
   }
 
   /**
@@ -801,10 +811,12 @@ export function createFreeCell(
       // rewrite the entire string in place. The block / page
       // coordinator subscribes to `onCellRejected` to reverse its
       // "captured" pending bookkeeping symmetrically with the
-      // `onCellCaptured` path.
+      // `onCellCaptured` path. `chars` is the rejected verdict;
+      // pass it through so hosts can still observe what was
+      // attempted even though `results()` has been wiped.
       log?.(`check(): NG → wipe + re-arm for retry`);
       clearAll();
-      opts.onCellRejected?.();
+      opts.onCellRejected?.(chars);
       return;
     }
     paintAll(matchedColor);
