@@ -666,6 +666,14 @@ const p = page.create(target, {
         <button id="page-reset">Reset</button>
         <button id="page-undo">Undo</button>
         <button id="page-status-btn">Status</button>
+        <button id="page-check-btn">Submit (check)</button>
+        <label for="page-correction" style="margin-left: 0.5rem;">Correction:</label>
+        <select id="page-correction">
+          <option value="per-stroke">per-stroke</option>
+          <option value="per-char">per-char</option>
+          <option value="per-block">per-block</option>
+          <option value="per-page">per-page</option>
+        </select>
       </div>
       <div class="demo-stage">
         <div id="page-host"></div>

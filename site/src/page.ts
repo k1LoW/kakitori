@@ -147,6 +147,8 @@ export function setupPage(root: HTMLElement): void {
   const resetBtn = root.querySelector<HTMLButtonElement>("#page-reset")!;
   const undoBtn = root.querySelector<HTMLButtonElement>("#page-undo")!;
   const statusBtn = root.querySelector<HTMLButtonElement>("#page-status-btn")!;
+  const correctionSelect = root.querySelector<HTMLSelectElement>("#page-correction");
+  const checkBtn = root.querySelector<HTMLButtonElement>("#page-check-btn");
 
   let currentPage: Page | null = null;
 
@@ -174,6 +176,11 @@ export function setupPage(root: HTMLElement): void {
     const entries = blocks();
     log(`build: blocks=${entries.length}`);
 
+    const correction = (correctionSelect?.value ?? "per-stroke") as
+      | "per-stroke"
+      | "per-char"
+      | "per-block"
+      | "per-page";
     currentPage = page.create(hostEl, {
       writingMode: "vertical-rl",
       columns: 5,
@@ -182,6 +189,7 @@ export function setupPage(root: HTMLElement): void {
       blocks: entries,
       loaders: { charDataLoader: cachedCharDataLoader },
       logger: (msg) => log(msg),
+      correction,
       onCellComplete: (blockIndex, cellIndex, kind, chars) => {
         const ok = chars.every((c) => c.matched);
         const summary = chars
@@ -240,6 +248,16 @@ export function setupPage(root: HTMLElement): void {
     }
     log(`result: ${JSON.stringify(currentPage.result())}`);
   });
+
+  checkBtn?.addEventListener("click", () => {
+    if (!currentPage) {
+      return;
+    }
+    log("check (submit)");
+    currentPage.check();
+  });
+
+  correctionSelect?.addEventListener("change", rebuild);
 
   rebuild();
 }
