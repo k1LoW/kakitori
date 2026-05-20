@@ -691,8 +691,8 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           onPerBlockEntryCaptured(perBlockKey.cell(index));
         };
         const userOnRejected = mountOpts.onCharRejected;
-        mountOpts.onCharRejected = () => {
-          userOnRejected?.();
+        mountOpts.onCharRejected = (data) => {
+          userOnRejected?.(data);
           onPerBlockEntryRejected(perBlockKey.cell(index));
         };
         state.usesDeferredCorrection = true;

@@ -162,9 +162,20 @@ export interface FreeCellHandle {
   /**
    * When the cell was mounted with `deferred: true` and has already
    * fired {@link FreeCellCreateOptions.onCellCaptured}, this commits
-   * the held-back verdict: paints the matched / failed color and
-   * fires `onCellComplete` with the same `chars` payload the
-   * captured callback delivered. No-op (logs) otherwise.
+   * the held-back verdict. Two paths depending on the captured
+   * verdict:
+   *
+   * - **Matched**: paints the matched color and fires
+   *   `onCellComplete` with the same `chars` payload the captured
+   *   callback delivered.
+   * - **Failed**: wipes every stroke across every surface, resets
+   *   the matcher bookkeeping (the cell goes back to
+   *   `status: "drawing"`), and fires `onCellRejected(chars)` so
+   *   hosts can observe the rejected attempt. `onCellComplete` is
+   *   held back until a future commit lands matched. This mirrors
+   *   `Char.check()` under `correction: "deferred"`.
+   *
+   * No-op (logs) when there's no deferred verdict to commit.
    */
   check(): void;
   /**
