@@ -330,6 +330,68 @@ describe("Block.results", () => {
     parent.remove();
   });
 
+  it("per-block: NG cell re-arms pending and burst commits only after the OK retry", async () => {
+    // The per-block rejection coordination loop:
+    //
+    // 1. Both cells captured → first burst → cell 0 lands NG, cell 1
+    //    lands OK. Cell 1 commits onCellComplete; cell 0 re-arms
+    //    (onCharRejected) so block puts it back in perBlockPending
+    //    and clears perBlockTriggered.
+    // 2. User rewrites cell 0 with a matching stroke → captured
+    //    signal drains the pending set again → second burst fires.
+    //    Cell 0 commits this time; onBlockComplete fires.
+    //
+    // Locks in the (a) "rejection re-adds to pending + flips
+    // triggered back to false" path and (b) "captured-after-retry
+    // fires another burst" path together.
+    const completedCells: number[] = [];
+    const blockCompletes: number[] = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-block",
+      onCellComplete: (idx) => completedCells.push(idx),
+      onBlockComplete: () => blockCompletes.push(1),
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Cell 0: NG stroke (diagonal vs horizontal stub median).
+    strokeAt(writerSvgs[0], [[10, 10], [70, 70]], 1);
+    // Cell 1: OK stroke.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // First burst landed cell 0 NG → only cell 1 should have
+    // committed; cell 0 is back in pending and onBlockComplete is
+    // held back.
+    expect(completedCells).toEqual([1]);
+    expect(blockCompletes).toEqual([]);
+
+    // User rewrites cell 0 with a matching stroke; the captured
+    // signal drains pending and fires another burst that commits
+    // cell 0 + onBlockComplete.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 3);
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(completedCells.toSorted()).toEqual([0, 1]);
+    expect(blockCompletes).toEqual([1]);
+    b.destroy();
+    parent.remove();
+  });
+
   it("per-cell overrides.correction: 'per-stroke' wins over block-wide 'per-block'", async () => {
     // The per-cell override path is the one consumers reach for when
     // they want a mixed block. Verify that an explicit per-cell

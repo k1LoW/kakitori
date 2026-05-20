@@ -120,6 +120,43 @@ describe("FreeCellHandle.results", () => {
     parent.remove();
   });
 
+  it("non-deferred commitFail wipes the cell and fires onCellRejected", async () => {
+    // Non-deferred mirror of the deferred check()-failed retry path:
+    // when commitFail lands (matcher exhausted every candidate, no
+    // match), the cell wipes every stroke across every surface and
+    // fires onCellRejected with the rejected verdict — `onCellComplete`
+    // is held back for the eventual OK round. This locks in the
+    // breaking switch from "paint failedColor + onCellComplete" to
+    // "wipe + onCellRejected".
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onCellComplete = vi.fn();
+    const onCellRejected = vi.fn();
+    const handle = createFreeCell({
+      expected: "あ",
+      surfaces: [{ parent, width: 200, height: 200 }],
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      onCellComplete,
+      onCellRejected,
+    });
+    const surface = handle.els[0];
+
+    strokeAt(surface, [[10, 10], [80, 80]], 1);
+    strokeAt(surface, [[10, 80], [80, 10]], 2);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onCellRejected).toHaveBeenCalledTimes(1);
+    expect(onCellComplete).not.toHaveBeenCalled();
+    expect(surface.querySelectorAll("polyline").length).toBe(0);
+    // The rejected verdict's chars are forwarded so hosts can still
+    // observe what was attempted.
+    const rejectedChars = onCellRejected.mock.calls[0][0];
+    expect(Array.isArray(rejectedChars)).toBe(true);
+
+    handle.destroy();
+    parent.remove();
+  });
+
   it("reset() drops settled / in-flight state back to placeholder", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

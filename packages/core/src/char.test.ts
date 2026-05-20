@@ -519,8 +519,12 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getWriterLayer(container);
-      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
-      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      // Horizontal strokes against mockCharData's diagonal medians is
+      // an unambiguous NG drive — robust against matcher heuristic
+      // tweaks that might otherwise let diagonal user strokes squeak
+      // past the threshold.
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
       k.check();
       await new Promise((r) => setTimeout(r, 50));
       expect(onCharRejected).toHaveBeenCalledTimes(1);
@@ -671,8 +675,11 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getWriterLayer(container);
-      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
-      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      // Horizontal strokes against the diagonal mockCharData medians:
+      // an unambiguous NG drive (robust against any matcher
+      // heuristic / normalization tweak).
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
 
       // Now trigger correction.
       k.check();
