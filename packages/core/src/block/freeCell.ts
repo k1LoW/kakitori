@@ -147,6 +147,24 @@ export interface FreeCellCreateOptions {
    * etc. even though `results()` has already been reset by the wipe.
    */
   onCellRejected?: (chars: CharResult[]) => void;
+  /**
+   * Cap on how many in-place retries the freeCell will accept on NG
+   * verdicts before giving up and firing {@link onCellComplete} with
+   * the rejected `chars`. Semantics mirror {@link MountOptions.maxRetries}:
+   *
+   * - `undefined` (default): unlimited retries.
+   * - `0`: no retries — the first failed verdict commits as failed
+   *   (`onCellComplete` fires immediately, `onCellRejected` never
+   *   fires).
+   * - `N`: up to `N` retries; the `(N + 1)`-th NG attempt commits as
+   *   failed.
+   *
+   * Applies to BOTH the deferred-mode failed `check()` path and the
+   * non-deferred `commitFail` path. Polylines and matcher
+   * bookkeeping reset on every retry, so the final committed
+   * `chars` reflect only the last attempt.
+   */
+  maxRetries?: number;
 }
 
 export interface FreeCellHandle {
@@ -290,6 +308,14 @@ export function createFreeCell(
   let lastMoveTime = 0;
   let checkQueue: Promise<void> = Promise.resolve();
   let sessionId = 0;
+  // Number of retries already consumed by NG attempts. Compared
+  // against `opts.maxRetries` to decide whether the next NG verdict
+  // should wipe and re-arm (`retries < maxRetries`) or commit as
+  // failed (`retries >= maxRetries`). Advances inside the retry
+  // path via `++retries` after `clearAll`; reset to 0 by
+  // `resetSession()` (the wrapper bound to public `reset` / `undo`)
+  // so an external clear restores the full retry budget.
+  let retries = 0;
   let segmentBoxEls: Array<SVGRectElement | SVGTextElement> = [];
   // Highest-similarity attempt seen across every match round in this session.
   // Used so commitFail() can surface the closest candidate / per-character
@@ -781,17 +807,19 @@ export function createFreeCell(
       opts.onCellCaptured?.(chars);
       return;
     }
-    // Non-deferred NG retry (full-cell granularity). Mirrors the
-    // deferred-mode check()-with-failed path and per-char's char-level
-    // retry: a rejected attempt wipes every stroke across every
-    // surface and resets matcher bookkeeping so the user can rewrite
-    // the whole string in place. `onCellComplete` is held back until
-    // a future attempt commits a match; `onCellRejected` fires with
-    // the rejected `chars` so hosts that care (e.g. score tracking)
-    // can observe what was attempted even though `results()` has
-    // been wiped.
-    log?.(`commitFail (non-deferred): wipe + re-arm for retry`);
+    // Non-deferred path. With unlimited retries (`maxRetries`
+    // undefined) or budget remaining, wipe and re-arm. With the
+    // budget exhausted, commit the rejected verdict via
+    // `onCellComplete` so block / page commit chains can settle on
+    // a final NG outcome instead of stalling forever.
+    if (retriesExhausted()) {
+      log?.(`commitFail (non-deferred): retries exhausted, committing as failed`);
+      opts.onCellComplete?.(chars);
+      return;
+    }
+    log?.(`commitFail (non-deferred): wipe + re-arm for retry (retries=${retries + 1})`);
     clearAll();
+    retries += 1;
     opts.onCellRejected?.(chars);
   }
 
@@ -817,16 +845,20 @@ export function createFreeCell(
     deferredVerdict = null;
     deferredKind = null;
     if (kind === "failed") {
-      // NG retry, full-cell granularity: clear every stroke across
-      // every surface and reset matcher bookkeeping so the user can
-      // rewrite the entire string in place. The block / page
-      // coordinator subscribes to `onCellRejected` to reverse its
-      // "captured" pending bookkeeping symmetrically with the
-      // `onCellCaptured` path. `chars` is the rejected verdict;
-      // pass it through so hosts can still observe what was
-      // attempted even though `results()` has been wiped.
-      log?.(`check(): NG → wipe + re-arm for retry`);
+      // NG verdict. With retry budget remaining, wipe and re-arm
+      // (full-cell granularity); the block / page coordinator
+      // subscribes to `onCellRejected` to reverse its "captured"
+      // pending bookkeeping. With the budget exhausted, commit the
+      // rejected `chars` via `onCellComplete` so the burst can
+      // settle on a final NG outcome.
+      if (retriesExhausted()) {
+        log?.(`check(): retries exhausted, committing as failed`);
+        opts.onCellComplete?.(chars);
+        return;
+      }
+      log?.(`check(): NG → wipe + re-arm for retry (retries=${retries + 1})`);
       clearAll();
+      retries += 1;
       opts.onCellRejected?.(chars);
       return;
     }
@@ -916,10 +948,25 @@ export function createFreeCell(
     return pendingCharsForFirstCandidate();
   }
 
+  function retriesExhausted(): boolean {
+    const cap = opts.maxRetries;
+    return cap !== undefined && retries >= cap;
+  }
+
+  function resetSession(): void {
+    // External reset / undo. Wipes the cycle AND zeros the retry
+    // counter, so the user starts fresh and `maxRetries` budget
+    // resets too. The internal NG retry path calls `clearAll`
+    // directly without zeroing `retries` so the counter advances
+    // attempt-by-attempt.
+    clearAll();
+    retries = 0;
+  }
+
   return {
     els,
-    reset: clearAll,
-    undo: clearAll,
+    reset: resetSession,
+    undo: resetSession,
     check,
     results: snapshotResults,
     destroy(): void {

@@ -142,6 +142,26 @@ export interface MountOptions {
     captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
   ) => void;
   /**
+   * Cap on how many in-place retries the char will accept on NG
+   * verdicts under `correction: "per-char"` / `"deferred"` before
+   * giving up and firing {@link onComplete} with the accumulated
+   * mistake counters. Semantics:
+   *
+   * - `undefined` (default): unlimited retries — the char keeps
+   *   re-arming until the user lands an OK attempt.
+   * - `0`: no retries — the first NG attempt commits as failed
+   *   (`onComplete` fires immediately, `onCharRejected` never
+   *   fires).
+   * - `N`: up to `N` retries allowed; the `(N + 1)`-th NG attempt
+   *   commits as failed.
+   *
+   * Mistake counters (`totalMistakes`, `strokeEndingMistakes`) and
+   * the per-stroke verdicts in {@link Char.result} accumulate
+   * across every attempt, so the final `onComplete` carries the
+   * full attempt history.
+   */
+  maxRetries?: number;
+  /**
    * Fires every time the char wipes itself for an NG retry. Surfaces
    * the rejection from both retry paths:
    *
@@ -164,6 +184,8 @@ export interface MountOptions {
     character: string;
     totalMistakes: number;
     strokeEndingMistakes: number;
+    /** 1-indexed attempt count — `1` after the first NG, `2` after the second, etc. */
+    attempts: number;
   }) => void;
   // Animation
   strokeAnimationSpeed?: number;
@@ -186,6 +208,17 @@ export interface MountOptions {
     character: string;
     totalMistakes: number;
     strokeEndingMistakes: number;
+    /**
+     * Whether the final attempt matched. Always `true` under
+     * `correction: "per-stroke"` (the user retries forever until the
+     * matcher accepts), and under `correction: "per-char"` /
+     * `"deferred"` when `maxRetries` is `undefined` (unlimited
+     * retries). Can be `false` when `maxRetries` is finite and the
+     * user exhausted every allowed retry without landing OK.
+     */
+    matched: boolean;
+    /** 1-indexed attempt count of the final attempt that triggered completion. */
+    attempts: number;
   }) => void;
   onClick?: (data: {
     character: string;

@@ -104,6 +104,15 @@ export interface PageCreateOptions {
    *   them.
    */
   correction?: "per-stroke" | "per-char" | "per-block" | "per-page";
+  /**
+   * Page-wide cap on in-place retries for every writeable entry —
+   * forwarded to every block as {@link BlockCreateOptions.maxRetries},
+   * which in turn cascades to guided cells
+   * ({@link MountOptions.maxRetries}) and free cells / annotation
+   * free cells ({@link FreeCellCreateOptions.maxRetries}). Per-block
+   * / per-cell overrides still win.
+   */
+  maxRetries?: number;
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
   logger?: FreeCellLogger;
   /** Debug overlay forwarded to every block's free cells / annotations. */

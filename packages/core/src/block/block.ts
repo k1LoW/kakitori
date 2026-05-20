@@ -144,6 +144,15 @@ export interface BlockCreateOptions {
    * inside the block trigger another page-level burst.
    */
   onBlockRejected?: () => void;
+  /**
+   * Block-wide cap on in-place retries for every writeable entry —
+   * guided cells (forwarded as `MountOptions.maxRetries`) and free
+   * cells / annotation free cells (forwarded as
+   * `FreeCellCreateOptions.maxRetries`). Same semantics as the
+   * per-cell options: `undefined` = unlimited, `0` = no retries,
+   * `N` = up to N retries. Per-cell `overrides` still win.
+   */
+  maxRetries?: number;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -628,6 +637,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showAcceptedStroke !== undefined
         ? { showAcceptedStroke: opts.showAcceptedStroke }
         : {}),
+      ...(opts.maxRetries !== undefined
+        ? { maxRetries: opts.maxRetries }
+        : {}),
       // Per-cell `overrides.correction` (forwarded via
       // `pickMountOpts(overrides)` below) still wins over this
       // block-wide default.
@@ -925,6 +937,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
       ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
       ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+      ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
       ...(freeCellDeferred
         ? {
             deferred: true,
@@ -1150,6 +1163,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
         ...(annotationDeferred
           ? {
               deferred: true,

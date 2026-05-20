@@ -692,6 +692,78 @@ describe("char", () => {
       expect(onComplete).not.toHaveBeenCalled();
     });
 
+    it("maxRetries: 0 commits as failed on the first NG attempt", async () => {
+      // No retry budget — the first deferred check() that lands NG
+      // should NOT re-arm; instead onComplete fires with
+      // matched: false and attempts: 1 so the cell / block / page
+      // commit chain can settle on a final NG outcome.
+      const onCharRejected = vi.fn();
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        maxRetries: 0,
+        onCharRejected,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onCharRejected).not.toHaveBeenCalled();
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      const data = onComplete.mock.calls[0][0];
+      expect(data.matched).toBe(false);
+      expect(data.attempts).toBe(1);
+    });
+
+    it("maxRetries: 1 allows one retry then commits as failed on the second NG", async () => {
+      // Budget of 1 retry. Round 1 NG → onCharRejected (re-arm).
+      // Round 2 NG → onComplete with matched: false, attempts: 2.
+      const onCharRejected = vi.fn();
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        maxRetries: 1,
+        onCharRejected,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // First attempt — NG.
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]], 1);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]], 2);
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onCharRejected).toHaveBeenCalledTimes(1);
+      expect(onCharRejected.mock.calls[0][0].attempts).toBe(1);
+      expect(onComplete).not.toHaveBeenCalled();
+
+      // Second attempt — also NG, but budget exhausted so onComplete
+      // fires.
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]], 3);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]], 4);
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onCharRejected).toHaveBeenCalledTimes(1);
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      const data = onComplete.mock.calls[0][0];
+      expect(data.matched).toBe(false);
+      expect(data.attempts).toBe(2);
+    });
+
     it("re-arms the capture cycle after an NG check so the user can retry", async () => {
       // After Char.check() lands NG, the cycle restarts: the user can
       // draw another N strokes, that batch surfaces through

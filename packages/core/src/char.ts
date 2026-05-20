@@ -480,6 +480,18 @@ interface MountState {
    * by reset() (intentional opt-out) and on unmount/destroy.
    */
   quizArmed: boolean;
+  /**
+   * Number of retries already consumed by NG attempts on this mount
+   * (per-char / deferred modes). Compared against
+   * `options.maxRetries` to decide whether the next NG verdict
+   * should re-arm (`retries < maxRetries`) or commit-as-failed
+   * (`retries >= maxRetries`). Increments on every NG attempt; the
+   * Nth attempt's NG bumps it to `N - 1`, so the (N+1)-th attempt's
+   * NG sees `retries === N`. Cleared on `start()` / `reset()` /
+   * `undo()`. Independent of `m.perCharSeq`, which is a finalize
+   * token that flips on every cycle (retry or OK).
+   */
+  retries: number;
   strokeEndingMistakes: number;
   /**
    * Per-logical-stroke results captured from the quiz callbacks while a
@@ -929,6 +941,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.quizActive = true;
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
+    m.retries = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
@@ -1078,6 +1091,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           character: summary.character,
           totalMistakes: summary.totalMistakes,
           strokeEndingMistakes: m.strokeEndingMistakes,
+          // Per-stroke quiz only ever fires onComplete on full
+          // acceptance — the user retries individual strokes until
+          // every one matches — so `matched: true` and `attempts: 1`
+          // are constants here.
+          matched: true,
+          attempts: 1,
         });
       },
     });
@@ -1435,7 +1454,16 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed || mounted !== m || m.perCharSeq !== seq) {
       return;
     }
-    if (!charMatched && m.options.correction === "deferred") {
+    // `maxRetries` gates the in-place retry branches below. If the
+    // attempt was NG but the user has already consumed every allowed
+    // retry, fall through to the OK completion path with the
+    // accumulated NG verdict so `onComplete` fires with
+    // `matched: false` and the cell / block / page commit chain
+    // settles instead of stalling.
+    const maxRetries = m.options.maxRetries;
+    const retriesExhausted =
+      maxRetries !== undefined && m.retries >= maxRetries;
+    if (!charMatched && !retriesExhausted && m.options.correction === "deferred") {
       // Deferred mode (block / page driven): finalize ran via an
       // explicit Char.check() from the higher-level coordinator. NG
       // verdict on a deferred char follows the same in-place retry
@@ -1455,17 +1483,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       clearRetainedStrokes(m);
       m.perStroke = [];
       m.perCharSeq++;
+      m.retries += 1;
       startTimingTracking(m);
       startPerCharCycle(m);
-      log?.(`deferred NG attempt: re-armed for retry`);
+      log?.(`deferred NG attempt: re-armed for retry (retries=${m.retries})`);
       m.options.onCharRejected?.({
         character: currentCharacter,
         totalMistakes: m.totalMistakes,
         strokeEndingMistakes: m.strokeEndingMistakes,
+        attempts: m.retries,
       });
       return;
     }
-    if (!charMatched && m.options.correction === "per-char") {
+    if (!charMatched && !retriesExhausted && m.options.correction === "per-char") {
       // NG attempt: mirror per-stroke's "user keeps retrying until the
       // whole character matches" semantics at char granularity. Wipe
       // the retained ink (already painted live as the user wrote) and
@@ -1489,11 +1519,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.perStroke = [];
       m.perCharCaptures = [];
       m.perCharSeq++;
-      log?.(`per-char NG attempt: re-armed for retry`);
+      m.retries += 1;
+      log?.(`per-char NG attempt: re-armed for retry (retries=${m.retries})`);
       m.options.onCharRejected?.({
         character: currentCharacter,
         totalMistakes: m.totalMistakes,
         strokeEndingMistakes: m.strokeEndingMistakes,
+        attempts: m.retries,
       });
       return;
     }
@@ -1540,11 +1572,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         log?.(`per-char showCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
-    log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
+    log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes} matched=${charMatched} attempts=${m.retries + 1}`);
     m.options.onComplete?.({
       character: currentCharacter,
       totalMistakes: m.totalMistakes,
       strokeEndingMistakes: m.strokeEndingMistakes,
+      // `charMatched` is the verdict of the final attempt — true on
+      // an OK landing, false when `maxRetries` was finite and the
+      // user exhausted every retry. `attempts` is 1-indexed: the
+      // first attempt is `1`, so after N retries it lands at `N + 1`.
+      matched: charMatched,
+      attempts: m.retries + 1,
     });
   }
 
@@ -1829,6 +1867,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     stopPerCharCycle(m);
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
+    m.retries = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
@@ -2285,6 +2324,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       quizActive: false,
       trailingClickGuard: null,
       quizArmed: false,
+      retries: 0,
       strokeEndingMistakes: 0,
       perStroke: [],
       totalMistakes: 0,

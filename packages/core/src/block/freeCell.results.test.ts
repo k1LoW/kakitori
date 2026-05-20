@@ -157,6 +157,36 @@ describe("FreeCellHandle.results", () => {
     parent.remove();
   });
 
+  it("maxRetries: 0 commits onCellComplete on the first failed commit", async () => {
+    // No retry budget — the first commitFail (here driven by
+    // similarity threshold / max-stroke breach) lands directly on
+    // onCellComplete with the rejected chars, never firing
+    // onCellRejected.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onCellComplete = vi.fn();
+    const onCellRejected = vi.fn();
+    const handle = createFreeCell({
+      expected: "あ",
+      surfaces: [{ parent, width: 200, height: 200 }],
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      maxRetries: 0,
+      onCellComplete,
+      onCellRejected,
+    });
+    const surface = handle.els[0];
+
+    strokeAt(surface, [[10, 10], [80, 80]], 1);
+    strokeAt(surface, [[10, 80], [80, 10]], 2);
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(onCellRejected).not.toHaveBeenCalled();
+    expect(onCellComplete).toHaveBeenCalledTimes(1);
+
+    handle.destroy();
+    parent.remove();
+  });
+
   it("reset() drops settled / in-flight state back to placeholder", () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);
