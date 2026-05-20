@@ -141,6 +141,17 @@ export interface MountOptions {
   onCharCaptured?: (
     captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
   ) => void;
+  /**
+   * Fires when {@link correction} is `"deferred"` and a {@link Char.check}
+   * call lands an NG verdict (at least one stroke didn't match). Mirrors
+   * `correction: "per-char"`'s in-place retry semantics for deferred
+   * mode: the retained ink is wiped, the per-char capture cycle is
+   * re-armed for a fresh attempt, and `onComplete` is held back until
+   * a future attempt lands OK. Used by higher-level orchestrators
+   * (block, page) to reverse a cell's "captured" state in their
+   * pending bookkeeping so the user-rewrite triggers another burst.
+   */
+  onCharRejected?: () => void;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;

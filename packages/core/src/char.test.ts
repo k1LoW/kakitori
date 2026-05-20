@@ -499,26 +499,20 @@ describe("char", () => {
       expect(onComplete).not.toHaveBeenCalled();
     });
 
-    it("swallows the trailing click that follows the gesture finalizing the cycle", async () => {
+    it("swallows clicks across an NG-retry cycle (quizActive stays true)", async () => {
       // Browsers dispatch a synthetic `click` after every `pointerup`,
       // including the `pointerup` that completes the last stroke of a
-      // per-char cycle. Without the trailing-click guard, that click
-      // reaches `boundOnClick` AFTER `quizActive` flipped false, and a
-      // consumer wiring click-to-inspect would recolor a freshly
-      // finalized stroke.
-      //
-      // The retry-on-NG branch only fires for `correction: "per-char"`;
-      // `correction: "deferred"` (used by per-block / per-page) reaches
-      // the OK finalize path regardless of verdict, which is what we
-      // need here to drive the trailing-click guard deterministically.
+      // per-char cycle. With NG-retry in effect, `quizActive` stays
+      // true across the rejected attempt and the existing `boundOnClick`
+      // gate (not the post-finalize guard) keeps onClick silent.
       const onClick = vi.fn();
-      const onComplete = vi.fn();
+      const onCharRejected = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         correction: "deferred",
         onClick,
-        onComplete,
+        onCharRejected,
       });
       await k.ready();
       k.start();
@@ -527,11 +521,9 @@ describe("char", () => {
       const layer = getWriterLayer(container);
       drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
       drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
-      // The deferred path stashes the captures; Char.check() runs
-      // finalize and ends with the trailing-click guard armed.
       k.check();
       await new Promise((r) => setTimeout(r, 50));
-      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(onCharRejected).toHaveBeenCalledTimes(1);
 
       layer.click();
       expect(onClick).not.toHaveBeenCalled();
@@ -580,38 +572,6 @@ describe("char", () => {
       expect(onMistake.mock.calls.length).toBeGreaterThan(beforeRetry);
     });
 
-    it("re-enables onClick after a fresh pointerdown disarms the trailing guard", async () => {
-      // A genuine new gesture (pointerdown) must disarm the trailing
-      // guard so the user can immediately click-to-inspect after the
-      // cycle finalizes; the guard only exists to eat the ONE
-      // trailing click of the finalizing gesture.
-      const onClick = vi.fn();
-      const k = createMounted(container, "あ", {
-        charDataLoader: mockCharDataLoader,
-        configLoader: null,
-        correction: "deferred",
-        onClick,
-      });
-      await k.ready();
-      k.start();
-      await new Promise((r) => setTimeout(r, 0));
-
-      const layer = getWriterLayer(container);
-      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
-      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
-      k.check();
-      await new Promise((r) => setTimeout(r, 50));
-
-      const rect = layer.getBoundingClientRect();
-      const downEvt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
-        "pointerdown",
-        { bubbles: true, cancelable: true, pointerId: 99, clientX: rect.left + 5, clientY: rect.top + 5 },
-      );
-      layer.dispatchEvent(downEvt);
-
-      layer.click();
-      expect(onClick).toHaveBeenCalledTimes(1);
-    });
   });
 
   describe("correction: deferred", () => {
@@ -685,8 +645,14 @@ describe("char", () => {
       expect(captures).toHaveLength(2);
     });
 
-    it("runs correction (firing onComplete + per-stroke callbacks) when Char.check() is called", async () => {
+    it("runs correction (firing per-stroke callbacks) when Char.check() is called", async () => {
+      // Diagonal mockCharData vs horizontal user strokes → NG verdict.
+      // Deferred mode mirrors per-char's in-place retry on NG: per-stroke
+      // verdicts dispatch (onCorrect / onMistake totals to strokeCount),
+      // onCharRejected fires, and onComplete is held back for the
+      // eventual OK round.
       const onCharCaptured = vi.fn();
+      const onCharRejected = vi.fn();
       const onComplete = vi.fn();
       const onCorrect = vi.fn();
       const onMistake = vi.fn();
@@ -695,6 +661,7 @@ describe("char", () => {
         configLoader: null,
         correction: "deferred",
         onCharCaptured,
+        onCharRejected,
         onComplete,
         onCorrectStroke: onCorrect,
         onMistake,
@@ -711,10 +678,52 @@ describe("char", () => {
       k.check();
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(onComplete).toHaveBeenCalledTimes(1);
       // Each captured stroke produces exactly one callback (correct or
       // mistake) — total dispatches == stroke count.
       expect(onCorrect.mock.calls.length + onMistake.mock.calls.length).toBe(2);
+      expect(onCharRejected).toHaveBeenCalledTimes(1);
+      expect(onComplete).not.toHaveBeenCalled();
+    });
+
+    it("re-arms the capture cycle after an NG check so the user can retry", async () => {
+      // After Char.check() lands NG, the cycle restarts: the user can
+      // draw another N strokes, that batch surfaces through
+      // onCharCaptured again, and a second Char.check() runs another
+      // round of correction. The deferred retry path stays cleanly
+      // separated round-by-round (no leaked state from the previous
+      // attempt).
+      const onCharCaptured = vi.fn();
+      const onCharRejected = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "deferred",
+        onCharCaptured,
+        onCharRejected,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // Round 1: full capture + NG check + rejection signal.
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      k.check();
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onCharRejected).toHaveBeenCalledTimes(1);
+
+      // Round 2: cycle re-armed, user draws again, captured signal
+      // fires again. The character ink overlay is cleared between
+      // rounds.
+      const polylinesBetweenRounds = container.querySelectorAll(
+        "svg.kakitori-retained polyline",
+      );
+      expect(polylinesBetweenRounds.length).toBe(0);
+      drawStroke(layer, [[10, 10], [40, 40], [70, 70]], 99);
+      drawStroke(layer, [[120, 120], [180, 180], [240, 240]], 100);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(onCharCaptured).toHaveBeenCalledTimes(2);
     });
 
     it("Char.check() is a no-op (logs) when there is nothing buffered", async () => {

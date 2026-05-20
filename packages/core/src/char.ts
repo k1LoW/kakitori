@@ -1428,6 +1428,32 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed || mounted !== m || m.perCharSeq !== seq) {
       return;
     }
+    if (!charMatched && m.options.correction === "deferred") {
+      // Deferred mode (block / page driven): finalize ran via an
+      // explicit Char.check() from the higher-level coordinator. NG
+      // verdict on a deferred char follows the same in-place retry
+      // model as per-char: wipe the retained ink, re-start the
+      // per-char capture cycle, and surface the rejection through
+      // {@link onCharRejected} so the block / page coordinator can
+      // reverse its "captured" bookkeeping (re-add to pending, reset
+      // the triggered flag) and accept the user's next attempt as a
+      // fresh capture.
+      //
+      // Counters and onComplete are held back exactly like the
+      // per-char path; the cycle had been torn down at capture-fill
+      // (line ~1201, including stopTimingTracking), so unlike
+      // per-char we must explicitly re-attach BOTH the timing tracker
+      // and the per-char pointer handlers before the user can write
+      // another attempt.
+      clearRetainedStrokes(m);
+      m.perStroke = [];
+      m.perCharSeq++;
+      startTimingTracking(m);
+      startPerCharCycle(m);
+      log?.(`deferred NG attempt: re-armed for retry`);
+      m.options.onCharRejected?.();
+      return;
+    }
     if (!charMatched && m.options.correction === "per-char") {
       // NG attempt: mirror per-stroke's "user keeps retrying until the
       // whole character matches" semantics at char granularity. Wipe
