@@ -4,9 +4,15 @@ import type { PageBlockEntry } from "./types.js";
 import type { CharDataLoaderFn } from "../charOptions.js";
 
 const stubLoader: CharDataLoaderFn = (_c, onLoad) => {
+  // Single horizontal stroke spanning most of the canvas, matched by
+  // horizontal user strokes in display coords (`[[10, 40], [70, 40]]`).
+  // Page coordination tests assert on onCellComplete /
+  // onBlockComplete / onPageComplete, all of which the per-char retry
+  // path holds back until an OK verdict; a diagonal median would
+  // land NG and stall the burst indefinitely.
   onLoad({
-    strokes: ["M 0 0 L 100 100"],
-    medians: [[[0, 0], [100, 100]]],
+    strokes: ["M 50 500 L 950 500"],
+    medians: [[[50, 500], [950, 500]]],
   });
 };
 

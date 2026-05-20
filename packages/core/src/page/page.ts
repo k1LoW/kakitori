@@ -400,6 +400,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         const key = perPageKey(state.blockIndex, segArrIndex);
         perPagePending.add(key);
         blockOpts.onBlockCaptured = () => onPerPageBlockCaptured(key);
+        blockOpts.onBlockRejected = () => onPerPageBlockRejected(key);
       }
       const b = block.create(slotEl, blockOpts);
       state.segmentBlocks.push(b);
@@ -645,11 +646,38 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       return;
     }
     perPagePending.delete(key);
-    if (perPagePending.size > 0 || perPageTriggered) {
+    if (perPagePending.size > 0) {
+      return;
+    }
+    if (perPageTriggered) {
+      // Retry round: a previous burst left this page triggered, then
+      // one or more NG blocks fired `onPerPageBlockRejected` which
+      // re-added them to `perPagePending`. We just emptied the
+      // pending set again — fire another burst so the NG entries
+      // inside those blocks get re-checked.
+      runPerPageBurst();
       return;
     }
     perPageTriggered = true;
     runPerPageBurst();
+  }
+
+  /**
+   * Per-page coordinator: a block whose burst landed NG entries just
+   * told us it re-armed those cells. Reverse the block's "captured"
+   * bookkeeping (re-add to `perPagePending`, clear `perPageTriggered`)
+   * so the next round of in-block re-captures triggers another page
+   * burst. The page stays un-completed (`maybeCommitPage`'s
+   * `pageCompleted` guard combined with the per-block `committed`
+   * checks holds it back), so this is purely about resuming pending
+   * bookkeeping.
+   */
+  function onPerPageBlockRejected(key: string): void {
+    if (destroyed) {
+      return;
+    }
+    perPagePending.add(key);
+    perPageTriggered = false;
   }
 
   function runPerPageBurst(): void {
