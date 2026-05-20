@@ -77,10 +77,10 @@ describe("FreeCellHandle.results", () => {
 
   it("deferred check() with a failed verdict wipes the cell and fires onCellRejected", async () => {
     // Full-cell NG retry: when the matcher exhausts every candidate
-    // and commits fail, a subsequent Char.check() must clear every
-    // surface (drop the polylines + reset matcher bookkeeping) and
-    // fire onCellRejected instead of onCellComplete, so the user can
-    // rewrite the whole string in place.
+    // and commits fail, a subsequent FreeCellHandle.check() must
+    // clear every surface (drop the polylines + reset matcher
+    // bookkeeping) and fire onCellRejected instead of onCellComplete,
+    // so the user can rewrite the whole string in place.
     const parent = document.createElement("div");
     document.body.appendChild(parent);
     const onCellCaptured = vi.fn();
@@ -97,10 +97,12 @@ describe("FreeCellHandle.results", () => {
     });
     const surface = handle.els[0];
 
-    // "あ" via stubLoader has 1 stroke. Drawing two strokes exhausts
-    // every candidate length (max=1), so the second stroke commits a
-    // failure; the diagonal median + horizontal user stroke also
-    // pushes per-stroke similarity well below the matcher threshold.
+    // "あ" via stubLoader has 1 stroke (max=1). With max=1 the
+    // matcher runs after the first stroke: if similarity is below
+    // the threshold the cell already commits fail; if it is above,
+    // the second stroke's `total > max` path commits fail. Drawing
+    // two intentionally mis-shaped strokes guarantees the failure
+    // lands regardless of which branch fires first.
     strokeAt(surface, [[10, 10], [80, 80]], 1);
     strokeAt(surface, [[10, 80], [80, 10]], 2);
     await new Promise((r) => setTimeout(r, 100));

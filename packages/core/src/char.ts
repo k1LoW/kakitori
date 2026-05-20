@@ -1386,6 +1386,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
       m.perStroke[strokeNum] = verdict;
+      // Flip `charMatched` for ANY unmatched verdict — including the
+      // checkerError fallback that forces `matched: false`. Otherwise
+      // an infrastructure failure would skip the retry path and let
+      // the OK completion fire while `Char.result().matched` reads
+      // false, leaving callers with inconsistent verdicts.
+      if (!verdict.matched) {
+        charMatched = false;
+      }
       if (checkerError) {
         // Infrastructure failure: keep the placeholder in perStroke
         // (so the caller can see SOMETHING for this stroke index) but
@@ -1395,7 +1403,6 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
       if (!verdict.matched) {
         m.totalMistakes += 1;
-        charMatched = false;
       }
       if (verdict.strokeEnding && !verdict.strokeEnding.correct) {
         m.strokeEndingMistakes += 1;
