@@ -1370,6 +1370,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     seq: number,
   ): Promise<void> {
     log?.(`per-char finalize: strokes=${strokeCount}`);
+    let charMatched = true;
     for (let strokeNum = 0; strokeNum < strokeCount; strokeNum++) {
       const points = captures[strokeNum];
       let verdict: CharStrokeResult;
@@ -1394,6 +1395,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
       if (!verdict.matched) {
         m.totalMistakes += 1;
+        charMatched = false;
       }
       if (verdict.strokeEnding && !verdict.strokeEnding.correct) {
         m.strokeEndingMistakes += 1;
@@ -1426,6 +1428,33 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed || mounted !== m || m.perCharSeq !== seq) {
       return;
     }
+    if (!charMatched && m.options.correction === "per-char") {
+      // NG attempt: mirror per-stroke's "user keeps retrying until the
+      // whole character matches" semantics at char granularity. Wipe
+      // the retained ink (already painted live as the user wrote) and
+      // re-arm the capture buffer so the next pointer cycle begins a
+      // fresh attempt at stroke 0. Pointer handlers and the timing
+      // tracker stay attached; perCharSeq is bumped so the next batch
+      // gets its own finalize token without colliding with this one.
+      //
+      // - Accumulated counters (totalMistakes, strokeEndingMistakes)
+      //   stay so onComplete eventually reports the total mistake
+      //   count across every retry, the same way per-stroke surfaces
+      //   it through hanzi-writer's totalMistakes.
+      // - perStroke is wiped so the next attempt's verdicts replace
+      //   this attempt's; we don't want OK strokes from a half-good
+      //   retry to be remembered as if they belonged to the final
+      //   accepted attempt.
+      // - We do NOT fire onComplete, stopPerCharCycle, stopTiming,
+      //   showCharacter, or arm the trailing-click guard — the cycle
+      //   isn't done yet.
+      clearRetainedStrokes(m);
+      m.perStroke = [];
+      m.perCharCaptures = [];
+      m.perCharSeq++;
+      log?.(`per-char NG attempt: re-armed for retry`);
+      return;
+    }
     // Swallow the trailing `click` that the browser dispatches right
     // after this `pointerup`, so click-to-inspect consumers never see
     // the gesture that just finalized the per-char cycle.
@@ -1442,11 +1471,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     stopPerCharCycle(m);
     stopTimingTracking(m);
     // The drawn polylines were painted unconditionally to give the user
-    // mid-stroke feedback. Now that check is done, `retainStrokes`
-    // governs whether they stick around for review — clear them
-    // otherwise so per-char without retain matches the per-stroke
-    // default UX (no leftover ink).
-    if (!m.options.retainStrokes) {
+    // mid-stroke feedback. Now that check is done:
+    //
+    // - If `retainStrokes` is off, wipe every polyline so per-char
+    //   matches the per-stroke default UX (no leftover ink).
+    // - If any stroke was rejected, also wipe — mirroring per-stroke,
+    //   where hanzi-writer's quiz visually consumes mismatched strokes
+    //   so only correct ones ever accumulate. At per-char granularity
+    //   the natural mirror is "all-or-nothing per character": one bad
+    //   stroke means the user has to rewrite the whole char, so
+    //   leaving partial NG ink behind would be misleading.
+    if (!m.options.retainStrokes || !charMatched) {
       clearRetainedStrokes(m);
     }
     // Per-char hid the character at startPerCharCycle so the user wrote

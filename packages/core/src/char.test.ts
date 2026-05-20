@@ -381,34 +381,37 @@ describe("char", () => {
       return svg.parentElement as HTMLElement;
     }
 
-    it("defers check until every stroke is drawn and then fires onComplete", async () => {
+    it("defers per-stroke dispatch until every stroke of the char is drawn", async () => {
+      // Sanity check on the deferral: while only some of the strokes
+      // have landed, neither onCorrectStroke nor onMistake fires.
+      // Whether onComplete eventually fires depends on whether the
+      // user got the char right — per-char retries NG attempts in
+      // place, so onComplete only lands on an OK attempt. This test
+      // therefore checks the deferral, not the eventual completion.
       const onCorrect = vi.fn();
       const onMistake = vi.fn();
-      const onComplete = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
         correction: "per-char",
         onCorrectStroke: onCorrect,
         onMistake,
-        onComplete,
       });
       await k.ready();
       k.start();
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getWriterLayer(container);
-      // First pointer cycle: onComplete must NOT fire yet.
       drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
       await new Promise((r) => setTimeout(r, 0));
-      expect(onComplete).not.toHaveBeenCalled();
+      expect(onCorrect).not.toHaveBeenCalled();
+      expect(onMistake).not.toHaveBeenCalled();
 
       // Second pointer cycle completes the character (mockCharData has 2 strokes).
       drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
       // finalizePerChar is async (checker init + per-stroke awaits).
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(onComplete).toHaveBeenCalledTimes(1);
       // Every captured stroke dispatches through either onCorrectStroke
       // (matched: true) or onMistake (matched: false) so consumers can
       // filter by callback name. Total dispatches == stroke count.
@@ -420,7 +423,8 @@ describe("char", () => {
       // the per-stroke callback contract), even though the user is
       // never interrupted mid-character. mockCharData's strokes are
       // diagonals; a single horizontal sweep won't satisfy the matcher,
-      // so onMistake must fire when check finalizes.
+      // so onMistake must fire when check finalizes. onComplete stays
+      // silent: a fully-NG char re-arms for retry, not completion.
       const onCorrect = vi.fn();
       const onMistake = vi.fn();
       const onComplete = vi.fn();
@@ -441,7 +445,7 @@ describe("char", () => {
       drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
       await new Promise((r) => setTimeout(r, 50));
 
-      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(onComplete).not.toHaveBeenCalled();
       // onMistake must fire at least once: at least one of the two
       // horizontal strokes can't match the diagonals.
       expect(onMistake.mock.calls.length).toBeGreaterThan(0);
@@ -502,12 +506,17 @@ describe("char", () => {
       // reaches `boundOnClick` AFTER `quizActive` flipped false, and a
       // consumer wiring click-to-inspect would recolor a freshly
       // finalized stroke.
+      //
+      // The retry-on-NG branch only fires for `correction: "per-char"`;
+      // `correction: "deferred"` (used by per-block / per-page) reaches
+      // the OK finalize path regardless of verdict, which is what we
+      // need here to drive the trailing-click guard deterministically.
       const onClick = vi.fn();
       const onComplete = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        correction: "per-char",
+        correction: "deferred",
         onClick,
         onComplete,
       });
@@ -518,6 +527,9 @@ describe("char", () => {
       const layer = getWriterLayer(container);
       drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
       drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      // The deferred path stashes the captures; Char.check() runs
+      // finalize and ends with the trailing-click guard armed.
+      k.check();
       await new Promise((r) => setTimeout(r, 50));
       expect(onComplete).toHaveBeenCalledTimes(1);
 
@@ -525,16 +537,59 @@ describe("char", () => {
       expect(onClick).not.toHaveBeenCalled();
     });
 
+    it("wipes retained ink and re-arms the cycle when the char is NG", async () => {
+      // Mirror per-stroke's "NG strokes never accumulate" UX at char
+      // granularity: if any stroke is rejected, wipe every polyline
+      // for the char AND keep the cycle armed so the user can rewrite
+      // the same character. onComplete must NOT fire — the char isn't
+      // done until an OK attempt lands.
+      const onComplete = vi.fn();
+      const onMistake = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "per-char",
+        retainStrokes: true,
+        onComplete,
+        onMistake,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // Two horizontal strokes won't match mockCharData's diagonals,
+      // so the char is NG.
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+      await new Promise((r) => setTimeout(r, 50));
+
+      // NG attempt: onMistake fires at least once, onComplete stays
+      // silent, retained polylines wiped, ready for the next attempt.
+      expect(onMistake.mock.calls.length).toBeGreaterThan(0);
+      expect(onComplete).not.toHaveBeenCalled();
+      const polylines = container.querySelectorAll("svg.kakitori-retained polyline");
+      expect(polylines.length).toBe(0);
+
+      // The cycle is re-armed: dispatching another two strokes goes
+      // through finalize again (onMistake count grows).
+      const beforeRetry = onMistake.mock.calls.length;
+      drawStroke(layer, [[10, 100], [40, 100], [70, 100]], 2);
+      drawStroke(layer, [[10, 120], [40, 120], [70, 120]], 3);
+      await new Promise((r) => setTimeout(r, 50));
+      expect(onMistake.mock.calls.length).toBeGreaterThan(beforeRetry);
+    });
+
     it("re-enables onClick after a fresh pointerdown disarms the trailing guard", async () => {
       // A genuine new gesture (pointerdown) must disarm the trailing
       // guard so the user can immediately click-to-inspect after the
-      // per-char cycle finalizes; the guard only exists to eat the ONE
+      // cycle finalizes; the guard only exists to eat the ONE
       // trailing click of the finalizing gesture.
       const onClick = vi.fn();
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
-        correction: "per-char",
+        correction: "deferred",
         onClick,
       });
       await k.ready();
@@ -544,6 +599,7 @@ describe("char", () => {
       const layer = getWriterLayer(container);
       drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
       drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+      k.check();
       await new Promise((r) => setTimeout(r, 50));
 
       const rect = layer.getBoundingClientRect();
