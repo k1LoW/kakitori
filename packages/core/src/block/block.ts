@@ -135,6 +135,16 @@ export interface BlockCreateOptions {
    * (page-wide per-page).
    */
   onBlockCaptured?: () => void;
+  /**
+   * Fires when {@link correction} is `"deferred"` and a `Block.check()`
+   * burst landed at least one NG entry, so the block re-armed those
+   * cells for retry. Mirrors `onBlockCaptured` in reverse: a
+   * higher-level coordinator (page-wide per-page) listens for this
+   * to reverse its "this block is ready" bookkeeping (re-add to
+   * pending, reset triggered) so the next round of cell-captures
+   * inside the block trigger another page-level burst.
+   */
+  onBlockRejected?: () => void;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -681,6 +691,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           userOnCaptured?.(captures);
           onPerBlockEntryCaptured(perBlockKey.cell(index));
         };
+        const userOnRejected = mountOpts.onCharRejected;
+        mountOpts.onCharRejected = () => {
+          userOnRejected?.();
+          onPerBlockEntryRejected(perBlockKey.cell(index));
+        };
         state.usesDeferredCorrection = true;
       }
       c.mount(cellEl, mountOpts);
@@ -745,7 +760,21 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       markActive("annotation", Number(key.slice(6)));
     }
     perBlockPending.delete(key);
-    if (perBlockPending.size > 0 || perBlockTriggered) {
+    if (perBlockPending.size > 0) {
+      return;
+    }
+    if (perBlockTriggered) {
+      // Retry round: a previous burst left this block triggered, then
+      // one or more NG cells fired `onPerBlockEntryRejected` which
+      // re-added them to `perBlockPending`. We just emptied the
+      // pending set again — fire another burst (per-block) or signal
+      // the page coordinator again (deferred) so the NG cells get
+      // checked.
+      if (opts.correction === "deferred") {
+        opts.onBlockCaptured?.();
+        return;
+      }
+      runPerBlockBurst();
       return;
     }
     perBlockTriggered = true;
@@ -758,6 +787,35 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return;
     }
     runPerBlockBurst();
+  }
+
+  /**
+   * Per-block coordinator: a deferred entry (guided char cell or
+   * annotation free cell) just told us its `check()` landed NG and
+   * re-armed itself for retry. Reverse the entry's "captured"
+   * bookkeeping: re-add it to `perBlockPending` so the next burst
+   * waits for it, and clear `perBlockTriggered` so the eventual
+   * empty-pending transition fires another burst. The block stays
+   * un-committed (this cell's `state.committed` was never set
+   * because `onComplete` is held back by char/free's retry path),
+   * so `maybeCommitBlock` correctly continues to no-op until the
+   * eventual OK round.
+   */
+  function onPerBlockEntryRejected(key: string): void {
+    if (destroyed) {
+      return;
+    }
+    const wasFirstRejection = perBlockPending.size === 0 && perBlockTriggered;
+    perBlockPending.add(key);
+    perBlockTriggered = false;
+    // Block-level deferred only: surface the rejection to the page
+    // coordinator on the FIRST rejection in this round so the page
+    // re-arms this block in its own pending set exactly once. Further
+    // rejections in the same round leave the page bookkeeping alone
+    // (the block is already back in pending).
+    if (wasFirstRejection && opts.correction === "deferred") {
+      opts.onBlockRejected?.();
+    }
   }
 
   /**

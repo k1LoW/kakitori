@@ -4,9 +4,17 @@ import type { BlockSpec } from "./types.js";
 import type { CharDataLoaderFn } from "../charOptions.js";
 
 const stubLoader: CharDataLoaderFn = (_c, onLoad) => {
+  // Single horizontal stroke spanning most of the canvas. Chosen so a
+  // horizontal user stroke in display coords (the shape the tests draw
+  // with `strokeAt(el, [[10, 40], [70, 40]])`) projects to a stroke
+  // with the same direction as the median, so the matcher returns
+  // matched=true. Block / page coordination tests need OK verdicts to
+  // drive onCellComplete + onBlockComplete + onPageComplete; a
+  // diagonal median would land NG and block the new per-char retry
+  // path, holding back the very callbacks these tests assert on.
   onLoad({
-    strokes: ["M 0 0 L 100 100"],
-    medians: [[[0, 0], [100, 100]]],
+    strokes: ["M 50 500 L 950 500"],
+    medians: [[[50, 500], [950, 500]]],
   });
 };
 
