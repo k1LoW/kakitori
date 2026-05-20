@@ -91,13 +91,18 @@ export interface PageCreateOptions {
    * Page-wide default for {@link BlockCreateOptions.correction}:
    * forwarded to every block. Per-block / per-cell overrides still win.
    *
-   * **`"per-page"` is reserved and not yet implemented.** v1 has no
-   * page-level deferred check, so picking it currently falls back
-   * to block-level `"per-block"` (per-cell `"per-char"`) and surfaces
-   * a one-time log line through {@link logger}. The option name is
-   * preserved so callers who want page-level deferral can opt in
-   * today and pick up the real behavior in a future version without
-   * changing their call site.
+   * - `"per-page"`: real page-wide deferral of **writeable** cells
+   *   (guided write, free write, write-mode annotations). Injects
+   *   block-level `"deferred"` into every block. The page
+   *   coordinator holds off every writeable verdict until every
+   *   segment block has captured; then it walks each block in order
+   *   and fires `Block.check()`, so the write-mode
+   *   `onCellComplete` / `onBlockComplete` / `onPageComplete` land
+   *   in one burst once the whole page is written. Show-mode cells
+   *   and blank cells are not writable inputs — their synthetic
+   *   `onCellComplete` still fires at create time as before, and
+   *   block / page commits wait on the write-mode cells alongside
+   *   them.
    */
   correction?: "per-stroke" | "per-char" | "per-block" | "per-page";
   /** Verbose lifecycle / matching trace shared by every block's free cells. */
@@ -146,6 +151,26 @@ export interface Page {
    * `true`). Pure getter; safe to poll at any time.
    */
   result(): PageResult;
+  /**
+   * External burst-check trigger for `correction: "per-page"` pages.
+   * Calls `Block.check()` on every block; each block then runs its
+   * burst-check, which fires `onCellComplete` /
+   * `onBlockComplete` / `onPageComplete` in order.
+   *
+   * Refuses to run (logs through the page's logger and no-ops)
+   * unless every deferred entry across every block has already
+   * fired its captured signal — partial-commit would leave
+   * un-captured entries hanging. Also no-ops when the automatic
+   * burst already fired (the last captured signal across the page
+   * triggers the burst on its own). The method is primarily useful
+   * as a `Submit`-style host trigger in a window where you want to
+   * manually own the burst BEFORE the auto-trigger fires (e.g.
+   * `reset()` immediately followed by `check()` on an empty page).
+   *
+   * No-op on pages mounted under any other correction mode — those
+   * finalize through their own per-cell / per-block paths.
+   */
+  check(): void;
   /** Destroy every child block and detach the page. */
   destroy(): void;
 }

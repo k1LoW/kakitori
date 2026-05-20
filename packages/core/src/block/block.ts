@@ -107,17 +107,34 @@ export interface BlockCreateOptions {
    * - `"per-char"`: every guided cell is mounted with `correction:
    *   "per-char"` — the user writes each character freely and the
    *   verdict lands when the character is fully drawn.
-   * - `"per-block"`: **today observationally identical to
-   *   `"per-char"`** — every cell still checks at character completion
-   *   and `onBlockComplete` still fires after the final cell. The
-   *   value is preserved so callers who want block-level deferred
-   *   check can opt in today and pick up the real behavior (no
-   *   per-cell dispatch until the whole block is drawn) in a future
-   *   version without changing their call site.
+   * - `"per-block"`: every guided cell goes into `correction:
+   *   "deferred"`; free write cells and annotation free cells go
+   *   into `deferred: true`. The block coordinator holds off ALL
+   *   per-cell verdicts until every entry (guided cell + free cell +
+   *   annotation) has captured; then it fires `Char.check()` /
+   *   `FreeCell.check()` on each in a single burst, so
+   *   `onCellComplete` / `onBlockComplete` only land once the whole
+   *   block is written.
+   * - `"deferred"`: same per-cell / free / annotation setup as
+   *   `"per-block"`, but the block-level burst is held back for an
+   *   external {@link Block.check} call. Fires {@link onBlockCaptured}
+   *   when every entry has captured so a higher-level coordinator
+   *   (e.g. the page-wide `correction: "per-page"`) can wait on the
+   *   signal and trigger correction across multiple blocks in
+   *   lock-step.
    *
    * Per-cell `GuidedCell.overrides.correction` still wins.
    */
-  correction?: "per-stroke" | "per-char" | "per-block";
+  correction?: "per-stroke" | "per-char" | "per-block" | "deferred";
+  /**
+   * Fires when {@link correction} is `"deferred"` and every
+   * writeable entry in this block has captured — guided cells, free
+   * write cells, and annotation free cells alike. The block-level
+   * burst-check is held back until {@link Block.check} is invoked,
+   * so use this signal to drive a higher-level coordinator
+   * (page-wide per-page).
+   */
+  onBlockCaptured?: () => void;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -176,6 +193,23 @@ export interface Block {
    * `true`). Pure getter; safe to poll at any time.
    */
   result(): BlockResult;
+  /**
+   * External burst-check trigger for `correction: "deferred"` blocks.
+   * Calls `check()` on every deferred entry (guided cells, free
+   * cells, annotations), which fires their `onComplete` /
+   * `onCellComplete` callbacks and ultimately `onBlockComplete`.
+   *
+   * Refuses to run (logs through the block's logger and no-ops)
+   * unless every deferred entry has already fired its captured
+   * signal — partial-commit would leave un-captured entries hanging
+   * mid-write. Call this from a `Submit`-style host UI only AFTER
+   * `onBlockCaptured`, or skip it entirely and rely on the
+   * automatic burst that fires when the last entry captures
+   * (per-block mode) / when a higher-level coordinator drives the
+   * call (per-page mode). No-op on blocks mounted under any other
+   * correction mode.
+   */
+  check(): void;
   /** Destroy every child Char / freeCell and detach the block. */
   destroy(): void;
 }
@@ -226,10 +260,12 @@ interface PerCellState {
   freeHandle?: FreeCellHandle;
   charCellEl?: HTMLDivElement;
   /**
-   * True when this guided write cell was mounted under per-block
-   * deferral (its char has `correction: "deferred"`). Lets the
+   * True when this write-mode cell was mounted under block-wide
+   * deferral — guided cells get char-level `correction: "deferred"`,
+   * free cells get `deferred: true` on their freeHandle. Lets the
    * coordinator re-register the cell with `perBlockPending` on
-   * `reset()` without re-resolving the block-wide option.
+   * `reset()` / `undo()` without re-resolving the block-wide option,
+   * and tells `runPerBlockBurst` which entries to call `check()` on.
    */
   usesDeferredCorrection?: boolean;
 }
@@ -243,11 +279,11 @@ interface PerAnnotationState {
   /** For show-mode annotations the chars are synthesized once and stay fixed. */
   syntheticChars?: CharResult[];
   /**
-   * Same role as `PerCellState.usesDeferredCorrection`. True when this
-   * write-mode annotation was mounted with `deferred: true` (block-wide
-   * correction is `"per-block"`); the per-block coordinator triggers
-   * its commit via `freeHandle.check()` rather than letting it
-   * commit itself when matching settles.
+   * Same role as `PerCellState.usesDeferredCorrection`. True when
+   * this write-mode annotation was mounted with `deferred: true`
+   * (block-wide correction is `"per-block"` or `"deferred"`); the
+   * block coordinator triggers its commit via `freeHandle.check()`
+   * rather than letting it commit itself when matching settles.
    */
   usesDeferredCorrection?: boolean;
 }
@@ -543,11 +579,17 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     // callers OR a future enum addition (e.g. `"per-page"` reaching
     // this layer via page.ts) could trip the silent-drop path otherwise.
     let cellCorrection: MountOptions["correction"] | undefined;
-    if (opts.correction === "per-block") {
+    if (opts.correction === "per-block" || opts.correction === "deferred") {
       // Real block-wide deferral: every guided cell captures strokes
       // but does NOT auto-correct. The block coordinator collects
       // captures across cells and fires correction on all of them
       // together once every cell has finished writing.
+      //
+      // `per-block` runs that final burst-check itself.
+      // `deferred` holds the burst back for an external Block.check()
+      // call instead — used when a higher-level coordinator (page-wide
+      // per-page) needs to fire correction across multiple blocks in
+      // lock-step. Either way, the per-cell mount option is the same.
       cellCorrection = "deferred";
     } else if (opts.correction === "per-char") {
       cellCorrection = "per-char";
@@ -607,19 +649,20 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       // the EFFECTIVE value here, not the block-wide one.
       //
       // A subtle case: `overrides.correction: "deferred"` is only
-      // meaningful when the BLOCK is in per-block mode (so the block
-      // coordinator triggers Char.check() for the deferred cell at
-      // the right moment). If the block isn't per-block and the user
-      // still sets a deferred override, the cell would capture and
-      // wait forever (block has no public API to reach the Char and
-      // call check()). Reject it explicitly here — log a warning,
-      // fall back to per-char so the cell at least auto-commits.
+      // meaningful when the BLOCK is in `"per-block"` (block-driven
+      // burst) OR `"deferred"` (block-deferred, page-driven burst) —
+      // either way SOME coordinator is around to call Char.check()
+      // at the right moment. If the user sets a deferred override
+      // outside both contexts, the cell would capture and wait
+      // forever. Reject it explicitly — log a warning, fall back to
+      // per-char so the cell at least auto-commits.
       if (
         mountOpts.correction === "deferred" &&
-        opts.correction !== "per-block"
+        opts.correction !== "per-block" &&
+        opts.correction !== "deferred"
       ) {
         opts.logger?.(
-          `block: per-cell overrides.correction: "deferred" requires block-wide correction: "per-block"; falling back to "per-char" for cell ${index}`,
+          `block: per-cell overrides.correction: "deferred" requires block-wide correction: "per-block" or "deferred"; falling back to "per-char" for cell ${index}`,
         );
         mountOpts.correction = "per-char";
       }
@@ -706,14 +749,35 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return;
     }
     perBlockTriggered = true;
-    // Walk every target that actually opted into deferred correction.
-    // Non-deferred guided cells (per-cell `overrides.correction`
-    // pointing to per-stroke / per-char, or show-mode cells without
-    // a writer) and non-deferred annotations have no buffered
-    // captures, and calling check() on them would log noise per entry.
+    if (opts.correction === "deferred") {
+      // Block-level deferred: hold the burst back for an external
+      // Block.check() call. The page-wide coordinator (per-page)
+      // listens for this signal to know when this block is "ready"
+      // and waits for every block before firing them all at once.
+      opts.onBlockCaptured?.();
+      return;
+    }
+    runPerBlockBurst();
+  }
+
+  /**
+   * Walk every entry that actually opted into deferred correction and
+   * fire `check()` on each so they all commit in the same burst.
+   * Non-deferred guided cells (per-cell `overrides.correction`
+   * pointing to per-stroke / per-char, or show-mode cells without
+   * a writer) and non-deferred annotations have no buffered
+   * captures — skipping them avoids per-entry "no buffered captures"
+   * log noise.
+   */
+  function runPerBlockBurst(): void {
     for (const s of cellStates) {
       if (s.usesDeferredCorrection) {
+        // Guided cells use Char.check(); free cells use the
+        // FreeCellHandle.check() on their freeHandle. Either is a
+        // no-op when there's nothing buffered, so we can safely
+        // fire whichever is present without branching on kind.
         s.charInstance?.check();
+        s.freeHandle?.check();
       }
     }
     for (const a of annotationStates) {
@@ -785,6 +849,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return state;
     }
 
+    // Free write cells participate in block-wide deferral too. Without
+    // this, `correction: "per-block"` or `"deferred"` would still let
+    // free write cells settle mid-block and fire onCellComplete
+    // immediately — breaking the "no per-cell verdict until burst"
+    // contract for any block that mixes guided + free cells.
+    const freeCellDeferred =
+      opts.correction === "per-block" || opts.correction === "deferred";
     const handle = createFreeCell({
       expected: cell.expected,
       surfaces: [{ parent: wrapperEl, width: rect.w, height: rect.h }],
@@ -798,6 +869,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
       ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
       ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+      ...(freeCellDeferred
+        ? {
+            deferred: true,
+            onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.cell(index)),
+          }
+        : {}),
       onCellComplete: (chars: CharResult[]) => {
         if (state.committed) {
           return;
@@ -814,6 +891,10 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       committed: false,
       freeHandle: handle,
     };
+    if (freeCellDeferred) {
+      perBlockPending.add(perBlockKey.cell(index));
+      state.usesDeferredCorrection = true;
+    }
     return state;
   }
 
@@ -987,13 +1068,14 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     }
 
     // Annotation participates in block-wide deferred correction the
-    // same way guided cells do: when block-wide `correction` is
-    // "per-block", the FreeCell holds off its visible commit (no
-    // matched / failed color, no onCellComplete) and instead fires
-    // onCellCaptured. The per-block coordinator then triggers all
-    // commits in one burst via FreeCell.check() once every pending
-    // entry has fired.
-    const annotationDeferred = opts.correction === "per-block";
+    // same way guided / free write cells do: when block-wide
+    // `correction` is "per-block" OR "deferred" (page-driven), the
+    // FreeCell holds off its visible commit (no matched / failed
+    // color, no onCellComplete) and instead fires onCellCaptured.
+    // The block coordinator then triggers all commits in one burst
+    // via FreeCell.check() once every pending entry has fired.
+    const annotationDeferred =
+      opts.correction === "per-block" || opts.correction === "deferred";
     const state: PerAnnotationState = {
       index,
       annotation,
@@ -1094,6 +1176,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     opts.onBlockComplete?.(buildBlockResult());
   }
 
+  // After every cell + annotation has been placed, the block is in
+  // `correction: "deferred"` AND nothing actually opted into deferred
+  // (all show-mode cells, free-write cells without writers, every
+  // guided cell overridden back to per-stroke / per-char) — there's
+  // no captured signal coming for an external coordinator to wait on.
+  // Fire onBlockCaptured immediately so a higher-level coordinator
+  // (page-wide per-page) can drain its pending set, otherwise the
+  // page would never progress past such a block.
+  if (opts.correction === "deferred" && perBlockPending.size === 0) {
+    queueMicrotask(() => {
+      if (destroyed || perBlockTriggered) {
+        return;
+      }
+      perBlockTriggered = true;
+      opts.onBlockCaptured?.();
+    });
+  }
+
   return {
     el: wrapper,
     reset(): void {
@@ -1132,6 +1232,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         } else if (state.freeHandle) {
           state.freeHandle.reset();
+          if (state.usesDeferredCorrection) {
+            // Free write cells also participate in the deferred
+            // coordinator (added at create-time). Mirror the
+            // guided-cell re-arm so a subsequent capture from
+            // another entry can't drain perBlockPending early.
+            perBlockPending.add(perBlockKey.cell(state.index));
+          }
         } else if (state.cell.kind === "free" && state.cell.mode === "show") {
           queueMicrotask(() => {
             if (destroyed) {
@@ -1163,6 +1270,20 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
             commitShowAnnotation(state);
           });
         }
+      }
+      // Mirror the create-time vacuous-captured signal: if there are
+      // no deferred entries to wait on, fire onBlockCaptured again so
+      // a higher-level (page-wide) coordinator can drain its pending
+      // set after a Block.reset() too. Without this, the page-level
+      // perPagePending key for this segment would never go away.
+      if (opts.correction === "deferred" && perBlockPending.size === 0) {
+        queueMicrotask(() => {
+          if (destroyed || perBlockTriggered) {
+            return;
+          }
+          perBlockTriggered = true;
+          opts.onBlockCaptured?.();
+        });
       }
     },
     undo(): {
@@ -1202,6 +1323,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         } else if (state.freeHandle) {
           state.freeHandle.undo();
+          if (state.usesDeferredCorrection) {
+            // Free write cells participate in deferred too — same
+            // re-arm as the guided-cell branch above.
+            perBlockPending.add(perBlockKey.cell(target.index));
+            perBlockTriggered = false;
+          }
         }
         // blank / show-mode cells have nothing to undo (they don't
         // accept strokes, so they should never have been the
@@ -1225,6 +1352,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           }
         }
       }
+      // Mirror the create-time / reset-time vacuous-captured signal:
+      // if the block is in deferred mode AND nothing is pending now
+      // (the undone entry wasn't deferred, or was the only deferred
+      // entry that captured and is now re-armed — wait, that path
+      // re-adds itself; the case we cover here is "all entries are
+      // non-deferred"), fire onBlockCaptured immediately so a
+      // page-level coordinator can drain its segment key. Without
+      // this, undoing a per-char/per-stroke cell inside an otherwise
+      // deferred-mode block leaves the page-pending key stuck.
+      if (opts.correction === "deferred" && perBlockPending.size === 0) {
+        queueMicrotask(() => {
+          if (destroyed) {
+            return;
+          }
+          perBlockTriggered = true;
+          opts.onBlockCaptured?.();
+        });
+      }
       return {
         kind: target.kind,
         index: target.index,
@@ -1233,6 +1378,27 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     },
     result(): BlockResult {
       return buildBlockResult();
+    },
+    check(): void {
+      if (destroyed || opts.correction !== "deferred") {
+        // No-op outside `correction: "deferred"` — there's nothing
+        // held back to burst-check. Non-deferred blocks already
+        // finalize through their own coordinator path (per-block) or
+        // through hanzi-writer's quiz directly (per-stroke / per-char).
+        return;
+      }
+      if (perBlockPending.size > 0) {
+        // Refuse to commit a partial block — the caller invoked us
+        // before every entry captured. Without this guard
+        // runPerBlockBurst would skip pending entries (their
+        // deferredCaptures are still null) but commit the rest, which
+        // is a torn block state.
+        opts.logger?.(
+          `block.check(): ${perBlockPending.size} entr${perBlockPending.size === 1 ? "y" : "ies"} still pending; refusing partial commit`,
+        );
+        return;
+      }
+      runPerBlockBurst();
     },
     destroy(): void {
       destroyed = true;

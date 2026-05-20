@@ -383,6 +383,144 @@ describe("page.create — mount layout", () => {
   });
 });
 
+describe("page.create — correction: per-page deferral", () => {
+  it("holds onCellComplete / onBlockComplete / onPageComplete until every block is captured", async () => {
+    // Two single-cell user blocks under page-wide `per-page`. Drawing
+    // only block 0 must produce ZERO callbacks (deferred at every
+    // layer); drawing block 1 then drains the page coordinator, which
+    // fires Block.check() on both blocks → cells commit → block
+    // commits → page commits, all in one burst.
+    const cellComplete = vi.fn();
+    const blockComplete = vi.fn();
+    const pageComplete = vi.fn();
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      blocks: [
+        { spec: { cells: [{ kind: "guided", char: "あ", mode: "write" }] } },
+        { spec: { cells: [{ kind: "guided", char: "い", mode: "write" }] } },
+      ],
+      cellSize: 80,
+      columns: 1,
+      cellsPerColumn: 4,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-page",
+      onCellComplete: cellComplete,
+      onBlockComplete: blockComplete,
+      onPageComplete: pageComplete,
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Capture block 0 only — every callback must stay silent.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await new Promise((r) => setTimeout(r, 100));
+    expect(cellComplete).not.toHaveBeenCalled();
+    expect(blockComplete).not.toHaveBeenCalled();
+    expect(pageComplete).not.toHaveBeenCalled();
+
+    // Capture block 1 — page coordinator fires every block's check();
+    // cells commit, blocks commit, page commits.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(cellComplete).toHaveBeenCalledTimes(2);
+    expect(blockComplete).toHaveBeenCalledTimes(2);
+    expect(pageComplete).toHaveBeenCalledTimes(1);
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("defers a page-spanning write-mode annotation alongside the inner cells", async () => {
+    // Single block, two guided cells + a write-mode annotation that
+    // spans both cells. Under per-page the annotation must stay silent
+    // until both inner cells AND its own captures are in; then the
+    // page-wide burst commits the annotation too.
+    const cellCompletes: Array<{ blockIndex: number; cellIndex: number; kind: string }> = [];
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      blocks: [
+        {
+          spec: {
+            cells: [
+              { kind: "guided", char: "学", mode: "write" },
+              { kind: "guided", char: "校", mode: "write" },
+            ],
+            annotations: [
+              {
+                cellRange: [0, 1],
+                expected: "がっこう",
+                mode: "write",
+              },
+            ],
+          },
+        },
+      ],
+      cellSize: 80,
+      columns: 1,
+      cellsPerColumn: 4,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-page",
+      onCellComplete: (blockIndex, cellIndex, kind) => {
+        cellCompletes.push({ blockIndex, cellIndex, kind });
+      },
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Draw both kanji cells — annotation hasn't been touched yet, so
+    // perPagePending still has the annotation key. Nothing should
+    // fire.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 150));
+    expect(cellCompletes).toEqual([]);
+
+    // Draw the annotation. The annotation surface is the strip — find
+    // it by looking for the SVG that's NOT one of the writer SVGs.
+    // For this test we don't need to match perfectly; we just need
+    // strokes that cover enough of がっこう's stroke count to settle.
+    // Easier path: scan all SVGs and dispatch on each strip.
+    const allSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    );
+    const stripSvgs = allSvgs.filter(
+      (s) => s.querySelector(":scope > defs") === null,
+    );
+    // Draw 10 quick strokes to drive がっこう's matcher to settle
+    // (stubLoader makes every char 1 stroke, so 4 chars = 4 strokes —
+    // give it a few extras to be safe).
+    for (let i = 0; i < 10; i++) {
+      strokeAt(
+        stripSvgs[stripSvgs.length - 1] ?? writerSvgs[0],
+        [[10 + i, 5], [20 + i, 5]],
+        100 + i,
+      );
+    }
+    await new Promise((r) => setTimeout(r, 300));
+
+    // After the page-wide burst, the inner cells AND the annotation
+    // should have committed. We don't pin exact ordering here — the
+    // assertion is that every callback fired (and on the right
+    // kinds).
+    const kinds = cellCompletes.map((c) => c.kind).toSorted();
+    expect(kinds).toContain("cell");
+    expect(kinds).toContain("annotation");
+
+    handle.destroy();
+    parent.remove();
+  });
+});
+
 function flushMicrotasks(): Promise<void> {
   // Two awaits to let the chained `queueMicrotask`s + the surrounding
   // promise resolutions land before assertions.
