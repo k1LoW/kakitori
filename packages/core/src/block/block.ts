@@ -50,7 +50,6 @@ export interface BlockCreateOptions {
   // Free-cell drawing customization (forwarded as-is to createFreeCell).
   drawingColor?: string;
   matchedColor?: string;
-  failedColor?: string;
   drawingWidth?: number;
   /**
    * Drawing width for annotation cells (ふりがな等). Defaults to whatever
@@ -920,7 +919,6 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-      ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
       drawingWidth: resolvedDrawingWidth,
       ...(opts.loaders ? { loaders: opts.loaders } : {}),
       ...(opts.logger ? { logger: opts.logger } : {}),
@@ -1146,7 +1144,6 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         resultSource: "annotation",
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-        ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
         drawingWidth: opts.annotationDrawingWidth ?? resolvedDrawingWidth,
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),

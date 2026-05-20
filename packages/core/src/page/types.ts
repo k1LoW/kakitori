@@ -65,7 +65,6 @@ export interface PageCreateOptions {
   /** Free-cell drawing customization forwarded to every block. */
   drawingColor?: string;
   matchedColor?: string;
-  failedColor?: string;
   drawingWidth?: number;
   annotationDrawingWidth?: number;
   cellBorderWidth?: number;

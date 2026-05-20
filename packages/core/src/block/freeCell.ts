@@ -19,7 +19,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 const DEFAULT_DRAWING_COLOR = "#222";
 const DEFAULT_MATCHED_COLOR = "#0a7d2c";
-const DEFAULT_FAILED_COLOR = "#c4321a";
 const DEFAULT_DRAWING_WIDTH = 6;
 const DEFAULT_SEGMENT_BOX_COLOR = "rgba(0, 100, 200, 0.7)";
 /**
@@ -61,7 +60,6 @@ export interface FreeCellCreateOptions {
   surfaces: ReadonlyArray<FreeCellSurface>;
   drawingColor?: string;
   matchedColor?: string;
-  failedColor?: string;
   drawingWidth?: number;
   loaders?: BlockLoaders;
   /**
@@ -218,7 +216,6 @@ export function createFreeCell(
   }
   const drawingColor = opts.drawingColor ?? DEFAULT_DRAWING_COLOR;
   const matchedColor = opts.matchedColor ?? DEFAULT_MATCHED_COLOR;
-  const failedColor = opts.failedColor ?? DEFAULT_FAILED_COLOR;
   const strokeWidth = opts.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
   const segmentBoxColor = opts.segmentBoxColor ?? DEFAULT_SEGMENT_BOX_COLOR;
   const showSegmentBoxes =
@@ -764,8 +761,17 @@ export function createFreeCell(
       opts.onCellCaptured?.(chars);
       return;
     }
-    paintAll(failedColor);
-    opts.onCellComplete?.(chars);
+    // Non-deferred NG retry (full-cell granularity). Mirrors the
+    // deferred-mode check()-with-failed path and per-char's char-level
+    // retry: a rejected attempt wipes every stroke across every
+    // surface and resets matcher bookkeeping so the user can rewrite
+    // the whole string in place. `onCellComplete` is held back until
+    // a future attempt commits a match; `onCellRejected` fires so
+    // hosts that care (e.g. score tracking) can observe the rejected
+    // attempt.
+    log?.(`commitFail (non-deferred): wipe + re-arm for retry`);
+    clearAll();
+    opts.onCellRejected?.();
   }
 
   /**
