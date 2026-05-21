@@ -315,4 +315,92 @@ export function setupChar(root: HTMLElement): void {
     clearResult();
     log("reset");
   });
+
+  setupCharExamples(root);
+}
+
+type ExampleKey = "normal" | "no-grid" | "per-char" | "retain";
+
+interface ExampleConfig {
+  key: ExampleKey;
+  mountOpts: Parameters<Char["mount"]>[1];
+}
+
+const EXAMPLE_CHARACTER = "学";
+const EXAMPLE_SIZE = 160;
+// `drawingWidth` is now in display pixels (size-independent), so the
+// same value gives the same on-screen pen thickness at every size.
+const EXAMPLE_DRAWING_WIDTH = 6;
+
+const EXAMPLES: ExampleConfig[] = [
+  {
+    key: "normal",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      showGrid: true,
+      drawingWidth: EXAMPLE_DRAWING_WIDTH,
+    },
+  },
+  {
+    key: "no-grid",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      showGrid: false,
+      drawingWidth: EXAMPLE_DRAWING_WIDTH,
+    },
+  },
+  {
+    key: "per-char",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      showGrid: true,
+      correction: "per-char",
+      drawingWidth: EXAMPLE_DRAWING_WIDTH,
+    },
+  },
+  {
+    key: "retain",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      showGrid: true,
+      retainStrokes: true,
+      showAcceptedStroke: false,
+      drawingWidth: EXAMPLE_DRAWING_WIDTH,
+    },
+  },
+];
+
+function setupCharExamples(root: HTMLElement): void {
+  const instances = new Map<ExampleKey, Char>();
+
+  for (const { key, mountOpts } of EXAMPLES) {
+    const target = root.querySelector<HTMLElement>(`#char-example-${key}`);
+    if (!target) {
+      continue;
+    }
+    const c = char.create(EXAMPLE_CHARACTER, {
+      charDataLoader: cachedCharDataLoader,
+    });
+    c.mount(target, mountOpts);
+    instances.set(key, c);
+  }
+
+  root.querySelectorAll<HTMLButtonElement>("[data-example]").forEach((btn) => {
+    const key = btn.dataset.example as ExampleKey | undefined;
+    const action = btn.dataset.action;
+    if (!key || !action) {
+      return;
+    }
+    btn.addEventListener("click", () => {
+      const c = instances.get(key);
+      if (!c) {
+        return;
+      }
+      if (action === "start") {
+        c.start();
+      } else if (action === "reset") {
+        c.reset();
+      }
+    });
+  });
 }

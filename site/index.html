@@ -130,6 +130,31 @@
         background: #fafafa;
         border-radius: 4px;
       }
+      .char-example {
+        margin-bottom: 2rem;
+      }
+      .char-example h4 {
+        font-size: 1rem;
+        margin: 0 0 0.25rem;
+      }
+      .char-example p {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.5rem;
+      }
+      .char-example-controls {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+      .char-example-writer {
+        display: inline-block;
+        border: 1px solid #bbb;
+        background: #fff;
+        border-radius: 4px;
+        min-width: 160px;
+        min-height: 160px;
+      }
       #char-result {
         margin-top: 0.5rem;
         font-size: 0.85rem;
@@ -498,6 +523,76 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       </div>
 
       <div id="char-gallery"></div>
+
+      <h3>Examples</h3>
+      <p>
+        Four common mount configurations. Each example has its own writer instance —
+        Start re-arms a fresh practice session, Reset clears the canvas back to the outline.
+      </p>
+
+      <div class="char-example">
+        <h4>1. Normal</h4>
+        <p>Default mount: cross-grid on, hanzi-writer paints each accepted stroke.</p>
+        <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showGrid: true, drawingWidth: 6 });
+c.start();</pre>
+        <div class="char-example-controls">
+          <button data-example="normal" data-action="start">Start</button>
+          <button data-example="normal" data-action="reset">Reset</button>
+        </div>
+        <div id="char-example-normal" class="char-example-writer"></div>
+      </div>
+
+      <div class="char-example">
+        <h4>2. No grid</h4>
+        <p>Same configuration as above, but the cross-grid is suppressed for a cleaner cell background.</p>
+        <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showGrid: false, drawingWidth: 6 });
+c.start();</pre>
+        <div class="char-example-controls">
+          <button data-example="no-grid" data-action="start">Start</button>
+          <button data-example="no-grid" data-action="reset">Reset</button>
+        </div>
+        <div id="char-example-no-grid" class="char-example-writer"></div>
+      </div>
+
+      <div class="char-example">
+        <h4>3. Per-char correction</h4>
+        <p>
+          User writes every stroke freely without per-stroke rejection. Correction
+          runs once all strokes are captured; NG attempts wipe and re-arm in place.
+        </p>
+        <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showGrid: true, correction: "per-char", drawingWidth: 6 });
+c.start();</pre>
+        <div class="char-example-controls">
+          <button data-example="per-char" data-action="start">Start</button>
+          <button data-example="per-char" data-action="reset">Reset</button>
+        </div>
+        <div id="char-example-per-char" class="char-example-writer"></div>
+      </div>
+
+      <div class="char-example">
+        <h4>4. Retain strokes, hide accepted stroke</h4>
+        <p>
+          Paper-like UX — the user's own ink stays on screen after each accepted stroke,
+          and hanzi-writer's official gray stroke is suppressed.
+        </p>
+        <pre data-lang="ts">const c = char.create("学");
+c.mount(target, {
+  size: 160,
+  showGrid: true,
+  retainStrokes: true,
+  showAcceptedStroke: false,
+  drawingWidth: 6,
+});
+c.start();</pre>
+        <div class="char-example-controls">
+          <button data-example="retain" data-action="start">Start</button>
+          <button data-example="retain" data-action="reset">Reset</button>
+        </div>
+        <div id="char-example-retain" class="char-example-writer"></div>
+      </div>
 
       <h3>CharResult</h3>
       <p>
