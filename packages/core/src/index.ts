@@ -2,6 +2,7 @@ export { char, type Char } from "./char.js";
 export {
   DEFAULT_SIZE,
   DEFAULT_PADDING,
+  DEFAULT_DRAWING_WIDTH,
   HANZI_PRESCALED_SIZE,
   HANZI_Y_MAX,
   HANZI_Y_MIN,

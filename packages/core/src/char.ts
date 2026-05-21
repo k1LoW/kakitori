@@ -49,6 +49,33 @@ const DEFAULT_GRID_WIDTH = 2;
 // `Stroke.getAverageDistance` without re-running the matcher.
 const HW_AVERAGE_DISTANCE_THRESHOLD = 350;
 
+/**
+ * Convert `MountOptions.drawingWidth` (display pixels) into the
+ * internal-coord value hanzi-writer expects. hanzi-writer renders
+ * inside the inner box (`innerSize = size - 2 * padding`) and applies
+ * a `HANZI_PRESCALED_SIZE / innerSize` scale to the `<g>` carrying
+ * the drawn ink, so on-screen pen thickness ends up as
+ * `internalWidth * innerSize / HANZI_PRESCALED_SIZE`. Multiplying by
+ * the inverse maps a display-px value to the internal width that
+ * lands at exactly that many pixels.
+ *
+ * Pure helper so the conversion can be unit-tested independently of
+ * a real `mount()` call. Falls back to `DEFAULT_DRAWING_WIDTH` when
+ * the public option is left unset; degenerate sizes (innerSize <= 0)
+ * pass the display value through unchanged to avoid divide-by-zero.
+ */
+export function displayPxToHanziWriterDrawingWidth(
+  drawingWidth: number | undefined,
+  size: number,
+  padding: number,
+): number {
+  const displayPxWidth = drawingWidth ?? DEFAULT_DRAWING_WIDTH;
+  const innerSize = size - 2 * padding;
+  return innerSize > 0
+    ? (displayPxWidth * HANZI_PRESCALED_SIZE) / innerSize
+    : displayPxWidth;
+}
+
 /** Convert hanzi-writer's per-stroke average distance into a similarity in [0, 1]. */
 function computeSimilarity(
   stroke: { getAverageDistance(points: Pt[]): number } | undefined,
@@ -224,8 +251,9 @@ export function computeRetainedStrokeAttrs(
   // retained polyline is drawn directly in the overlay SVG whose
   // viewBox is `0..size`, so the same display-px value applies
   // verbatim — no scaling needed for the on-screen thickness to match
-  // the live pen.
-  void size;
+  // the live pen. `padding` is kept on the signature for API
+  // compatibility with the mount path but no longer drives the
+  // stroke-width calculation under display-px semantics.
   void padding;
   const strokeWidth =
     options.retainedStrokeWidth ??
@@ -2272,20 +2300,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // hanzi-writer's own `drawingWidth` is interpreted inside its
     // internal coord system (HANZI_PRESCALED_SIZE) and applied
     // through the `<g>` scale, so the on-screen thickness ends up
-    // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`. Always
-    // convert (using the documented default when none was passed)
-    // so the on-screen pen lands at exactly `drawingWidth` display
-    // pixels regardless of size — falling through to hanzi-writer's
-    // internal default would make the pen thin out with smaller
-    // sizes, contradicting the display-px contract.
-    {
-      const displayPxWidth = mountOpts.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
-      const innerSize = size - 2 * padding;
-      hwOptions.drawingWidth =
-        innerSize > 0
-          ? (displayPxWidth * HANZI_PRESCALED_SIZE) / innerSize
-          : displayPxWidth;
-    }
+    // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`.
+    // {@link displayPxToHanziWriterDrawingWidth} converts the public
+    // display-px value (falling back to `DEFAULT_DRAWING_WIDTH`) into
+    // the internal-coord value hanzi-writer expects, so the on-screen
+    // pen lands at exactly `drawingWidth` display pixels regardless
+    // of size — falling through to hanzi-writer's internal default
+    // would make the pen thin out with smaller sizes, contradicting
+    // the display-px contract.
+    hwOptions.drawingWidth = displayPxToHanziWriterDrawingWidth(
+      mountOpts.drawingWidth,
+      size,
+      padding,
+    );
     if (mountOpts.highlightColor != null) {
       hwOptions.highlightColor = mountOpts.highlightColor;
     }

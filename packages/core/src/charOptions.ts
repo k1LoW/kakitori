@@ -71,6 +71,14 @@ export interface MountOptions {
   drawingWidth?: number;
   highlightColor?: string;
   // Grid / character visibility
+  /**
+   * Whether to render the cross-grid inside the cell. Default
+   * `true`, aligned with `BlockCreateOptions.showGrid` and
+   * `PageCreateOptions.showGrid` so dropping the option keeps
+   * char / block / page mounts visually consistent. Pass `false`
+   * for a clean cell background, or a {@link GridOptions} object
+   * to override the color / dash / width.
+   */
   showGrid?: boolean | GridOptions;
   showOutline?: boolean;
   showCharacter?: boolean;
