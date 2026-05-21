@@ -1,5 +1,16 @@
-import { char, defaultCharDataLoader, charSets } from "@k1low/kakitori";
-import type { Char, CharStrokeData, CharDataLoaderFn } from "@k1low/kakitori";
+import {
+  char,
+  defaultCharDataLoader,
+  defaultConfigLoader,
+  charSets,
+} from "@k1low/kakitori";
+import type {
+  CharacterConfig,
+  Char,
+  CharStrokeData,
+  CharDataLoaderFn,
+  ConfigLoaderFn,
+} from "@k1low/kakitori";
 
 const charDataCache = new Map<
   string,
@@ -20,6 +31,22 @@ const cachedCharDataLoader: CharDataLoaderFn = (ch, onLoad, onError) => {
     },
     onError,
   );
+};
+
+// Mirror `cachedCharDataLoader` for the config JSON so multiple Char
+// instances on the same character (e.g. the five examples, all on
+// "学") share a single unpkg fetch instead of issuing N redundant
+// network requests at setup time.
+const configCache = new Map<string, Promise<CharacterConfig | null>>();
+
+const cachedConfigLoader: ConfigLoaderFn = (ch) => {
+  const cached = configCache.get(ch);
+  if (cached) {
+    return cached;
+  }
+  const promise = defaultConfigLoader(ch);
+  configCache.set(ch, promise);
+  return promise;
 };
 
 const allChars = Object.values(charSets).flat();
@@ -176,6 +203,7 @@ export function setupChar(root: HTMLElement): void {
 
     c = char.create(character, {
       charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
       logger: log,
     });
     c.mount(writerEl, {
@@ -378,6 +406,7 @@ function setupCharExamples(root: HTMLElement): void {
 
     const c = char.create(EXAMPLE_CHARACTER, {
       charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
     });
     c.mount(target, {
       ...mountOpts,
