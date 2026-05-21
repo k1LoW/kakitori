@@ -358,17 +358,55 @@ const EXAMPLES: ExampleConfig[] = [
 ];
 
 function setupCharExamples(root: HTMLElement): void {
-  const instances = new Map<ExampleKey, Char>();
+  const resetters = new Map<ExampleKey, () => void>();
 
   for (const { key, mountOpts } of EXAMPLES) {
     const target = root.querySelector<HTMLElement>(`#char-example-${key}`);
     if (!target) {
       continue;
     }
+    const statusEl = root.querySelector<HTMLElement>(
+      `[data-status-for="${key}"]`,
+    );
+
+    let chips: HTMLElement[] = [];
+    function renderChips(strokeCount: number) {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.replaceChildren();
+      chips = [];
+      for (let i = 0; i < strokeCount; i++) {
+        const chip = document.createElement("span");
+        chip.className = "char-example-chip";
+        chip.textContent = String(i + 1);
+        statusEl.appendChild(chip);
+        chips.push(chip);
+      }
+    }
+    function clearChips() {
+      for (const chip of chips) {
+        chip.classList.remove("ok", "ng");
+      }
+    }
+    function markChip(strokeNum: number, kind: "ok" | "ng") {
+      const chip = chips[strokeNum];
+      if (!chip) {
+        return;
+      }
+      chip.classList.remove("ok", "ng");
+      chip.classList.add(kind);
+    }
+
     const c = char.create(EXAMPLE_CHARACTER, {
       charDataLoader: cachedCharDataLoader,
     });
-    c.mount(target, mountOpts);
+    c.mount(target, {
+      ...mountOpts,
+      onCorrectStroke: (data) => markChip(data.strokeNum, "ok"),
+      onMistake: (data) => markChip(data.strokeNum, "ng"),
+      onCharRejected: clearChips,
+    });
     // The code samples shipped with each example end in `c.start()`,
     // so kick the writer off automatically to match — the only
     // exposed control is Reset, which re-arms from scratch. Wait on
@@ -376,8 +414,31 @@ function setupCharExamples(root: HTMLElement): void {
     // before the quiz arms, otherwise start() races against the
     // initial render and leaves the cell showing the static character
     // template instead of quiz mode.
-    void c.ready().then(() => c.start());
-    instances.set(key, c);
+    void c.ready().then(() => {
+      // `ready()` only awaits config load; hanzi-writer's char-data
+      // fetch (which feeds `getLogicalStrokeCount`) runs in parallel
+      // and finishes a tick or two later. Poll briefly until the
+      // stroke count materializes so the chip row matches the real
+      // count instead of rendering 0 chips against a not-yet-parsed
+      // character.
+      const tryRender = (remaining: number) => {
+        const count = c.getLogicalStrokeCount();
+        if (count > 0) {
+          renderChips(count);
+          return;
+        }
+        if (remaining > 0) {
+          setTimeout(() => tryRender(remaining - 1), 30);
+        }
+      };
+      tryRender(20);
+      c.start();
+    });
+    resetters.set(key, () => {
+      clearChips();
+      c.reset();
+      c.start();
+    });
   }
 
   root.querySelectorAll<HTMLButtonElement>("[data-example]").forEach((btn) => {
@@ -386,14 +447,10 @@ function setupCharExamples(root: HTMLElement): void {
       return;
     }
     btn.addEventListener("click", () => {
-      const c = instances.get(key);
-      if (!c) {
-        return;
-      }
-      // Reset clears the canvas; re-start so the user can immediately
-      // write again without having to hunt for a separate Start.
-      c.reset();
-      c.start();
+      // Reset clears the canvas + chip state; re-start so the user
+      // can immediately write again without having to hunt for a
+      // separate Start.
+      resetters.get(key)?.();
     });
   });
 }
