@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.15.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.14.0...packages/core/v0.15.0) - 2026-05-21
+### Breaking Changes 🛠
+- feat(core)!: drawingWidth in display pixels + site char examples by @k1LoW in https://github.com/k1LoW/kakitori/pull/88
+### New Features 🚀
+- feat(data): add stroke configs for dakuon and handakuon kana by @k1LoW in https://github.com/k1LoW/kakitori/pull/90
+### Dependency Updates ⬆️
+- chore(deps): bump ws from 8.20.0 to 8.20.1 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/87
+- chore(deps-dev): bump turbo from 2.5.4 to 2.9.14 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/86
+
 ## [v0.14.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.13.2...packages/core/v0.14.0) - 2026-05-21
 ### Breaking Changes 🛠
 - refactor(core)!: replace HANZI_COORD_SIZE (900) with the actual hanzi-writer canvas dims by @k1LoW in https://github.com/k1LoW/kakitori/pull/77
