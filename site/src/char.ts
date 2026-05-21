@@ -382,13 +382,16 @@ function setupCharExamples(root: HTMLElement): void {
       charDataLoader: cachedCharDataLoader,
     });
     c.mount(target, mountOpts);
+    // The code samples shipped with each example end in `c.start()`,
+    // so kick the writer off automatically to match — the only
+    // exposed control is Reset, which re-arms from scratch.
+    c.start();
     instances.set(key, c);
   }
 
   root.querySelectorAll<HTMLButtonElement>("[data-example]").forEach((btn) => {
     const key = btn.dataset.example as ExampleKey | undefined;
-    const action = btn.dataset.action;
-    if (!key || !action) {
+    if (!key || btn.dataset.action !== "reset") {
       return;
     }
     btn.addEventListener("click", () => {
@@ -396,11 +399,10 @@ function setupCharExamples(root: HTMLElement): void {
       if (!c) {
         return;
       }
-      if (action === "start") {
-        c.start();
-      } else if (action === "reset") {
-        c.reset();
-      }
+      // Reset clears the canvas; re-start so the user can immediately
+      // write again without having to hunt for a separate Start.
+      c.reset();
+      c.start();
     });
   });
 }
