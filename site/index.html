@@ -242,7 +242,10 @@
         display: inline-block;
         background: #fff;
         border-radius: 4px;
-        min-height: 160px;
+        /* Kill the inherited line-height so the host hugs the
+           block's rendered height instead of leaving a half-line
+           of slack at the bottom. */
+        line-height: 0;
       }
       .block-example-status {
         display: flex;
