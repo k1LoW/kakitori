@@ -352,7 +352,6 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-        ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
         ...(opts.drawingWidth !== undefined ? { drawingWidth: opts.drawingWidth } : {}),
         ...(opts.cellBorderWidth !== undefined ? { cellBorderWidth: opts.cellBorderWidth } : {}),
         ...(opts.cellBorderColor ? { cellBorderColor: opts.cellBorderColor } : {}),
@@ -361,6 +360,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
+        ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
         // effectiveCorrection is resolved once in createPage — for
         // "per-page" it maps to block-level "deferred", everything
         // else passes through. Either way we forward the same value
@@ -400,6 +400,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         const key = perPageKey(state.blockIndex, segArrIndex);
         perPagePending.add(key);
         blockOpts.onBlockCaptured = () => onPerPageBlockCaptured(key);
+        blockOpts.onBlockRejected = () => onPerPageBlockRejected(key);
       }
       const b = block.create(slotEl, blockOpts);
       state.segmentBlocks.push(b);
@@ -504,15 +505,16 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         resultSource: "annotation",
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-        ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
         drawingWidth: opts.annotationDrawingWidth ?? opts.drawingWidth ?? 4,
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
         ...(annotationDeferred
           ? {
               deferred: true,
               onCellCaptured: () => onPerPageBlockCaptured(pageAnnotKey!),
+              onCellRejected: () => onPerPageBlockRejected(pageAnnotKey!),
             }
           : {}),
         onCellComplete: (chars) => {
@@ -645,11 +647,38 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       return;
     }
     perPagePending.delete(key);
-    if (perPagePending.size > 0 || perPageTriggered) {
+    if (perPagePending.size > 0) {
+      return;
+    }
+    if (perPageTriggered) {
+      // Retry round: a previous burst left this page triggered, then
+      // one or more NG blocks fired `onPerPageBlockRejected` which
+      // re-added them to `perPagePending`. We just emptied the
+      // pending set again — fire another burst so the NG entries
+      // inside those blocks get re-checked.
+      runPerPageBurst();
       return;
     }
     perPageTriggered = true;
     runPerPageBurst();
+  }
+
+  /**
+   * Per-page coordinator: a block whose burst landed NG entries just
+   * told us it re-armed those cells. Reverse the block's "captured"
+   * bookkeeping (re-add to `perPagePending`, clear `perPageTriggered`)
+   * so the next round of in-block re-captures triggers another page
+   * burst. The page stays un-completed (`maybeCommitPage`'s
+   * `pageCompleted` guard combined with the per-block `committed`
+   * checks holds it back), so this is purely about resuming pending
+   * bookkeeping.
+   */
+  function onPerPageBlockRejected(key: string): void {
+    if (destroyed) {
+      return;
+    }
+    perPagePending.add(key);
+    perPageTriggered = false;
   }
 
   function runPerPageBurst(): void {

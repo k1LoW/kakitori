@@ -141,6 +141,58 @@ export interface MountOptions {
   onCharCaptured?: (
     captures: ReadonlyArray<ReadonlyArray<TimedPoint>>,
   ) => void;
+  /**
+   * Cap on how many in-place retries the char will accept on NG
+   * verdicts under `correction: "per-char"` / `"deferred"` before
+   * giving up and firing {@link onComplete} with the accumulated
+   * mistake counters. Semantics:
+   *
+   * - `undefined` (default): unlimited retries — the char keeps
+   *   re-arming until the user lands an OK attempt.
+   * - `0`: no retries — the first NG attempt commits as failed
+   *   (`onComplete` fires immediately, `onCharRejected` never
+   *   fires).
+   * - `N`: up to `N` retries allowed; the `(N + 1)`-th NG attempt
+   *   commits as failed.
+   *
+   * Mistake counters (`totalMistakes`, `strokeEndingMistakes`)
+   * accumulate across every attempt, so the final `onComplete`
+   * carries the cumulative count. The per-stroke verdicts in
+   * {@link Char.result} are NOT cumulative — each retry wipes the
+   * previous attempt's verdicts so the final verdict array
+   * reflects only the attempt that ultimately settled (OK on a
+   * successful retry, or the final NG on an exhausted budget).
+   * This keeps `perStroke` aligned with the displayed ink: a
+   * half-good prior attempt won't leave stale OK strokes hanging
+   * around in the result.
+   */
+  maxRetries?: number;
+  /**
+   * Fires every time the char wipes itself for an NG retry. Surfaces
+   * the rejection from both retry paths:
+   *
+   * 1. `correction: "per-char"`: a finalize attempt landed NG, the
+   *    retained ink was wiped, and the capture buffer was reset for
+   *    a fresh attempt.
+   * 2. `correction: "deferred"`: a {@link Char.check} call from a
+   *    higher-level coordinator (block / page) landed NG; same wipe
+   *    + per-char cycle re-arm as path 1, plus the rejection is
+   *    propagated up so the coordinator can reverse its "captured"
+   *    pending bookkeeping.
+   *
+   * `data` mirrors the shape passed to {@link onComplete} so a host
+   * showing retry feedback can read the same counters: `totalMistakes`
+   * and `strokeEndingMistakes` accumulate across every NG attempt
+   * (matching per-stroke's `totalMistakes` rollup). `onComplete` is
+   * held back until a future attempt lands OK.
+   */
+  onCharRejected?: (data: {
+    character: string;
+    totalMistakes: number;
+    strokeEndingMistakes: number;
+    /** 1-indexed attempt count — `1` after the first NG, `2` after the second, etc. */
+    attempts: number;
+  }) => void;
   // Animation
   strokeAnimationSpeed?: number;
   delayBetweenStrokes?: number;
@@ -162,6 +214,17 @@ export interface MountOptions {
     character: string;
     totalMistakes: number;
     strokeEndingMistakes: number;
+    /**
+     * Whether the final attempt matched. Always `true` under
+     * `correction: "per-stroke"` (the user retries forever until the
+     * matcher accepts), and under `correction: "per-char"` /
+     * `"deferred"` when `maxRetries` is `undefined` (unlimited
+     * retries). Can be `false` when `maxRetries` is finite and the
+     * user exhausted every allowed retry without landing OK.
+     */
+    matched: boolean;
+    /** 1-indexed attempt count of the final attempt that triggered completion. */
+    attempts: number;
   }) => void;
   onClick?: (data: {
     character: string;

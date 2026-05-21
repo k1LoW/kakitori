@@ -19,7 +19,6 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 const DEFAULT_DRAWING_COLOR = "#222";
 const DEFAULT_MATCHED_COLOR = "#0a7d2c";
-const DEFAULT_FAILED_COLOR = "#c4321a";
 const DEFAULT_DRAWING_WIDTH = 6;
 const DEFAULT_SEGMENT_BOX_COLOR = "rgba(0, 100, 200, 0.7)";
 /**
@@ -61,7 +60,6 @@ export interface FreeCellCreateOptions {
   surfaces: ReadonlyArray<FreeCellSurface>;
   drawingColor?: string;
   matchedColor?: string;
-  failedColor?: string;
   drawingWidth?: number;
   loaders?: BlockLoaders;
   /**
@@ -128,6 +126,45 @@ export interface FreeCellCreateOptions {
    * actually commit; until then the cell stays visually neutral.
    */
   onCellCaptured?: (chars: CharResult[]) => void;
+  /**
+   * Fires whenever the cell wipes itself for an NG retry — the only
+   * actionable signal at the full-cell granularity. Triggered from
+   * two paths:
+   *
+   * 1. {@link deferred} freeCells: when {@link FreeCellHandle.check}
+   *    lands a failed verdict, the cell is wiped and `onCellRejected`
+   *    fires (mirroring `onCharRejected` on Char).
+   * 2. Non-deferred freeCells: when the candidate-matching loop
+   *    exhausts every candidate (`commitFail`), the cell is wiped
+   *    and `onCellRejected` fires in the same shape.
+   *
+   * In both paths the cell goes back to `status: "drawing"` so the
+   * user can rewrite the whole string in place. `onCellComplete` is
+   * held back until a future attempt commits a match.
+   *
+   * The rejected verdict's `chars` are passed through so hosts can
+   * observe per-character matched flags, candidate text, similarity,
+   * etc. even though `results()` has already been reset by the wipe.
+   */
+  onCellRejected?: (chars: CharResult[]) => void;
+  /**
+   * Cap on how many in-place retries the freeCell will accept on NG
+   * verdicts before giving up and firing {@link onCellComplete} with
+   * the rejected `chars`. Semantics mirror {@link MountOptions.maxRetries}:
+   *
+   * - `undefined` (default): unlimited retries.
+   * - `0`: no retries — the first failed verdict commits as failed
+   *   (`onCellComplete` fires immediately, `onCellRejected` never
+   *   fires).
+   * - `N`: up to `N` retries; the `(N + 1)`-th NG attempt commits as
+   *   failed.
+   *
+   * Applies to BOTH the deferred-mode failed `check()` path and the
+   * non-deferred `commitFail` path. Polylines and matcher
+   * bookkeeping reset on every retry, so the final committed
+   * `chars` reflect only the last attempt.
+   */
+  maxRetries?: number;
 }
 
 export interface FreeCellHandle {
@@ -143,9 +180,20 @@ export interface FreeCellHandle {
   /**
    * When the cell was mounted with `deferred: true` and has already
    * fired {@link FreeCellCreateOptions.onCellCaptured}, this commits
-   * the held-back verdict: paints the matched / failed color and
-   * fires `onCellComplete` with the same `chars` payload the
-   * captured callback delivered. No-op (logs) otherwise.
+   * the held-back verdict. Two paths depending on the captured
+   * verdict:
+   *
+   * - **Matched**: paints the matched color and fires
+   *   `onCellComplete` with the same `chars` payload the captured
+   *   callback delivered.
+   * - **Failed**: wipes every stroke across every surface, resets
+   *   the matcher bookkeeping (the cell goes back to
+   *   `status: "drawing"`), and fires `onCellRejected(chars)` so
+   *   hosts can observe the rejected attempt. `onCellComplete` is
+   *   held back until a future commit lands matched. This mirrors
+   *   `Char.check()` under `correction: "deferred"`.
+   *
+   * No-op (logs) when there's no deferred verdict to commit.
    */
   check(): void;
   /**
@@ -206,7 +254,6 @@ export function createFreeCell(
   }
   const drawingColor = opts.drawingColor ?? DEFAULT_DRAWING_COLOR;
   const matchedColor = opts.matchedColor ?? DEFAULT_MATCHED_COLOR;
-  const failedColor = opts.failedColor ?? DEFAULT_FAILED_COLOR;
   const strokeWidth = opts.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
   const segmentBoxColor = opts.segmentBoxColor ?? DEFAULT_SEGMENT_BOX_COLOR;
   const showSegmentBoxes =
@@ -261,6 +308,14 @@ export function createFreeCell(
   let lastMoveTime = 0;
   let checkQueue: Promise<void> = Promise.resolve();
   let sessionId = 0;
+  // Number of retries already consumed by NG attempts. Compared
+  // against `opts.maxRetries` to decide whether the next NG verdict
+  // should wipe and re-arm (`retries < maxRetries`) or commit as
+  // failed (`retries >= maxRetries`). Advances inside the retry
+  // path via `++retries` after `clearAll`; reset to 0 by
+  // `resetSession()` (the wrapper bound to public `reset` / `undo`)
+  // so an external clear restores the full retry budget.
+  let retries = 0;
   let segmentBoxEls: Array<SVGRectElement | SVGTextElement> = [];
   // Highest-similarity attempt seen across every match round in this session.
   // Used so commitFail() can surface the closest candidate / per-character
@@ -752,8 +807,20 @@ export function createFreeCell(
       opts.onCellCaptured?.(chars);
       return;
     }
-    paintAll(failedColor);
-    opts.onCellComplete?.(chars);
+    // Non-deferred path. With unlimited retries (`maxRetries`
+    // undefined) or budget remaining, wipe and re-arm. With the
+    // budget exhausted, commit the rejected verdict via
+    // `onCellComplete` so block / page commit chains can settle on
+    // a final NG outcome instead of stalling forever.
+    if (retriesExhausted()) {
+      log?.(`commitFail (non-deferred): retries exhausted, committing as failed`);
+      opts.onCellComplete?.(chars);
+      return;
+    }
+    log?.(`commitFail (non-deferred): wipe + re-arm for retry (retries=${retries + 1})`);
+    clearAll();
+    retries += 1;
+    opts.onCellRejected?.(chars);
   }
 
   /**
@@ -777,7 +844,25 @@ export function createFreeCell(
     const kind = deferredKind;
     deferredVerdict = null;
     deferredKind = null;
-    paintAll(kind === "matched" ? matchedColor : failedColor);
+    if (kind === "failed") {
+      // NG verdict. With retry budget remaining, wipe and re-arm
+      // (full-cell granularity); the block / page coordinator
+      // subscribes to `onCellRejected` to reverse its "captured"
+      // pending bookkeeping. With the budget exhausted, commit the
+      // rejected `chars` via `onCellComplete` so the burst can
+      // settle on a final NG outcome.
+      if (retriesExhausted()) {
+        log?.(`check(): retries exhausted, committing as failed`);
+        opts.onCellComplete?.(chars);
+        return;
+      }
+      log?.(`check(): NG → wipe + re-arm for retry (retries=${retries + 1})`);
+      clearAll();
+      retries += 1;
+      opts.onCellRejected?.(chars);
+      return;
+    }
+    paintAll(matchedColor);
     opts.onCellComplete?.(chars);
   }
 
@@ -863,10 +948,25 @@ export function createFreeCell(
     return pendingCharsForFirstCandidate();
   }
 
+  function retriesExhausted(): boolean {
+    const cap = opts.maxRetries;
+    return cap !== undefined && retries >= cap;
+  }
+
+  function resetSession(): void {
+    // External reset / undo. Wipes the cycle AND zeros the retry
+    // counter, so the user starts fresh and `maxRetries` budget
+    // resets too. The internal NG retry path calls `clearAll`
+    // directly without zeroing `retries` so the counter advances
+    // attempt-by-attempt.
+    clearAll();
+    retries = 0;
+  }
+
   return {
     els,
-    reset: clearAll,
-    undo: clearAll,
+    reset: resetSession,
+    undo: resetSession,
     check,
     results: snapshotResults,
     destroy(): void {

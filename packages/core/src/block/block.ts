@@ -50,7 +50,6 @@ export interface BlockCreateOptions {
   // Free-cell drawing customization (forwarded as-is to createFreeCell).
   drawingColor?: string;
   matchedColor?: string;
-  failedColor?: string;
   drawingWidth?: number;
   /**
    * Drawing width for annotation cells (ふりがな等). Defaults to whatever
@@ -135,6 +134,25 @@ export interface BlockCreateOptions {
    * (page-wide per-page).
    */
   onBlockCaptured?: () => void;
+  /**
+   * Fires when {@link correction} is `"deferred"` and a `Block.check()`
+   * burst landed at least one NG entry, so the block re-armed those
+   * cells for retry. Mirrors `onBlockCaptured` in reverse: a
+   * higher-level coordinator (page-wide per-page) listens for this
+   * to reverse its "this block is ready" bookkeeping (re-add to
+   * pending, reset triggered) so the next round of cell-captures
+   * inside the block trigger another page-level burst.
+   */
+  onBlockRejected?: () => void;
+  /**
+   * Block-wide cap on in-place retries for every writeable entry —
+   * guided cells (forwarded as `MountOptions.maxRetries`) and free
+   * cells / annotation free cells (forwarded as
+   * `FreeCellCreateOptions.maxRetries`). Same semantics as the
+   * per-cell options: `undefined` = unlimited, `0` = no retries,
+   * `N` = up to N retries. Per-cell `overrides` still win.
+   */
+  maxRetries?: number;
   /** Verbose lifecycle / matching trace shared by free cells and annotations. */
   logger?: FreeCellLogger;
   /**
@@ -619,6 +637,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       ...(opts.showAcceptedStroke !== undefined
         ? { showAcceptedStroke: opts.showAcceptedStroke }
         : {}),
+      ...(opts.maxRetries !== undefined
+        ? { maxRetries: opts.maxRetries }
+        : {}),
       // Per-cell `overrides.correction` (forwarded via
       // `pickMountOpts(overrides)` below) still wins over this
       // block-wide default.
@@ -680,6 +701,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         mountOpts.onCharCaptured = (captures) => {
           userOnCaptured?.(captures);
           onPerBlockEntryCaptured(perBlockKey.cell(index));
+        };
+        const userOnRejected = mountOpts.onCharRejected;
+        mountOpts.onCharRejected = (data) => {
+          userOnRejected?.(data);
+          onPerBlockEntryRejected(perBlockKey.cell(index));
         };
         state.usesDeferredCorrection = true;
       }
@@ -745,7 +771,21 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       markActive("annotation", Number(key.slice(6)));
     }
     perBlockPending.delete(key);
-    if (perBlockPending.size > 0 || perBlockTriggered) {
+    if (perBlockPending.size > 0) {
+      return;
+    }
+    if (perBlockTriggered) {
+      // Retry round: a previous burst left this block triggered, then
+      // one or more NG cells fired `onPerBlockEntryRejected` which
+      // re-added them to `perBlockPending`. We just emptied the
+      // pending set again — fire another burst (per-block) or signal
+      // the page coordinator again (deferred) so the NG cells get
+      // checked.
+      if (opts.correction === "deferred") {
+        opts.onBlockCaptured?.();
+        return;
+      }
+      runPerBlockBurst();
       return;
     }
     perBlockTriggered = true;
@@ -758,6 +798,35 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       return;
     }
     runPerBlockBurst();
+  }
+
+  /**
+   * Per-block coordinator: a deferred entry (guided char cell or
+   * annotation free cell) just told us its `check()` landed NG and
+   * re-armed itself for retry. Reverse the entry's "captured"
+   * bookkeeping: re-add it to `perBlockPending` so the next burst
+   * waits for it, and clear `perBlockTriggered` so the eventual
+   * empty-pending transition fires another burst. The block stays
+   * un-committed (this cell's `state.committed` was never set
+   * because `onComplete` is held back by char/free's retry path),
+   * so `maybeCommitBlock` correctly continues to no-op until the
+   * eventual OK round.
+   */
+  function onPerBlockEntryRejected(key: string): void {
+    if (destroyed) {
+      return;
+    }
+    const wasFirstRejection = perBlockPending.size === 0 && perBlockTriggered;
+    perBlockPending.add(key);
+    perBlockTriggered = false;
+    // Block-level deferred only: surface the rejection to the page
+    // coordinator on the FIRST rejection in this round so the page
+    // re-arms this block in its own pending set exactly once. Further
+    // rejections in the same round leave the page bookkeeping alone
+    // (the block is already back in pending).
+    if (wasFirstRejection && opts.correction === "deferred") {
+      opts.onBlockRejected?.();
+    }
   }
 
   /**
@@ -862,17 +931,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       label: `cell#${index}`,
       ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
       ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-      ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
       drawingWidth: resolvedDrawingWidth,
       ...(opts.loaders ? { loaders: opts.loaders } : {}),
       ...(opts.logger ? { logger: opts.logger } : {}),
       ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
       ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
       ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+      ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
       ...(freeCellDeferred
         ? {
             deferred: true,
             onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.cell(index)),
+            onCellRejected: () => onPerBlockEntryRejected(perBlockKey.cell(index)),
           }
         : {}),
       onCellComplete: (chars: CharResult[]) => {
@@ -1087,17 +1157,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         resultSource: "annotation",
         ...(opts.drawingColor ? { drawingColor: opts.drawingColor } : {}),
         ...(opts.matchedColor ? { matchedColor: opts.matchedColor } : {}),
-        ...(opts.failedColor ? { failedColor: opts.failedColor } : {}),
         drawingWidth: opts.annotationDrawingWidth ?? resolvedDrawingWidth,
         ...(opts.loaders ? { loaders: opts.loaders } : {}),
         ...(opts.logger ? { logger: opts.logger } : {}),
         ...(opts.showSegmentBoxes !== undefined ? { showSegmentBoxes: opts.showSegmentBoxes } : {}),
         ...(opts.segmentBoxColor ? { segmentBoxColor: opts.segmentBoxColor } : {}),
         ...(opts.freeCellLeniency !== undefined ? { leniency: opts.freeCellLeniency } : {}),
+        ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),
         ...(annotationDeferred
           ? {
               deferred: true,
               onCellCaptured: () => onPerBlockEntryCaptured(perBlockKey.annot(index)),
+              onCellRejected: () => onPerBlockEntryRejected(perBlockKey.annot(index)),
             }
           : {}),
         onCellComplete: (chars: CharResult[]) => {

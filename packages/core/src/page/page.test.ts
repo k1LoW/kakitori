@@ -4,9 +4,15 @@ import type { PageBlockEntry } from "./types.js";
 import type { CharDataLoaderFn } from "../charOptions.js";
 
 const stubLoader: CharDataLoaderFn = (_c, onLoad) => {
+  // Single horizontal stroke spanning most of the canvas, matched by
+  // horizontal user strokes in display coords (`[[10, 40], [70, 40]]`).
+  // Page coordination tests assert on onCellComplete /
+  // onBlockComplete / onPageComplete, all of which the per-char retry
+  // path holds back until an OK verdict; a diagonal median would
+  // land NG and stall the burst indefinitely.
   onLoad({
-    strokes: ["M 0 0 L 100 100"],
-    medians: [[[0, 0], [100, 100]]],
+    strokes: ["M 50 500 L 950 500"],
+    medians: [[[50, 500], [950, 500]]],
   });
 };
 
@@ -496,13 +502,16 @@ describe("page.create — correction: per-page deferral", () => {
     const stripSvgs = allSvgs.filter(
       (s) => s.querySelector(":scope > defs") === null,
     );
-    // Draw 10 quick strokes to drive がっこう's matcher to settle
-    // (stubLoader makes every char 1 stroke, so 4 chars = 4 strokes —
-    // give it a few extras to be safe).
-    for (let i = 0; i < 10; i++) {
+    // Draw exactly 4 horizontal strokes (stubLoader makes every char
+    // 1 stroke, so がっこう = 4 strokes). The strokes span the strip
+    // width so the matcher accepts each one against the horizontal
+    // stub median — under the new NG-retry path, anything less than
+    // an OK verdict would clear the annotation in place instead of
+    // firing onCellComplete.
+    for (let i = 0; i < 4; i++) {
       strokeAt(
         stripSvgs[stripSvgs.length - 1] ?? writerSvgs[0],
-        [[10 + i, 5], [20 + i, 5]],
+        [[5, 10], [70, 10]],
         100 + i,
       );
     }
@@ -516,6 +525,67 @@ describe("page.create — correction: per-page deferral", () => {
     expect(kinds).toContain("cell");
     expect(kinds).toContain("annotation");
 
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("per-page: NG block re-arms page pending and onPageComplete only fires after the OK retry", async () => {
+    // Page-level mirror of the per-block retry test: with two
+    // single-cell blocks, one block lands NG on its first burst, so
+    // its only cell re-arms; the block-level rejection bubbles up
+    // via onBlockRejected → onPerPageBlockRejected which re-adds
+    // the block to perPagePending and clears perPageTriggered.
+    // onPageComplete must be held back until the user rewrites the
+    // NG cell with a matching stroke and the second page burst
+    // commits everything.
+    const cellComplete = vi.fn();
+    const blockComplete = vi.fn();
+    const pageComplete = vi.fn();
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      blocks: [
+        { spec: { cells: [{ kind: "guided", char: "学", mode: "write" }] } },
+        { spec: { cells: [{ kind: "guided", char: "校", mode: "write" }] } },
+      ],
+      cellSize: 80,
+      columns: 1,
+      cellsPerColumn: 4,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      correction: "per-page",
+      onCellComplete: cellComplete,
+      onBlockComplete: blockComplete,
+      onPageComplete: pageComplete,
+    });
+    await flushMicrotasks();
+    await new Promise((r) => setTimeout(r, 50));
+
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Block 0: NG stroke (diagonal vs horizontal stub median).
+    strokeAt(writerSvgs[0], [[10, 10], [70, 70]], 1);
+    // Block 1: OK stroke.
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await new Promise((r) => setTimeout(r, 200));
+
+    // First page burst: block 1 commits, block 0 re-arms. Nothing
+    // page-wide should have committed.
+    expect(cellComplete).toHaveBeenCalledTimes(1);
+    expect(blockComplete).toHaveBeenCalledTimes(1);
+    expect(pageComplete).not.toHaveBeenCalled();
+
+    // Rewrite block 0's cell with a matching stroke; the captured
+    // signal walks back up through onPerBlockEntryCaptured →
+    // onBlockCaptured → onPerPageBlockCaptured's retry branch and
+    // fires another page burst.
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 3);
+    await new Promise((r) => setTimeout(r, 200));
+
+    expect(cellComplete).toHaveBeenCalledTimes(2);
+    expect(blockComplete).toHaveBeenCalledTimes(2);
+    expect(pageComplete).toHaveBeenCalledTimes(1);
     handle.destroy();
     parent.remove();
   });

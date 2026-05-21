@@ -480,6 +480,28 @@ interface MountState {
    * by reset() (intentional opt-out) and on unmount/destroy.
    */
   quizArmed: boolean;
+  /**
+   * Number of retries already consumed by NG attempts on this mount
+   * (per-char / deferred modes). The next NG verdict re-arms when
+   * `retries < maxRetries` and commits-as-failed when
+   * `retries >= maxRetries`. Sequencing:
+   *
+   * - Before the first attempt: `retries === 0`.
+   * - Inside the retry branch (NG taken as a retry, not a commit),
+   *   the counter is bumped to `retries + 1` AFTER the verdict and
+   *   BEFORE `onCharRejected` fires, so the callback's `attempts`
+   *   field reports the 1-indexed count of the attempt that just
+   *   landed NG.
+   * - Inside the OK / exhausted-commit path, the counter is left
+   *   alone; `onComplete`'s `attempts` is computed as
+   *   `retries + 1` so it likewise reports the 1-indexed count of
+   *   the attempt that just settled (OK or final NG).
+   *
+   * Cleared on `start()` / `reset()` / `undo()`. Independent of
+   * `m.perCharSeq`, which is a finalize token that flips on every
+   * cycle (retry or OK).
+   */
+  retries: number;
   strokeEndingMistakes: number;
   /**
    * Per-logical-stroke results captured from the quiz callbacks while a
@@ -929,6 +951,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.quizActive = true;
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
+    m.retries = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
@@ -1078,6 +1101,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           character: summary.character,
           totalMistakes: summary.totalMistakes,
           strokeEndingMistakes: m.strokeEndingMistakes,
+          // Per-stroke quiz only ever fires onComplete on full
+          // acceptance — the user retries individual strokes until
+          // every one matches — so `matched: true` and `attempts: 1`
+          // are constants here.
+          matched: true,
+          attempts: 1,
         });
       },
     });
@@ -1370,6 +1399,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     seq: number,
   ): Promise<void> {
     log?.(`per-char finalize: strokes=${strokeCount}`);
+    let charMatched = true;
     for (let strokeNum = 0; strokeNum < strokeCount; strokeNum++) {
       const points = captures[strokeNum];
       let verdict: CharStrokeResult;
@@ -1385,6 +1415,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
       m.perStroke[strokeNum] = verdict;
+      // Flip `charMatched` for ANY unmatched verdict — including the
+      // checkerError fallback that forces `matched: false`. Otherwise
+      // an infrastructure failure would skip the retry path and let
+      // the OK completion fire while `Char.result().matched` reads
+      // false, leaving callers with inconsistent verdicts.
+      if (!verdict.matched) {
+        charMatched = false;
+      }
       if (checkerError) {
         // Infrastructure failure: keep the placeholder in perStroke
         // (so the caller can see SOMETHING for this stroke index) but
@@ -1426,6 +1464,81 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (destroyed || mounted !== m || m.perCharSeq !== seq) {
       return;
     }
+    // `maxRetries` gates the in-place retry branches below. If the
+    // attempt was NG but the user has already consumed every allowed
+    // retry, fall through to the OK completion path with the
+    // accumulated NG verdict so `onComplete` fires with
+    // `matched: false` and the cell / block / page commit chain
+    // settles instead of stalling.
+    const maxRetries = m.options.maxRetries;
+    const retriesExhausted =
+      maxRetries !== undefined && m.retries >= maxRetries;
+    if (!charMatched && !retriesExhausted && m.options.correction === "deferred") {
+      // Deferred mode (block / page driven): finalize ran via an
+      // explicit Char.check() from the higher-level coordinator. NG
+      // verdict on a deferred char follows the same in-place retry
+      // model as per-char: wipe the retained ink, re-start the
+      // per-char capture cycle, and surface the rejection through
+      // {@link onCharRejected} so the block / page coordinator can
+      // reverse its "captured" bookkeeping (re-add to pending, reset
+      // the triggered flag) and accept the user's next attempt as a
+      // fresh capture.
+      //
+      // Counters and onComplete are held back exactly like the
+      // per-char path; the cycle had been torn down at capture-fill
+      // (line ~1201, including stopTimingTracking), so unlike
+      // per-char we must explicitly re-attach BOTH the timing tracker
+      // and the per-char pointer handlers before the user can write
+      // another attempt.
+      clearRetainedStrokes(m);
+      m.perStroke = [];
+      m.perCharSeq++;
+      m.retries += 1;
+      startTimingTracking(m);
+      startPerCharCycle(m);
+      log?.(`deferred NG attempt: re-armed for retry (retries=${m.retries})`);
+      m.options.onCharRejected?.({
+        character: currentCharacter,
+        totalMistakes: m.totalMistakes,
+        strokeEndingMistakes: m.strokeEndingMistakes,
+        attempts: m.retries,
+      });
+      return;
+    }
+    if (!charMatched && !retriesExhausted && m.options.correction === "per-char") {
+      // NG attempt: mirror per-stroke's "user keeps retrying until the
+      // whole character matches" semantics at char granularity. Wipe
+      // the retained ink (already painted live as the user wrote) and
+      // re-arm the capture buffer so the next pointer cycle begins a
+      // fresh attempt at stroke 0. Pointer handlers and the timing
+      // tracker stay attached; perCharSeq is bumped so the next batch
+      // gets its own finalize token without colliding with this one.
+      //
+      // - Accumulated counters (totalMistakes, strokeEndingMistakes)
+      //   stay so onComplete eventually reports the total mistake
+      //   count across every retry, the same way per-stroke surfaces
+      //   it through hanzi-writer's totalMistakes.
+      // - perStroke is wiped so the next attempt's verdicts replace
+      //   this attempt's; we don't want OK strokes from a half-good
+      //   retry to be remembered as if they belonged to the final
+      //   accepted attempt.
+      // - We do NOT fire onComplete, stopPerCharCycle, stopTiming,
+      //   showCharacter, or arm the trailing-click guard — the cycle
+      //   isn't done yet.
+      clearRetainedStrokes(m);
+      m.perStroke = [];
+      m.perCharCaptures = [];
+      m.perCharSeq++;
+      m.retries += 1;
+      log?.(`per-char NG attempt: re-armed for retry (retries=${m.retries})`);
+      m.options.onCharRejected?.({
+        character: currentCharacter,
+        totalMistakes: m.totalMistakes,
+        strokeEndingMistakes: m.strokeEndingMistakes,
+        attempts: m.retries,
+      });
+      return;
+    }
     // Swallow the trailing `click` that the browser dispatches right
     // after this `pointerup`, so click-to-inspect consumers never see
     // the gesture that just finalized the per-char cycle.
@@ -1442,11 +1555,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     stopPerCharCycle(m);
     stopTimingTracking(m);
     // The drawn polylines were painted unconditionally to give the user
-    // mid-stroke feedback. Now that check is done, `retainStrokes`
-    // governs whether they stick around for review — clear them
-    // otherwise so per-char without retain matches the per-stroke
-    // default UX (no leftover ink).
-    if (!m.options.retainStrokes) {
+    // mid-stroke feedback. Now that check is done:
+    //
+    // - If `retainStrokes` is off, wipe every polyline so per-char
+    //   matches the per-stroke default UX (no leftover ink).
+    // - If any stroke was rejected, also wipe — mirroring per-stroke,
+    //   where hanzi-writer's quiz visually consumes mismatched strokes
+    //   so only correct ones ever accumulate. At per-char granularity
+    //   the natural mirror is "all-or-nothing per character": one bad
+    //   stroke means the user has to rewrite the whole char, so
+    //   leaving partial NG ink behind would be misleading.
+    if (!m.options.retainStrokes || !charMatched) {
       clearRetainedStrokes(m);
     }
     // Per-char hid the character at startPerCharCycle so the user wrote
@@ -1463,11 +1582,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         log?.(`per-char showCharacter failed: ${err instanceof Error ? err.message : String(err)}`);
       });
     }
-    log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes}`);
+    log?.(`per-char complete: totalMistakes=${m.totalMistakes} strokeEndingMistakes=${m.strokeEndingMistakes} matched=${charMatched} attempts=${m.retries + 1}`);
     m.options.onComplete?.({
       character: currentCharacter,
       totalMistakes: m.totalMistakes,
       strokeEndingMistakes: m.strokeEndingMistakes,
+      // `charMatched` is the verdict of the final attempt — true on
+      // an OK landing, false when `maxRetries` was finite and the
+      // user exhausted every retry. `attempts` is 1-indexed: the
+      // first attempt is `1`, so after N retries it lands at `N + 1`.
+      matched: charMatched,
+      attempts: m.retries + 1,
     });
   }
 
@@ -1752,6 +1877,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     stopPerCharCycle(m);
     m.strokeEndingMistakes = 0;
     m.totalMistakes = 0;
+    m.retries = 0;
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
@@ -2208,6 +2334,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       quizActive: false,
       trailingClickGuard: null,
       quizArmed: false,
+      retries: 0,
       strokeEndingMistakes: 0,
       perStroke: [],
       totalMistakes: 0,
