@@ -86,9 +86,11 @@ export interface MountOptions {
   /** Color used for retained strokes. Defaults to `drawingColor`. */
   retainedStrokeColor?: string;
   /**
-   * Stroke width (display pixels) used for retained strokes. Defaults
-   * to the on-screen thickness of hanzi-writer's pen, i.e.
-   * `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`.
+   * Stroke width (display pixels) used for retained strokes.
+   * Defaults to {@link drawingWidth} verbatim — both options are now
+   * in display pixels, so live and post-accept ink stay the same
+   * thickness without any size-based scaling. Falls back to
+   * `DEFAULT_DRAWING_WIDTH` (4) when neither is set.
    */
   retainedStrokeWidth?: number;
   /**
