@@ -189,7 +189,7 @@ export function setupChar(root: HTMLElement): void {
     });
     c.mount(writerEl, {
       size: 300,
-      drawingWidth: 12,
+      drawingWidth: 6,
       showGrid: true,
       retainStrokes: retainCheckbox?.checked ?? false,
       showAcceptedStroke: showAcceptedCheckbox?.checked ?? true,

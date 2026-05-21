@@ -2520,9 +2520,12 @@ describe("computeRetainedStrokeAttrs", () => {
     expect(y1).toBeCloseTo(SIZE - PADDING);
   });
 
-  it("converts drawingWidth (internal coord units) to display pixels", () => {
-    // hanzi-writer's drawingWidth: 12 internal units displays at
-    // 12 * innerSize / 1024 ≈ 3.05 logical px for SIZE=300, PADDING=20.
+  it("uses drawingWidth verbatim (display pixels)", () => {
+    // `drawingWidth` is documented in display pixels; the live-ink
+    // overlay's viewBox is `0..size` so the value applies verbatim.
+    // mount() handles the hanzi-writer internal-coord conversion
+    // for the underlying pen; the retained overlay matches whatever
+    // display-px pen the caller asked for.
     const attrs = computeRetainedStrokeAttrs(
       [
         { x: 0, y: 0, t: 0 },
@@ -2534,7 +2537,7 @@ describe("computeRetainedStrokeAttrs", () => {
       PADDING,
       { drawingWidth: 12 },
     );
-    expect(attrs!.strokeWidth).toBeCloseTo((12 * INNER) / 1024);
+    expect(attrs!.strokeWidth).toBe(12);
   });
 
   it("retainedStrokeWidth overrides the drawingWidth-derived default", () => {

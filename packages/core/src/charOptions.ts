@@ -58,6 +58,16 @@ export interface MountOptions {
   strokeColor?: string;
   outlineColor?: string;
   drawingColor?: string;
+  /**
+   * Pen thickness for the user's drawn ink, in display pixels. Stays
+   * visually constant regardless of {@link size} — the value is
+   * converted to hanzi-writer's internal-coord units internally so
+   * shrinking the cell does not thin the user's pen out. Default `4`.
+   *
+   * The same value is also the default for retained ink
+   * ({@link retainedStrokeWidth}) so live and post-accept ink match
+   * thickness.
+   */
   drawingWidth?: number;
   highlightColor?: string;
   // Grid / character visibility

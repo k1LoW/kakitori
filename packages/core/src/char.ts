@@ -218,15 +218,16 @@ export function computeRetainedStrokeAttrs(
       return `${dx},${dy}`;
     })
     .join(" ");
-  // hanzi-writer interprets `drawingWidth` in its internal coord system
-  // and applies the `<g>` scale, so on-screen pen thickness is
-  // `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`. Match it so the
-  // retained ink visually equals the live drawing.
-  const innerSize = size - 2 * padding;
-  const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+  // `drawingWidth` is documented in display pixels (mount() converts
+  // it to hanzi-writer's internal-coord units when forwarding). The
+  // retained polyline is drawn directly in the overlay SVG whose
+  // viewBox is `0..size`, so the same display-px value applies
+  // verbatim — no scaling needed for the on-screen thickness to match
+  // the live pen.
+  void size;
+  void padding;
   const strokeWidth =
-    options.retainedStrokeWidth ??
-    (options.drawingWidth ?? 4) * hwToDisplayScale;
+    options.retainedStrokeWidth ?? options.drawingWidth ?? 4;
   return {
     points: ptsStr,
     stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
@@ -1327,11 +1328,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!group) {
       return null;
     }
-    const innerSize = m.size - 2 * m.padding;
-    const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+    // `drawingWidth` is in display pixels; the live-ink overlay's
+    // viewBox is `0..size` so the same value applies verbatim.
     const strokeWidth =
-      m.options.retainedStrokeWidth ??
-      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
+      m.options.retainedStrokeWidth ?? m.options.drawingWidth ?? 4;
     const stroke =
       m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555";
     const ns = "http://www.w3.org/2000/svg";
@@ -2264,7 +2264,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       hwOptions.drawingColor = mountOpts.drawingColor;
     }
     if (mountOpts.drawingWidth != null) {
-      hwOptions.drawingWidth = mountOpts.drawingWidth;
+      // `mountOpts.drawingWidth` is documented in display pixels.
+      // hanzi-writer's `drawingWidth` is interpreted inside its
+      // internal coord system (HANZI_PRESCALED_SIZE) and applied
+      // through the `<g>` scale, so the on-screen thickness ends up
+      // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`.
+      // Multiply by the inverse so the pen lands at exactly
+      // `mountOpts.drawingWidth` display pixels regardless of size.
+      const innerSize = size - 2 * padding;
+      hwOptions.drawingWidth =
+        innerSize > 0
+          ? (mountOpts.drawingWidth * HANZI_PRESCALED_SIZE) / innerSize
+          : mountOpts.drawingWidth;
     }
     if (mountOpts.highlightColor != null) {
       hwOptions.highlightColor = mountOpts.highlightColor;
