@@ -5,6 +5,14 @@ export const DEFAULT_SIZE = 300;
 // Default padding for char.create() and char.render().
 export const DEFAULT_PADDING = 0;
 
+// Default pen thickness for the user's drawn ink, in display pixels.
+// `MountOptions.drawingWidth` is size-independent: char.ts mount()
+// converts this value to hanzi-writer's internal-coord units so the
+// on-screen thickness lands at exactly this many display pixels
+// regardless of `size`. Also used as the fallback for the retained-ink
+// overlay's stroke width.
+export const DEFAULT_DRAWING_WIDTH = 4;
+
 // hanzi-writer's source coord canvas. Character paths and medians from
 // hanzi-writer-data live inside `x ∈ [0, HANZI_PRESCALED_SIZE]` and
 // `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`. The canvas is square (1024 × 1024).

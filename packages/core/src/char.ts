@@ -19,6 +19,7 @@ import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 import {
   DEFAULT_SIZE,
   DEFAULT_PADDING,
+  DEFAULT_DRAWING_WIDTH,
   HANZI_PRESCALED_SIZE,
   HANZI_Y_MAX,
   HANZI_Y_BASELINE_OFFSET,
@@ -227,7 +228,9 @@ export function computeRetainedStrokeAttrs(
   void size;
   void padding;
   const strokeWidth =
-    options.retainedStrokeWidth ?? options.drawingWidth ?? 4;
+    options.retainedStrokeWidth ??
+    options.drawingWidth ??
+    DEFAULT_DRAWING_WIDTH;
   return {
     points: ptsStr,
     stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
@@ -1331,7 +1334,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // `drawingWidth` is in display pixels; the live-ink overlay's
     // viewBox is `0..size` so the same value applies verbatim.
     const strokeWidth =
-      m.options.retainedStrokeWidth ?? m.options.drawingWidth ?? 4;
+      m.options.retainedStrokeWidth ??
+      m.options.drawingWidth ??
+      DEFAULT_DRAWING_WIDTH;
     const stroke =
       m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555";
     const ns = "http://www.w3.org/2000/svg";
@@ -2263,19 +2268,23 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (mountOpts.drawingColor != null) {
       hwOptions.drawingColor = mountOpts.drawingColor;
     }
-    if (mountOpts.drawingWidth != null) {
-      // `mountOpts.drawingWidth` is documented in display pixels.
-      // hanzi-writer's `drawingWidth` is interpreted inside its
-      // internal coord system (HANZI_PRESCALED_SIZE) and applied
-      // through the `<g>` scale, so the on-screen thickness ends up
-      // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`.
-      // Multiply by the inverse so the pen lands at exactly
-      // `mountOpts.drawingWidth` display pixels regardless of size.
+    // `MountOptions.drawingWidth` is documented in display pixels;
+    // hanzi-writer's own `drawingWidth` is interpreted inside its
+    // internal coord system (HANZI_PRESCALED_SIZE) and applied
+    // through the `<g>` scale, so the on-screen thickness ends up
+    // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`. Always
+    // convert (using the documented default when none was passed)
+    // so the on-screen pen lands at exactly `drawingWidth` display
+    // pixels regardless of size — falling through to hanzi-writer's
+    // internal default would make the pen thin out with smaller
+    // sizes, contradicting the display-px contract.
+    {
+      const displayPxWidth = mountOpts.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
       const innerSize = size - 2 * padding;
       hwOptions.drawingWidth =
         innerSize > 0
-          ? (mountOpts.drawingWidth * HANZI_PRESCALED_SIZE) / innerSize
-          : mountOpts.drawingWidth;
+          ? (displayPxWidth * HANZI_PRESCALED_SIZE) / innerSize
+          : displayPxWidth;
     }
     if (mountOpts.highlightColor != null) {
       hwOptions.highlightColor = mountOpts.highlightColor;

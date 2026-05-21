@@ -328,26 +328,15 @@ interface ExampleConfig {
 
 const EXAMPLE_CHARACTER = "学";
 const EXAMPLE_SIZE = 160;
-// `drawingWidth` is now in display pixels (size-independent), so the
-// same value gives the same on-screen pen thickness at every size.
-const EXAMPLE_DRAWING_WIDTH = 6;
 
 const EXAMPLES: ExampleConfig[] = [
   {
     key: "normal",
-    mountOpts: {
-      size: EXAMPLE_SIZE,
-      showGrid: true,
-      drawingWidth: EXAMPLE_DRAWING_WIDTH,
-    },
+    mountOpts: { size: EXAMPLE_SIZE, showGrid: true },
   },
   {
     key: "no-grid",
-    mountOpts: {
-      size: EXAMPLE_SIZE,
-      showGrid: false,
-      drawingWidth: EXAMPLE_DRAWING_WIDTH,
-    },
+    mountOpts: { size: EXAMPLE_SIZE, showGrid: false },
   },
   {
     key: "per-char",
@@ -355,7 +344,6 @@ const EXAMPLES: ExampleConfig[] = [
       size: EXAMPLE_SIZE,
       showGrid: true,
       correction: "per-char",
-      drawingWidth: EXAMPLE_DRAWING_WIDTH,
     },
   },
   {
@@ -365,7 +353,6 @@ const EXAMPLES: ExampleConfig[] = [
       showGrid: true,
       retainStrokes: true,
       showAcceptedStroke: false,
-      drawingWidth: EXAMPLE_DRAWING_WIDTH,
     },
   },
 ];

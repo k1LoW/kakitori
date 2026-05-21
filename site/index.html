@@ -557,7 +557,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
-c.mount(target, { size: 160, showGrid: true, drawingWidth: 6 });
+c.mount(target, { size: 160, showGrid: true });
 c.start();</pre>
         </div>
       </div>
@@ -573,7 +573,7 @@ c.start();</pre>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
-c.mount(target, { size: 160, showGrid: false, drawingWidth: 6 });
+c.mount(target, { size: 160, showGrid: false });
 c.start();</pre>
         </div>
       </div>
@@ -592,7 +592,7 @@ c.start();</pre>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
-c.mount(target, { size: 160, showGrid: true, correction: "per-char", drawingWidth: 6 });
+c.mount(target, { size: 160, showGrid: true, correction: "per-char" });
 c.start();</pre>
         </div>
       </div>
@@ -616,7 +616,6 @@ c.mount(target, {
   showGrid: true,
   retainStrokes: true,
   showAcceptedStroke: false,
-  drawingWidth: 6,
 });
 c.start();</pre>
         </div>
