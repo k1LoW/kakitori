@@ -319,7 +319,12 @@ export function setupChar(root: HTMLElement): void {
   setupCharExamples(root);
 }
 
-type ExampleKey = "normal" | "no-grid" | "per-char" | "retain";
+type ExampleKey =
+  | "normal"
+  | "no-grid"
+  | "no-outline"
+  | "per-char"
+  | "retain";
 
 interface ExampleConfig {
   key: ExampleKey;
@@ -337,6 +342,10 @@ const EXAMPLES: ExampleConfig[] = [
   {
     key: "no-grid",
     mountOpts: { size: EXAMPLE_SIZE, showGrid: false },
+  },
+  {
+    key: "no-outline",
+    mountOpts: { size: EXAMPLE_SIZE, showOutline: false },
   },
   {
     key: "per-char",

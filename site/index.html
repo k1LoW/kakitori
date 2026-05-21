@@ -610,7 +610,24 @@ c.start();</pre>
       </div>
 
       <div class="char-example">
-        <h4>3. Per-char correction</h4>
+        <h4>3. No outline</h4>
+        <p>The faint outline is suppressed too, so the cell starts completely blank.</p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-no-outline" class="char-example-writer"></div>
+            <div data-status-for="no-outline" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="no-outline" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showOutline: false });
+c.start();</pre>
+        </div>
+      </div>
+
+      <div class="char-example">
+        <h4>4. Per-char correction</h4>
         <p>
           User writes every stroke freely without per-stroke rejection. Correction
           runs once all strokes are captured; NG attempts wipe and re-arm in place.
@@ -630,7 +647,7 @@ c.start();</pre>
       </div>
 
       <div class="char-example">
-        <h4>4. Retain strokes, hide accepted stroke</h4>
+        <h4>5. Retain strokes, hide accepted stroke</h4>
         <p>
           Paper-like UX — the user's own ink stays on screen after each accepted stroke,
           and hanzi-writer's official gray stroke is suppressed.
