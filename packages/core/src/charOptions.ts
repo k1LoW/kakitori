@@ -58,9 +58,27 @@ export interface MountOptions {
   strokeColor?: string;
   outlineColor?: string;
   drawingColor?: string;
+  /**
+   * Pen thickness for the user's drawn ink, in display pixels. Stays
+   * visually constant regardless of {@link size} — the value is
+   * converted to hanzi-writer's internal-coord units internally so
+   * shrinking the cell does not thin the user's pen out. Default `4`.
+   *
+   * The same value is also the default for retained ink
+   * ({@link retainedStrokeWidth}) so live and post-accept ink match
+   * thickness.
+   */
   drawingWidth?: number;
   highlightColor?: string;
   // Grid / character visibility
+  /**
+   * Whether to render the cross-grid inside the cell. Default
+   * `true`, aligned with `BlockCreateOptions.showGrid` and
+   * `PageCreateOptions.showGrid` so dropping the option keeps
+   * char / block / page mounts visually consistent. Pass `false`
+   * for a clean cell background, or a {@link GridOptions} object
+   * to override the color / dash / width.
+   */
   showGrid?: boolean | GridOptions;
   showOutline?: boolean;
   showCharacter?: boolean;
@@ -76,9 +94,11 @@ export interface MountOptions {
   /** Color used for retained strokes. Defaults to `drawingColor`. */
   retainedStrokeColor?: string;
   /**
-   * Stroke width (display pixels) used for retained strokes. Defaults
-   * to the on-screen thickness of hanzi-writer's pen, i.e.
-   * `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`.
+   * Stroke width (display pixels) used for retained strokes.
+   * Defaults to {@link drawingWidth} verbatim — both options are now
+   * in display pixels, so live and post-accept ink stay the same
+   * thickness without any size-based scaling. Falls back to
+   * `DEFAULT_DRAWING_WIDTH` (4) when neither is set.
    */
   retainedStrokeWidth?: number;
   /**

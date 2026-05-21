@@ -266,7 +266,6 @@ async function start() {
   });
   mountChar.mount(writerEl, {
     size: 300,
-    drawingWidth: 12,
     showGrid: true,
     onCorrectStroke: (data) => recordEvent("correct", data),
     onMistake: (data) => recordEvent("mistake", data),

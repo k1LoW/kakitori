@@ -19,6 +19,7 @@ import { defaultCharDataLoader, defaultConfigLoader } from "./dataLoader.js";
 import {
   DEFAULT_SIZE,
   DEFAULT_PADDING,
+  DEFAULT_DRAWING_WIDTH,
   HANZI_PRESCALED_SIZE,
   HANZI_Y_MAX,
   HANZI_Y_BASELINE_OFFSET,
@@ -47,6 +48,33 @@ const DEFAULT_GRID_WIDTH = 2;
 // We mirror them here to derive a similarity score from
 // `Stroke.getAverageDistance` without re-running the matcher.
 const HW_AVERAGE_DISTANCE_THRESHOLD = 350;
+
+/**
+ * Convert `MountOptions.drawingWidth` (display pixels) into the
+ * internal-coord value hanzi-writer expects. hanzi-writer renders
+ * inside the inner box (`innerSize = size - 2 * padding`) and applies
+ * a `HANZI_PRESCALED_SIZE / innerSize` scale to the `<g>` carrying
+ * the drawn ink, so on-screen pen thickness ends up as
+ * `internalWidth * innerSize / HANZI_PRESCALED_SIZE`. Multiplying by
+ * the inverse maps a display-px value to the internal width that
+ * lands at exactly that many pixels.
+ *
+ * Pure helper so the conversion can be unit-tested independently of
+ * a real `mount()` call. Falls back to `DEFAULT_DRAWING_WIDTH` when
+ * the public option is left unset; degenerate sizes (innerSize <= 0)
+ * pass the display value through unchanged to avoid divide-by-zero.
+ */
+export function displayPxToHanziWriterDrawingWidth(
+  drawingWidth: number | undefined,
+  size: number,
+  padding: number,
+): number {
+  const displayPxWidth = drawingWidth ?? DEFAULT_DRAWING_WIDTH;
+  const innerSize = size - 2 * padding;
+  return innerSize > 0
+    ? (displayPxWidth * HANZI_PRESCALED_SIZE) / innerSize
+    : displayPxWidth;
+}
 
 /** Convert hanzi-writer's per-stroke average distance into a similarity in [0, 1]. */
 function computeSimilarity(
@@ -218,15 +246,19 @@ export function computeRetainedStrokeAttrs(
       return `${dx},${dy}`;
     })
     .join(" ");
-  // hanzi-writer interprets `drawingWidth` in its internal coord system
-  // and applies the `<g>` scale, so on-screen pen thickness is
-  // `drawingWidth * innerSize / HANZI_PRESCALED_SIZE`. Match it so the
-  // retained ink visually equals the live drawing.
-  const innerSize = size - 2 * padding;
-  const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+  // `drawingWidth` is documented in display pixels (mount() converts
+  // it to hanzi-writer's internal-coord units when forwarding). The
+  // retained polyline is drawn directly in the overlay SVG whose
+  // viewBox is `0..size`, so the same display-px value applies
+  // verbatim — no scaling needed for the on-screen thickness to match
+  // the live pen. `padding` is kept on the signature for API
+  // compatibility with the mount path but no longer drives the
+  // stroke-width calculation under display-px semantics.
+  void padding;
   const strokeWidth =
     options.retainedStrokeWidth ??
-    (options.drawingWidth ?? 4) * hwToDisplayScale;
+    options.drawingWidth ??
+    DEFAULT_DRAWING_WIDTH;
   return {
     points: ptsStr,
     stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
@@ -1327,11 +1359,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (!group) {
       return null;
     }
-    const innerSize = m.size - 2 * m.padding;
-    const hwToDisplayScale = innerSize / HANZI_PRESCALED_SIZE;
+    // `drawingWidth` is in display pixels; the live-ink overlay's
+    // viewBox is `0..size` so the same value applies verbatim.
     const strokeWidth =
       m.options.retainedStrokeWidth ??
-      (m.options.drawingWidth ?? 4) * hwToDisplayScale;
+      m.options.drawingWidth ??
+      DEFAULT_DRAWING_WIDTH;
     const stroke =
       m.options.retainedStrokeColor ?? m.options.drawingColor ?? "#555";
     const ns = "http://www.w3.org/2000/svg";
@@ -2263,9 +2296,23 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (mountOpts.drawingColor != null) {
       hwOptions.drawingColor = mountOpts.drawingColor;
     }
-    if (mountOpts.drawingWidth != null) {
-      hwOptions.drawingWidth = mountOpts.drawingWidth;
-    }
+    // `MountOptions.drawingWidth` is documented in display pixels;
+    // hanzi-writer's own `drawingWidth` is interpreted inside its
+    // internal coord system (HANZI_PRESCALED_SIZE) and applied
+    // through the `<g>` scale, so the on-screen thickness ends up
+    // as `internalWidth * innerSize / HANZI_PRESCALED_SIZE`.
+    // {@link displayPxToHanziWriterDrawingWidth} converts the public
+    // display-px value (falling back to `DEFAULT_DRAWING_WIDTH`) into
+    // the internal-coord value hanzi-writer expects, so the on-screen
+    // pen lands at exactly `drawingWidth` display pixels regardless
+    // of size — falling through to hanzi-writer's internal default
+    // would make the pen thin out with smaller sizes, contradicting
+    // the display-px contract.
+    hwOptions.drawingWidth = displayPxToHanziWriterDrawingWidth(
+      mountOpts.drawingWidth,
+      size,
+      padding,
+    );
     if (mountOpts.highlightColor != null) {
       hwOptions.highlightColor = mountOpts.highlightColor;
     }
@@ -2299,8 +2346,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       hwSvg.style.zIndex = "1";
     }
 
+    // Cross-grid defaults to ON to match the block / page layer's
+    // own default — without that, dropping the option in
+    // char.mount() would silently flip the grid off while
+    // block.create() / page.create() keep it on, a confusing
+    // inconsistency for hosts that mix the layers.
+    const showGridOption = mountOpts.showGrid ?? true;
     let gridSvg: SVGSVGElement | null = null;
-    if (mountOpts.showGrid) {
+    if (showGridOption) {
       const ns = "http://www.w3.org/2000/svg";
       gridSvg = document.createElementNS(ns, "svg") as SVGSVGElement;
       gridSvg.classList.add("kakitori-grid");
@@ -2311,7 +2364,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       gridSvg.style.top = "0";
       gridSvg.style.left = "0";
       gridSvg.style.pointerEvents = "none";
-      drawCrossGrid(gridSvg, size, mountOpts.showGrid);
+      drawCrossGrid(gridSvg, size, showGridOption);
       layerEl.insertBefore(gridSvg, layerEl.firstChild);
     }
 

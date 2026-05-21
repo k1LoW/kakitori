@@ -39,7 +39,7 @@
         border-bottom: 2px solid #ddd;
       }
       h3 {
-        font-size: 1.15rem;
+        font-size: 1.5rem;
         margin-top: 2rem;
         margin-bottom: 0.5rem;
       }
@@ -129,6 +129,77 @@
         border: 1px solid #ddd;
         background: #fafafa;
         border-radius: 4px;
+      }
+      .char-example {
+        margin-bottom: 2rem;
+      }
+      .char-example h4 {
+        font-size: 1rem;
+        margin: 0 0 0.25rem;
+      }
+      .char-example p {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.5rem;
+      }
+      .char-example-body {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .char-example-demo {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .char-example-body pre {
+        flex: 1;
+        min-width: 280px;
+        margin: 0;
+      }
+      .char-example-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+      .char-example-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        min-height: 1.4em;
+      }
+      .char-example-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.4em;
+        height: 1.4em;
+        padding: 0 4px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #999;
+        background: #fafafa;
+      }
+      .char-example-chip.ok {
+        border-color: #4a4;
+        color: #4a4;
+        background: #effe8f;
+      }
+      .char-example-chip.ng {
+        border-color: #c44;
+        color: #c44;
+        background: #fee;
+      }
+      .char-example-writer {
+        display: inline-block;
+        border: 1px solid #bbb;
+        background: #fff;
+        border-radius: 4px;
+        min-width: 160px;
+        min-height: 160px;
       }
       #char-result {
         margin-top: 0.5rem;
@@ -448,7 +519,6 @@ const target = document.getElementById("writer")!;
 const c = char.create("学");
 c.mount(target, {
   size: 300,
-  showGrid: true,
   onCorrectStroke: (data) =&gt; console.log("OK", data.strokeNum),
   onMistake: (data) =&gt; console.log("NG", data.strokeNum),
   onComplete: ({ totalMistakes }) =&gt; console.log("done", totalMistakes),
@@ -471,19 +541,6 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
           <button id="char-animate-btn">Animate</button>
           <button id="char-highlight-btn">Next stroke</button>
           <button id="char-reset-btn">Reset</button>
-          <label style="font-size: 0.85rem; color: #555; margin-left: 0.5rem;">
-            <input type="checkbox" id="char-retain-strokes" /> Retain strokes
-          </label>
-          <label style="font-size: 0.85rem; color: #555; margin-left: 0.5rem;">
-            <input type="checkbox" id="char-show-accepted" checked /> Show accepted stroke
-          </label>
-          <label style="font-size: 0.85rem; color: #555; margin-left: 0.5rem;">
-            Correction:
-            <select id="char-correction" style="font-size: 0.85rem;">
-              <option value="per-stroke">per-stroke</option>
-              <option value="per-char">per-char</option>
-            </select>
-          </label>
         </div>
         <div id="char-practice-body">
           <div id="char-writer-col">
@@ -498,6 +555,108 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       </div>
 
       <div id="char-gallery"></div>
+
+      <h3>Examples</h3>
+      <p>
+        Five common mount configurations. Each example has its own writer instance —
+        Restart re-arms the writer from scratch (clears the canvas + starts a fresh practice session).
+        The chip row below each cell colors green / red as strokes are checked.
+      </p>
+
+      <div class="char-example">
+        <h4>1. Normal</h4>
+        <p>Default mount: cross-grid on, hanzi-writer paints each accepted stroke.</p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-normal" class="char-example-writer"></div>
+            <div data-status-for="normal" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="normal" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160 });
+c.start();</pre>
+        </div>
+      </div>
+
+      <div class="char-example">
+        <h4>2. No grid</h4>
+        <p>Same configuration as above, but the cross-grid is suppressed for a cleaner cell background.</p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-no-grid" class="char-example-writer"></div>
+            <div data-status-for="no-grid" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="no-grid" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showGrid: false });
+c.start();</pre>
+        </div>
+      </div>
+
+      <div class="char-example">
+        <h4>3. No outline</h4>
+        <p>The faint outline is suppressed too, so the cell starts completely blank.</p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-no-outline" class="char-example-writer"></div>
+            <div data-status-for="no-outline" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="no-outline" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, showOutline: false });
+c.start();</pre>
+        </div>
+      </div>
+
+      <div class="char-example">
+        <h4>4. Per-char correction</h4>
+        <p>
+          User writes every stroke freely without per-stroke rejection. Correction
+          runs once all strokes are captured; NG attempts wipe and re-arm in place.
+        </p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-per-char" class="char-example-writer"></div>
+            <div data-status-for="per-char" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="per-char" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, { size: 160, correction: "per-char" });
+c.start();</pre>
+        </div>
+      </div>
+
+      <div class="char-example">
+        <h4>5. Retain strokes, hide accepted stroke</h4>
+        <p>
+          Paper-like UX — the user's own ink stays on screen after each accepted stroke,
+          and hanzi-writer's official gray stroke is suppressed.
+        </p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-retain" class="char-example-writer"></div>
+            <div data-status-for="retain" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="retain" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, {
+  size: 160,
+  retainStrokes: true,
+  showAcceptedStroke: false,
+});
+c.start();</pre>
+        </div>
+      </div>
 
       <h3>CharResult</h3>
       <p>

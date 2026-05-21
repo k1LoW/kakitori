@@ -1,5 +1,17 @@
-import { char, defaultCharDataLoader, charSets } from "@k1low/kakitori";
-import type { Char, CharStrokeData, CharDataLoaderFn } from "@k1low/kakitori";
+import {
+  char,
+  defaultCharDataLoader,
+  defaultConfigLoader,
+  charSets,
+} from "@k1low/kakitori";
+import type {
+  CharacterConfig,
+  Char,
+  CharStrokeData,
+  CharDataLoaderFn,
+  ConfigLoaderFn,
+  MountOptions,
+} from "@k1low/kakitori";
 
 const charDataCache = new Map<
   string,
@@ -20,6 +32,29 @@ const cachedCharDataLoader: CharDataLoaderFn = (ch, onLoad, onError) => {
     },
     onError,
   );
+};
+
+// Mirror `cachedCharDataLoader` for the config JSON so multiple Char
+// instances on the same character (e.g. the five examples, all on
+// "学") share a single unpkg fetch instead of issuing N redundant
+// network requests at setup time.
+const configCache = new Map<string, Promise<CharacterConfig | null>>();
+
+const cachedConfigLoader: ConfigLoaderFn = (ch) => {
+  const cached = configCache.get(ch);
+  if (cached) {
+    return cached;
+  }
+  // Evict the cache entry on rejection so a later mount can retry.
+  // Without this, a transient unpkg failure would poison every
+  // subsequent fetch for the same character — every consumer would
+  // get the same rejected promise back forever.
+  const promise = defaultConfigLoader(ch).catch((err: unknown) => {
+    configCache.delete(ch);
+    throw err;
+  });
+  configCache.set(ch, promise);
+  return promise;
 };
 
 const allChars = Object.values(charSets).flat();
@@ -65,15 +100,6 @@ export function setupChar(root: HTMLElement): void {
   const galleryEl = root.querySelector<HTMLElement>("#char-gallery")!;
   const writerEl = root.querySelector<HTMLElement>("#char-writer")!;
   const practiceCharEl = root.querySelector<HTMLElement>("#char-practice-char")!;
-  const retainCheckbox = root.querySelector<HTMLInputElement>(
-    "#char-retain-strokes",
-  );
-  const showAcceptedCheckbox = root.querySelector<HTMLInputElement>(
-    "#char-show-accepted",
-  );
-  const correctionSelect = root.querySelector<HTMLSelectElement>(
-    "#char-correction",
-  );
   const quizBtn = root.querySelector<HTMLElement>("#char-quiz-btn")!;
   const animateBtn = root.querySelector<HTMLElement>("#char-animate-btn")!;
   const highlightBtn = root.querySelector<HTMLElement>("#char-highlight-btn")!;
@@ -185,17 +211,12 @@ export function setupChar(root: HTMLElement): void {
 
     c = char.create(character, {
       charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
       logger: log,
     });
     c.mount(writerEl, {
       size: 300,
-      drawingWidth: 12,
-      showGrid: true,
-      retainStrokes: retainCheckbox?.checked ?? false,
-      showAcceptedStroke: showAcceptedCheckbox?.checked ?? true,
-      correction:
-        (correctionSelect?.value as "per-stroke" | "per-char" | undefined) ??
-        "per-stroke",
+      drawingWidth: 6,
       onClick: ({ strokeIndex }) => {
         // Click-to-inspect: highlight the clicked stroke red. Core
         // already gates this callback so it never fires while a quiz
@@ -243,20 +264,6 @@ export function setupChar(root: HTMLElement): void {
   }
 
   openPractice(currentCharacter);
-
-  retainCheckbox?.addEventListener("change", () => {
-    // Remount with the new retainStrokes setting; mount option is
-    // captured at mount time, not on the fly.
-    openPractice(currentCharacter);
-  });
-
-  showAcceptedCheckbox?.addEventListener("change", () => {
-    openPractice(currentCharacter);
-  });
-
-  correctionSelect?.addEventListener("change", () => {
-    openPractice(currentCharacter);
-  });
 
   quizBtn.addEventListener("click", async () => {
     if (!c) {
@@ -314,5 +321,182 @@ export function setupChar(root: HTMLElement): void {
     highlightIdx = -1;
     clearResult();
     log("reset");
+  });
+
+  setupCharExamples(root);
+}
+
+type ExampleKey =
+  | "normal"
+  | "no-grid"
+  | "no-outline"
+  | "per-char"
+  | "retain";
+
+interface ExampleConfig {
+  key: ExampleKey;
+  // Spell out `MountOptions` instead of inferring via
+  // `Parameters<Char["mount"]>[1]` — the latter resolves to
+  // `MountOptions | undefined` because the parameter is optional
+  // on `Char.mount`, which makes `...mountOpts` spreads
+  // type-unsafe under strict mode.
+  mountOpts: MountOptions;
+}
+
+const EXAMPLE_CHARACTER = "学";
+const EXAMPLE_SIZE = 160;
+
+const EXAMPLES: ExampleConfig[] = [
+  {
+    key: "normal",
+    mountOpts: { size: EXAMPLE_SIZE },
+  },
+  {
+    key: "no-grid",
+    mountOpts: { size: EXAMPLE_SIZE, showGrid: false },
+  },
+  {
+    key: "no-outline",
+    mountOpts: { size: EXAMPLE_SIZE, showOutline: false },
+  },
+  {
+    key: "per-char",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      correction: "per-char",
+    },
+  },
+  {
+    key: "retain",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      retainStrokes: true,
+      showAcceptedStroke: false,
+    },
+  },
+];
+
+function setupCharExamples(root: HTMLElement): void {
+  const resetters = new Map<ExampleKey, () => void>();
+
+  for (const { key, mountOpts } of EXAMPLES) {
+    const target = root.querySelector<HTMLElement>(`#char-example-${key}`);
+    if (!target) {
+      continue;
+    }
+    const statusEl = root.querySelector<HTMLElement>(
+      `[data-status-for="${key}"]`,
+    );
+
+    let chips: HTMLElement[] = [];
+    function renderChips(strokeCount: number) {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.replaceChildren();
+      chips = [];
+      for (let i = 0; i < strokeCount; i++) {
+        const chip = document.createElement("span");
+        chip.className = "char-example-chip";
+        chip.textContent = String(i + 1);
+        statusEl.appendChild(chip);
+        chips.push(chip);
+      }
+    }
+    function clearChips() {
+      for (const chip of chips) {
+        chip.classList.remove("ok", "ng");
+      }
+    }
+    function markChip(strokeNum: number, kind: "ok" | "ng") {
+      const chip = chips[strokeNum];
+      if (!chip) {
+        return;
+      }
+      chip.classList.remove("ok", "ng");
+      chip.classList.add(kind);
+    }
+
+    const c = char.create(EXAMPLE_CHARACTER, {
+      charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
+    });
+    c.mount(target, {
+      ...mountOpts,
+      onCorrectStroke: (data) => markChip(data.strokeNum, "ok"),
+      onMistake: (data) => markChip(data.strokeNum, "ng"),
+      onCharRejected: clearChips,
+    });
+    // The code samples shipped with each example end in `c.start()`,
+    // so kick the writer off automatically to match — the only
+    // exposed control is Restart, which re-arms from scratch
+    // (`c.reset()` + `c.start()`). Wait on `ready()` so hanzi-writer's
+    // config has landed before the quiz arms; character data is
+    // fetched separately and may still be pending, so the chip-row
+    // render polls `getLogicalStrokeCount()` until it materializes.
+    // Without that, start() races against the initial render and
+    // leaves the cell showing the static character template instead
+    // of quiz mode, AND the chip row paints 0 chips against a
+    // not-yet-parsed character.
+    // Keep the original `ready()` promise so rejection propagates
+    // through any `.then()` consumer: if config / char-data load
+    // fails, `startAndRenderChips` and the Restart handler must NOT
+    // run on top of a half-initialized writer. The dedicated logger
+    // is a sibling `.catch()` and does not swallow the rejection.
+    const readyPromise = c.ready();
+    readyPromise.catch((err: unknown) => {
+      console.error(`[char-example ${key}] ready() failed:`, err);
+    });
+    function startAndRenderChips() {
+      // Char data is fetched separately from config and may take a
+      // while under a cold cache + slow network. Poll for up to
+      // ~6s (200 ticks × 30ms) instead of the original ~600ms so
+      // the chip row reliably materializes even on slow loads;
+      // log if we still give up so a stuck demo is observable in
+      // the console.
+      const tryRender = (remaining: number) => {
+        const count = c.getLogicalStrokeCount();
+        if (count > 0) {
+          renderChips(count);
+          return;
+        }
+        if (remaining > 0) {
+          setTimeout(() => tryRender(remaining - 1), 30);
+          return;
+        }
+        console.warn(
+          `[char-example ${key}] getLogicalStrokeCount stayed 0; char data may not have loaded`,
+        );
+      };
+      tryRender(200);
+      c.start();
+    }
+    void readyPromise.then(startAndRenderChips, () => {});
+    // Restart shares the same `readyPromise` so clicking before the
+    // initial load finishes simply enqueues another reset/start
+    // behind the same gate rather than racing the in-flight init.
+    // Use the two-arg `then` with a no-op onRejected so the chained
+    // promise resolves (a rejection here would surface as an
+    // unhandled rejection on every click after a failed init).
+    resetters.set(key, () => {
+      void readyPromise.then(() => {
+        clearChips();
+        c.reset();
+        startAndRenderChips();
+      }, () => {});
+    });
+  }
+
+  root.querySelectorAll<HTMLButtonElement>("[data-example]").forEach((btn) => {
+    const key = btn.dataset.example as ExampleKey | undefined;
+    if (!key || btn.dataset.action !== "reset") {
+      return;
+    }
+    btn.addEventListener("click", () => {
+      // Reset clears the canvas + chip state; re-start so the user
+      // can immediately write again without having to hunt for a
+      // separate Start.
+      resetters.get(key)?.();
+    });
   });
 }

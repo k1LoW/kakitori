@@ -69,7 +69,7 @@ export function setupHero(root: HTMLElement): void {
     aChar.mount(aTarget, {
       size: 480,
       showGrid: true,
-      drawingWidth: 14,
+      drawingWidth: 6,
     });
     play();
   }

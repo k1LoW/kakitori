@@ -3,8 +3,10 @@ import {
   char,
   computeMedianPathLength,
   computeRetainedStrokeAttrs,
+  displayPxToHanziWriterDrawingWidth,
   projectToInternal,
 } from "./char.js";
+import { DEFAULT_DRAWING_WIDTH, HANZI_PRESCALED_SIZE } from "./constants.js";
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
@@ -85,7 +87,13 @@ describe("char", () => {
       charDataLoader: mockCharDataLoader,
       configLoader: null,
     });
-    const hwSvg = container.querySelector("svg") as SVGSVGElement;
+    // With `showGrid` defaulting to true, the layer holds two SVGs:
+    // the grid (lines only, no defs) and hanzi-writer's (carries
+    // `<defs>`). Pick the hw one so the stroke-color manipulation
+    // hits the real character paths.
+    const allSvgs = Array.from(container.querySelectorAll("svg"));
+    const hwSvg = (allSvgs.find((s) => s.querySelector(":scope > defs")) ??
+      allSvgs[allSvgs.length - 1]) as SVGSVGElement;
     const ns = "http://www.w3.org/2000/svg";
     let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
     if (!outerG) {
@@ -1385,9 +1393,23 @@ describe("char", () => {
   });
 
   describe("showGrid option", () => {
-    it("does not draw grid lines when showGrid is omitted", () => {
+    it("draws the cross-grid when showGrid is omitted (defaults to true)", () => {
+      // Aligned with the block / page layer's own `showGrid` default;
+      // a host that drops the option in `char.mount()` should see the
+      // same grid those layers render by default.
       createMounted(container, "あ", {
         size: 300,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(2);
+    });
+
+    it("does not draw grid lines when showGrid is false", () => {
+      createMounted(container, "あ", {
+        size: 300,
+        showGrid: false,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -1737,7 +1759,14 @@ describe("char", () => {
           await Promise.resolve();
         }
         const overlay = container.querySelector("svg.kakitori-anim");
-        const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+        // With showGrid defaulting to true the layer holds two
+        // non-anim SVGs (grid + hanzi-writer). Pick the hw one via
+        // its `<defs>` marker.
+        const hw = Array.from(
+          container.querySelectorAll<SVGSVGElement>(
+            "svg:not(.kakitori-anim)",
+          ),
+        ).find((s) => s.querySelector(":scope > defs")) ?? null;
         expect(overlay).not.toBeNull();
         expect(hw).not.toBeNull();
         expect(hw!.style.visibility).toBe("hidden");
@@ -2420,6 +2449,53 @@ describe("projectToInternal", () => {
 });
 
 
+describe("displayPxToHanziWriterDrawingWidth", () => {
+  // The conversion mount() applies before forwarding
+  // `MountOptions.drawingWidth` to hanzi-writer. Exposed as a pure
+  // function so the display-px contract can be verified independently
+  // of a real mount, which avoids hanzi-writer's full DOM lifecycle
+  // in the assertion.
+
+  it("falls back to DEFAULT_DRAWING_WIDTH when drawingWidth is undefined", () => {
+    // size=300, padding=20 → innerSize=260; default 4 display px
+    // maps to 4 * 1024 / 260 ≈ 15.75 internal-coord units.
+    const result = displayPxToHanziWriterDrawingWidth(undefined, 300, 20);
+    expect(result).toBeCloseTo((DEFAULT_DRAWING_WIDTH * HANZI_PRESCALED_SIZE) / 260);
+  });
+
+  it("scales display px against innerSize so on-screen thickness is size-independent", () => {
+    // The same display-px request (6 px) on two different cell sizes
+    // should map to different internal widths, but both convert back
+    // to 6 px on-screen via hanzi-writer's `<g>` scale of
+    // `HANZI_PRESCALED_SIZE / innerSize`.
+    const small = displayPxToHanziWriterDrawingWidth(6, 160, 0);
+    const large = displayPxToHanziWriterDrawingWidth(6, 480, 0);
+    // small: 6 * 1024 / 160 = 38.4
+    expect(small).toBeCloseTo((6 * HANZI_PRESCALED_SIZE) / 160);
+    // large: 6 * 1024 / 480 = 12.8
+    expect(large).toBeCloseTo((6 * HANZI_PRESCALED_SIZE) / 480);
+    // Round-trip: internal * innerSize / HANZI_PRESCALED_SIZE = 6
+    expect((small * 160) / HANZI_PRESCALED_SIZE).toBeCloseTo(6);
+    expect((large * 480) / HANZI_PRESCALED_SIZE).toBeCloseTo(6);
+  });
+
+  it("respects padding when computing innerSize", () => {
+    // size=300, padding=50 → innerSize=200, not 300; the conversion
+    // must use the inner box, not the outer size, otherwise padding
+    // silently thins the on-screen pen.
+    const result = displayPxToHanziWriterDrawingWidth(6, 300, 50);
+    expect(result).toBeCloseTo((6 * HANZI_PRESCALED_SIZE) / 200);
+  });
+
+  it("passes the display value through when innerSize is degenerate", () => {
+    // padding ≥ size/2 leaves no inner box; guard against the
+    // divide-by-zero and just emit the original value so callers
+    // still get a finite drawingWidth they can debug from.
+    expect(displayPxToHanziWriterDrawingWidth(8, 100, 50)).toBe(8);
+    expect(displayPxToHanziWriterDrawingWidth(8, 100, 60)).toBe(8);
+  });
+});
+
 describe("computeRetainedStrokeAttrs", () => {
   // Standard non-CSS-scaled setup mirrors a mounted Char with
   // size=300, padding=20: inner box is 260 px on a 300 px layer.
@@ -2520,9 +2596,12 @@ describe("computeRetainedStrokeAttrs", () => {
     expect(y1).toBeCloseTo(SIZE - PADDING);
   });
 
-  it("converts drawingWidth (internal coord units) to display pixels", () => {
-    // hanzi-writer's drawingWidth: 12 internal units displays at
-    // 12 * innerSize / 1024 ≈ 3.05 logical px for SIZE=300, PADDING=20.
+  it("uses drawingWidth verbatim (display pixels)", () => {
+    // `drawingWidth` is documented in display pixels; the live-ink
+    // overlay's viewBox is `0..size` so the value applies verbatim.
+    // mount() handles the hanzi-writer internal-coord conversion
+    // for the underlying pen; the retained overlay matches whatever
+    // display-px pen the caller asked for.
     const attrs = computeRetainedStrokeAttrs(
       [
         { x: 0, y: 0, t: 0 },
@@ -2534,7 +2613,7 @@ describe("computeRetainedStrokeAttrs", () => {
       PADDING,
       { drawingWidth: 12 },
     );
-    expect(attrs!.strokeWidth).toBeCloseTo((12 * INNER) / 1024);
+    expect(attrs!.strokeWidth).toBe(12);
   });
 
   it("retainedStrokeWidth overrides the drawingWidth-derived default", () => {

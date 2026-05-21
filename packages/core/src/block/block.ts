@@ -5,7 +5,6 @@ import type {
   GridOptions,
   MountOptions,
 } from "../charOptions.js";
-import { DEFAULT_PADDING, HANZI_PRESCALED_SIZE } from "../constants.js";
 import type { CharStrokeData } from "../types.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
@@ -579,16 +578,12 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           : {}),
       };
     }
-    // hanzi-writer's `drawingWidth` is interpreted in its internal coord
-    // system (HANZI_PRESCALED_SIZE). The character is rendered into the
-    // inner padded area, so the display-px → internal-units factor is
-    // `HANZI_PRESCALED_SIZE / innerSize` (innerSize = rect.w - 2 * padding).
-    // Without accounting for an `overrides.padding`, guided strokes would
-    // silently drift thicker than free-cell strokes.
-    const resolvedPadding = overrides.padding ?? DEFAULT_PADDING;
-    const innerSize = rect.w - 2 * resolvedPadding;
-    const guidedDrawingWidth =
-      innerSize > 0 ? (resolvedDrawingWidth * HANZI_PRESCALED_SIZE) / innerSize : resolvedDrawingWidth;
+    // `MountOptions.drawingWidth` is documented in display pixels —
+    // `char.mount()` converts it to hanzi-writer's internal-coord
+    // units internally — so the block-wide value can be forwarded
+    // as-is. Guided strokes end up exactly as thick as free-cell
+    // strokes since both layers now agree the unit is display px.
+    const guidedDrawingWidth = resolvedDrawingWidth;
 
     // Map the block-wide `correction` value to what each guided cell
     // should be mounted with. Resolved up here (instead of as a
