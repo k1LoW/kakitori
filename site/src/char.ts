@@ -65,15 +65,6 @@ export function setupChar(root: HTMLElement): void {
   const galleryEl = root.querySelector<HTMLElement>("#char-gallery")!;
   const writerEl = root.querySelector<HTMLElement>("#char-writer")!;
   const practiceCharEl = root.querySelector<HTMLElement>("#char-practice-char")!;
-  const retainCheckbox = root.querySelector<HTMLInputElement>(
-    "#char-retain-strokes",
-  );
-  const showAcceptedCheckbox = root.querySelector<HTMLInputElement>(
-    "#char-show-accepted",
-  );
-  const correctionSelect = root.querySelector<HTMLSelectElement>(
-    "#char-correction",
-  );
   const quizBtn = root.querySelector<HTMLElement>("#char-quiz-btn")!;
   const animateBtn = root.querySelector<HTMLElement>("#char-animate-btn")!;
   const highlightBtn = root.querySelector<HTMLElement>("#char-highlight-btn")!;
@@ -190,12 +181,6 @@ export function setupChar(root: HTMLElement): void {
     c.mount(writerEl, {
       size: 300,
       drawingWidth: 6,
-      showGrid: true,
-      retainStrokes: retainCheckbox?.checked ?? false,
-      showAcceptedStroke: showAcceptedCheckbox?.checked ?? true,
-      correction:
-        (correctionSelect?.value as "per-stroke" | "per-char" | undefined) ??
-        "per-stroke",
       onClick: ({ strokeIndex }) => {
         // Click-to-inspect: highlight the clicked stroke red. Core
         // already gates this callback so it never fires while a quiz
@@ -243,20 +228,6 @@ export function setupChar(root: HTMLElement): void {
   }
 
   openPractice(currentCharacter);
-
-  retainCheckbox?.addEventListener("change", () => {
-    // Remount with the new retainStrokes setting; mount option is
-    // captured at mount time, not on the fly.
-    openPractice(currentCharacter);
-  });
-
-  showAcceptedCheckbox?.addEventListener("change", () => {
-    openPractice(currentCharacter);
-  });
-
-  correctionSelect?.addEventListener("change", () => {
-    openPractice(currentCharacter);
-  });
 
   quizBtn.addEventListener("click", async () => {
     if (!c) {
