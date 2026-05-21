@@ -332,7 +332,7 @@ const EXAMPLE_SIZE = 160;
 const EXAMPLES: ExampleConfig[] = [
   {
     key: "normal",
-    mountOpts: { size: EXAMPLE_SIZE, showGrid: true },
+    mountOpts: { size: EXAMPLE_SIZE },
   },
   {
     key: "no-grid",
@@ -342,7 +342,6 @@ const EXAMPLES: ExampleConfig[] = [
     key: "per-char",
     mountOpts: {
       size: EXAMPLE_SIZE,
-      showGrid: true,
       correction: "per-char",
     },
   },
@@ -350,7 +349,6 @@ const EXAMPLES: ExampleConfig[] = [
     key: "retain",
     mountOpts: {
       size: EXAMPLE_SIZE,
-      showGrid: true,
       retainStrokes: true,
       showAcceptedStroke: false,
     },

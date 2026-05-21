@@ -85,7 +85,13 @@ describe("char", () => {
       charDataLoader: mockCharDataLoader,
       configLoader: null,
     });
-    const hwSvg = container.querySelector("svg") as SVGSVGElement;
+    // With `showGrid` defaulting to true, the layer holds two SVGs:
+    // the grid (lines only, no defs) and hanzi-writer's (carries
+    // `<defs>`). Pick the hw one so the stroke-color manipulation
+    // hits the real character paths.
+    const allSvgs = Array.from(container.querySelectorAll("svg"));
+    const hwSvg = (allSvgs.find((s) => s.querySelector(":scope > defs")) ??
+      allSvgs[allSvgs.length - 1]) as SVGSVGElement;
     const ns = "http://www.w3.org/2000/svg";
     let outerG = hwSvg.querySelector(":scope > g") as SVGGElement | null;
     if (!outerG) {
@@ -1385,9 +1391,23 @@ describe("char", () => {
   });
 
   describe("showGrid option", () => {
-    it("does not draw grid lines when showGrid is omitted", () => {
+    it("draws the cross-grid when showGrid is omitted (defaults to true)", () => {
+      // Aligned with the block / page layer's own `showGrid` default;
+      // a host that drops the option in `char.mount()` should see the
+      // same grid those layers render by default.
       createMounted(container, "あ", {
         size: 300,
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const lines = container.querySelectorAll("svg > line");
+      expect(lines).toHaveLength(2);
+    });
+
+    it("does not draw grid lines when showGrid is false", () => {
+      createMounted(container, "あ", {
+        size: 300,
+        showGrid: false,
         charDataLoader: mockCharDataLoader,
         configLoader: null,
       });
@@ -1737,7 +1757,14 @@ describe("char", () => {
           await Promise.resolve();
         }
         const overlay = container.querySelector("svg.kakitori-anim");
-        const hw = container.querySelector("svg:not(.kakitori-anim)") as SVGSVGElement | null;
+        // With showGrid defaulting to true the layer holds two
+        // non-anim SVGs (grid + hanzi-writer). Pick the hw one via
+        // its `<defs>` marker.
+        const hw = Array.from(
+          container.querySelectorAll<SVGSVGElement>(
+            "svg:not(.kakitori-anim)",
+          ),
+        ).find((s) => s.querySelector(":scope > defs")) ?? null;
         expect(overlay).not.toBeNull();
         expect(hw).not.toBeNull();
         expect(hw!.style.visibility).toBe("hidden");

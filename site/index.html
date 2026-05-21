@@ -519,7 +519,6 @@ const target = document.getElementById("writer")!;
 const c = char.create("学");
 c.mount(target, {
   size: 300,
-  showGrid: true,
   onCorrectStroke: (data) =&gt; console.log("OK", data.strokeNum),
   onMistake: (data) =&gt; console.log("NG", data.strokeNum),
   onComplete: ({ totalMistakes }) =&gt; console.log("done", totalMistakes),
@@ -588,7 +587,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
-c.mount(target, { size: 160, showGrid: true });
+c.mount(target, { size: 160 });
 c.start();</pre>
         </div>
       </div>
@@ -625,7 +624,7 @@ c.start();</pre>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
-c.mount(target, { size: 160, showGrid: true, correction: "per-char" });
+c.mount(target, { size: 160, correction: "per-char" });
 c.start();</pre>
         </div>
       </div>
@@ -647,7 +646,6 @@ c.start();</pre>
           <pre data-lang="ts">const c = char.create("学");
 c.mount(target, {
   size: 160,
-  showGrid: true,
   retainStrokes: true,
   showAcceptedStroke: false,
 });

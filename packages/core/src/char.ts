@@ -2319,8 +2319,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       hwSvg.style.zIndex = "1";
     }
 
+    // Cross-grid defaults to ON to match the block / page layer's
+    // own default — without that, dropping the option in
+    // char.mount() would silently flip the grid off while
+    // block.create() / page.create() keep it on, a confusing
+    // inconsistency for hosts that mix the layers.
+    const showGridOption = mountOpts.showGrid ?? true;
     let gridSvg: SVGSVGElement | null = null;
-    if (mountOpts.showGrid) {
+    if (showGridOption) {
       const ns = "http://www.w3.org/2000/svg";
       gridSvg = document.createElementNS(ns, "svg") as SVGSVGElement;
       gridSvg.classList.add("kakitori-grid");
@@ -2331,7 +2337,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       gridSvg.style.top = "0";
       gridSvg.style.left = "0";
       gridSvg.style.pointerEvents = "none";
-      drawCrossGrid(gridSvg, size, mountOpts.showGrid);
+      drawCrossGrid(gridSvg, size, showGridOption);
       layerEl.insertBefore(gridSvg, layerEl.firstChild);
     }
 
