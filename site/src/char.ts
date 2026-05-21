@@ -442,6 +442,12 @@ function setupCharExamples(root: HTMLElement): void {
       console.error(`[char-example ${key}] ready() failed:`, err);
     });
     function startAndRenderChips() {
+      // Char data is fetched separately from config and may take a
+      // while under a cold cache + slow network. Poll for up to
+      // ~6s (200 ticks × 30ms) instead of the original ~600ms so
+      // the chip row reliably materializes even on slow loads;
+      // log if we still give up so a stuck demo is observable in
+      // the console.
       const tryRender = (remaining: number) => {
         const count = c.getLogicalStrokeCount();
         if (count > 0) {
@@ -450,9 +456,13 @@ function setupCharExamples(root: HTMLElement): void {
         }
         if (remaining > 0) {
           setTimeout(() => tryRender(remaining - 1), 30);
+          return;
         }
+        console.warn(
+          `[char-example ${key}] getLogicalStrokeCount stayed 0; char data may not have loaded`,
+        );
       };
-      tryRender(20);
+      tryRender(200);
       c.start();
     }
     void readyPromise.then(startAndRenderChips, () => {});
