@@ -44,7 +44,14 @@ const cachedConfigLoader: ConfigLoaderFn = (ch) => {
   if (cached) {
     return cached;
   }
-  const promise = defaultConfigLoader(ch);
+  // Evict the cache entry on rejection so a later mount can retry.
+  // Without this, a transient unpkg failure would poison every
+  // subsequent fetch for the same character — every consumer would
+  // get the same rejected promise back forever.
+  const promise = defaultConfigLoader(ch).catch((err: unknown) => {
+    configCache.delete(ch);
+    throw err;
+  });
   configCache.set(ch, promise);
   return promise;
 };
@@ -425,7 +432,13 @@ function setupCharExamples(root: HTMLElement): void {
     // leaves the cell showing the static character template instead
     // of quiz mode, AND the chip row paints 0 chips against a
     // not-yet-parsed character.
-    const readyPromise = c.ready().catch((err: unknown) => {
+    // Keep the original `ready()` promise so rejection propagates
+    // through any `.then()` consumer: if config / char-data load
+    // fails, `startAndRenderChips` and the Restart handler must NOT
+    // run on top of a half-initialized writer. The dedicated logger
+    // is a sibling `.catch()` and does not swallow the rejection.
+    const readyPromise = c.ready();
+    readyPromise.catch((err: unknown) => {
       console.error(`[char-example ${key}] ready() failed:`, err);
     });
     function startAndRenderChips() {
@@ -442,16 +455,19 @@ function setupCharExamples(root: HTMLElement): void {
       tryRender(20);
       c.start();
     }
-    void readyPromise.then(startAndRenderChips);
+    void readyPromise.then(startAndRenderChips, () => {});
     // Restart shares the same `readyPromise` so clicking before the
     // initial load finishes simply enqueues another reset/start
     // behind the same gate rather than racing the in-flight init.
+    // Use the two-arg `then` with a no-op onRejected so the chained
+    // promise resolves (a rejection here would surface as an
+    // unhandled rejection on every click after a failed init).
     resetters.set(key, () => {
       void readyPromise.then(() => {
         clearChips();
         c.reset();
         startAndRenderChips();
-      });
+      }, () => {});
     });
   }
 
