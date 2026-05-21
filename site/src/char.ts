@@ -389,17 +389,17 @@ function setupCharExamples(root: HTMLElement): void {
     // so kick the writer off automatically to match — the only
     // exposed control is Restart, which re-arms from scratch
     // (`c.reset()` + `c.start()`). Wait on `ready()` so hanzi-writer's
-    // config + character data have landed before the quiz arms,
-    // otherwise start() races against the initial render and leaves
-    // the cell showing the static character template instead of
-    // quiz mode.
-    void c.ready().then(() => {
-      // `ready()` only awaits config load; hanzi-writer's char-data
-      // fetch (which feeds `getLogicalStrokeCount`) runs in parallel
-      // and finishes a tick or two later. Poll briefly until the
-      // stroke count materializes so the chip row matches the real
-      // count instead of rendering 0 chips against a not-yet-parsed
-      // character.
+    // config has landed before the quiz arms; character data is
+    // fetched separately and may still be pending, so the chip-row
+    // render polls `getLogicalStrokeCount()` until it materializes.
+    // Without that, start() races against the initial render and
+    // leaves the cell showing the static character template instead
+    // of quiz mode, AND the chip row paints 0 chips against a
+    // not-yet-parsed character.
+    const readyPromise = c.ready().catch((err: unknown) => {
+      console.error(`[char-example ${key}] ready() failed:`, err);
+    });
+    function startAndRenderChips() {
       const tryRender = (remaining: number) => {
         const count = c.getLogicalStrokeCount();
         if (count > 0) {
@@ -412,11 +412,17 @@ function setupCharExamples(root: HTMLElement): void {
       };
       tryRender(20);
       c.start();
-    });
+    }
+    void readyPromise.then(startAndRenderChips);
+    // Restart shares the same `readyPromise` so clicking before the
+    // initial load finishes simply enqueues another reset/start
+    // behind the same gate rather than racing the in-flight init.
     resetters.set(key, () => {
-      clearChips();
-      c.reset();
-      c.start();
+      void readyPromise.then(() => {
+        clearChips();
+        c.reset();
+        startAndRenderChips();
+      });
     });
   }
 
