@@ -384,8 +384,12 @@ function setupCharExamples(root: HTMLElement): void {
     c.mount(target, mountOpts);
     // The code samples shipped with each example end in `c.start()`,
     // so kick the writer off automatically to match — the only
-    // exposed control is Reset, which re-arms from scratch.
-    c.start();
+    // exposed control is Reset, which re-arms from scratch. Wait on
+    // `ready()` so hanzi-writer's config + character data have landed
+    // before the quiz arms, otherwise start() races against the
+    // initial render and leaves the cell showing the static character
+    // template instead of quiz mode.
+    void c.ready().then(() => c.start());
     instances.set(key, c);
   }
 

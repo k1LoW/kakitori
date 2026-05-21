@@ -142,10 +142,26 @@
         color: #555;
         margin-bottom: 0.5rem;
       }
+      .char-example-body {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .char-example-demo {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .char-example-body pre {
+        flex: 1;
+        min-width: 280px;
+        margin: 0;
+      }
       .char-example-controls {
         display: flex;
         gap: 0.5rem;
-        margin-bottom: 0.5rem;
       }
       .char-example-writer {
         display: inline-block;
@@ -533,25 +549,33 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       <div class="char-example">
         <h4>1. Normal</h4>
         <p>Default mount: cross-grid on, hanzi-writer paints each accepted stroke.</p>
-        <pre data-lang="ts">const c = char.create("学");
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-normal" class="char-example-writer"></div>
+            <div class="char-example-controls">
+              <button data-example="normal" data-action="reset">Reset &amp; Start</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
 c.mount(target, { size: 160, showGrid: true, drawingWidth: 6 });
 c.start();</pre>
-        <div class="char-example-controls">
-          <button data-example="normal" data-action="reset">Reset &amp; Start</button>
         </div>
-        <div id="char-example-normal" class="char-example-writer"></div>
       </div>
 
       <div class="char-example">
         <h4>2. No grid</h4>
         <p>Same configuration as above, but the cross-grid is suppressed for a cleaner cell background.</p>
-        <pre data-lang="ts">const c = char.create("学");
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-no-grid" class="char-example-writer"></div>
+            <div class="char-example-controls">
+              <button data-example="no-grid" data-action="reset">Reset &amp; Start</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
 c.mount(target, { size: 160, showGrid: false, drawingWidth: 6 });
 c.start();</pre>
-        <div class="char-example-controls">
-          <button data-example="no-grid" data-action="reset">Reset &amp; Start</button>
         </div>
-        <div id="char-example-no-grid" class="char-example-writer"></div>
       </div>
 
       <div class="char-example">
@@ -560,13 +584,17 @@ c.start();</pre>
           User writes every stroke freely without per-stroke rejection. Correction
           runs once all strokes are captured; NG attempts wipe and re-arm in place.
         </p>
-        <pre data-lang="ts">const c = char.create("学");
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-per-char" class="char-example-writer"></div>
+            <div class="char-example-controls">
+              <button data-example="per-char" data-action="reset">Reset &amp; Start</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
 c.mount(target, { size: 160, showGrid: true, correction: "per-char", drawingWidth: 6 });
 c.start();</pre>
-        <div class="char-example-controls">
-          <button data-example="per-char" data-action="reset">Reset &amp; Start</button>
         </div>
-        <div id="char-example-per-char" class="char-example-writer"></div>
       </div>
 
       <div class="char-example">
@@ -575,7 +603,14 @@ c.start();</pre>
           Paper-like UX — the user's own ink stays on screen after each accepted stroke,
           and hanzi-writer's official gray stroke is suppressed.
         </p>
-        <pre data-lang="ts">const c = char.create("学");
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-retain" class="char-example-writer"></div>
+            <div class="char-example-controls">
+              <button data-example="retain" data-action="reset">Reset &amp; Start</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
 c.mount(target, {
   size: 160,
   showGrid: true,
@@ -584,10 +619,7 @@ c.mount(target, {
   drawingWidth: 6,
 });
 c.start();</pre>
-        <div class="char-example-controls">
-          <button data-example="retain" data-action="reset">Reset &amp; Start</button>
         </div>
-        <div id="char-example-retain" class="char-example-writer"></div>
       </div>
 
       <h3>CharResult</h3>
