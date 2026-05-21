@@ -799,26 +799,9 @@ const result = b.result();</pre>
       </p>
 
       <div class="demo-controls">
-        <label for="block-usecase">Use case:</label>
-        <select id="block-usecase">
-          <option value="1">1: 学校 (guided + guided, write)</option>
-          <option value="2">2: [_]校 (write 学 / show 校)</option>
-          <option value="3">3: がっこう (free, write)</option>
-          <option value="4">4: がっ + 校 (free write + guided show)</option>
-          <option value="5" selected>5: 学校 + ふりがな がっこう (guided + furigana)</option>
-          <option value="6">6: [_]校 + ふりがな がっこう</option>
-          <option value="7">7: 学校 (both show) + ふりがな のみ書く</option>
-          <option value="8">8: 学校 (write, お手本 outline 非表示)</option>
-        </select>
         <button id="block-reset">Reset</button>
         <button id="block-undo">Undo</button>
         <button id="block-status-btn">Status</button>
-        <label for="block-correction" style="margin-left: 0.5rem;">Correction:</label>
-        <select id="block-correction">
-          <option value="per-stroke">per-stroke</option>
-          <option value="per-char">per-char</option>
-          <option value="per-block">per-block</option>
-        </select>
       </div>
       <div class="demo-stage">
         <div id="block-host"></div>
@@ -881,7 +864,10 @@ const result = b.result();</pre>
 
       <div class="block-example">
         <h4>3. Free cell</h4>
-        <p>A single free cell where any candidate from <code>expected</code> counts as a match — the user can write the whole reading freehand.</p>
+        <p>
+          A free cell decouples visible width from answer length: <code>expected: "学校"</code> (2 characters)
+          but <code>span: 3</code> reserves 3 grid slots, so the user can write freely across the strip.
+        </p>
         <div class="block-example-body">
           <div class="block-example-demo">
             <div id="block-example-free" class="block-example-host"></div>
@@ -892,7 +878,9 @@ const result = b.result();</pre>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
   spec: {
-    cells: [{ kind: "free", expected: "がっこう", mode: "write" }],
+    cells: [
+      { kind: "free", expected: "学校", mode: "write", span: 3 },
+    ],
   },
   cellSize: 140,
 });</pre>
