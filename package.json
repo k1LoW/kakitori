@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "oxlint": "1.62.0",
-    "turbo": "2.5.4",
+    "turbo": "2.9.14",
     "typescript": "5.8.3"
   },
   "packageManager": "pnpm@10.32.1",
