@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.14.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.13.2...packages/core/v0.14.0) - 2026-05-21
+### Breaking Changes 🛠
+- refactor(core)!: replace HANZI_COORD_SIZE (900) with the actual hanzi-writer canvas dims by @k1LoW in https://github.com/k1LoW/kakitori/pull/77
+- refactor(core)!: rename judge → check vocabulary across the API by @k1LoW in https://github.com/k1LoW/kakitori/pull/82
+- feat(core)!: retry on NG across char / block / page by @k1LoW in https://github.com/k1LoW/kakitori/pull/85
+### New Features 🚀
+- feat(core): add showAcceptedStroke MountOption to hide hanzi-writer's official ink by @k1LoW in https://github.com/k1LoW/kakitori/pull/80
+- feat(core): add correction MountOption for per-char / per-block judgment by @k1LoW in https://github.com/k1LoW/kakitori/pull/81
+- feat(core): real block-wide deferral for correction: per-block by @k1LoW in https://github.com/k1LoW/kakitori/pull/83
+### Other Changes
+- feat(core): add retainStrokes MountOption for paper-like ink retention by @k1LoW in https://github.com/k1LoW/kakitori/pull/79
+- feat(core): real page-wide deferral for correction: per-page by @k1LoW in https://github.com/k1LoW/kakitori/pull/84
+
 ## [v0.13.2](https://github.com/k1LoW/kakitori/compare/packages/core/v0.13.1...packages/core/v0.13.2) - 2026-05-16
 ### Other Changes
 - docs: refresh tagline to "handwriting practice for kanji, kana, and numbers" by @k1LoW in https://github.com/k1LoW/kakitori/pull/75
