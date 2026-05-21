@@ -10,6 +10,7 @@ import type {
   CharStrokeData,
   CharDataLoaderFn,
   ConfigLoaderFn,
+  MountOptions,
 } from "@k1low/kakitori";
 
 const charDataCache = new Map<
@@ -334,7 +335,12 @@ type ExampleKey =
 
 interface ExampleConfig {
   key: ExampleKey;
-  mountOpts: Parameters<Char["mount"]>[1];
+  // Spell out `MountOptions` instead of inferring via
+  // `Parameters<Char["mount"]>[1]` — the latter resolves to
+  // `MountOptions | undefined` because the parameter is optional
+  // on `Char.mount`, which makes `...mountOpts` spreads
+  // type-unsafe under strict mode.
+  mountOpts: MountOptions;
 }
 
 const EXAMPLE_CHARACTER = "学";
