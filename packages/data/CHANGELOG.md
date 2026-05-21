@@ -1,5 +1,24 @@
 # Changelog
 
+## [v0.8.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.3...packages/data/v0.8.0) - 2026-05-21
+### Breaking Changes 🛠
+- refactor(core)!: replace HANZI_COORD_SIZE (900) with the actual hanzi-writer canvas dims by @k1LoW in https://github.com/k1LoW/kakitori/pull/77
+- refactor(core)!: rename judge → check vocabulary across the API by @k1LoW in https://github.com/k1LoW/kakitori/pull/82
+- feat(core)!: retry on NG across char / block / page by @k1LoW in https://github.com/k1LoW/kakitori/pull/85
+- feat(core)!: drawingWidth in display pixels + site char examples by @k1LoW in https://github.com/k1LoW/kakitori/pull/88
+### New Features 🚀
+- feat(core): add showAcceptedStroke MountOption to hide hanzi-writer's official ink by @k1LoW in https://github.com/k1LoW/kakitori/pull/80
+- feat(core): add correction MountOption for per-char / per-block judgment by @k1LoW in https://github.com/k1LoW/kakitori/pull/81
+- feat(core): real block-wide deferral for correction: per-block by @k1LoW in https://github.com/k1LoW/kakitori/pull/83
+- feat(data): add stroke configs for dakuon and handakuon kana by @k1LoW in https://github.com/k1LoW/kakitori/pull/90
+### Dependency Updates ⬆️
+- chore(deps): bump ws from 8.20.0 to 8.20.1 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/87
+- chore(deps-dev): bump turbo from 2.5.4 to 2.9.14 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/86
+### Other Changes
+- docs: refresh tagline to "handwriting practice for kanji, kana, and numbers" by @k1LoW in https://github.com/k1LoW/kakitori/pull/75
+- feat(core): add retainStrokes MountOption for paper-like ink retention by @k1LoW in https://github.com/k1LoW/kakitori/pull/79
+- feat(core): real page-wide deferral for correction: per-page by @k1LoW in https://github.com/k1LoW/kakitori/pull/84
+
 ## [v0.7.3](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.2...packages/data/v0.7.3) - 2026-05-12
 
 ## [v0.7.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.1...packages/data/v0.7.2) - 2026-05-12
