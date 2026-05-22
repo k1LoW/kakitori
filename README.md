@@ -1,6 +1,6 @@
 # kakitori
 
-A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai judgment, composable practice problems, and a paper-style multi-block layout.
+A handwriting practice library for kanji, kana, and numbers. Per-stroke tome / hane / harai checking, composable practice problems, and a paper-style multi-block layout.
 
 ## Site
 
@@ -10,23 +10,23 @@ https://k1low.github.io/kakitori/
 
 kakitori uses [@k1low/hanzi-writer-data-jp](https://github.com/k1LoW/hanzi-writer-data-jp) for character data and is built around three primitives:
 
-- **`char`** — one character. Render statically, mount an interactive writer that judges each stroke, or judge strokes headlessly without a DOM.
+- **`char`** — one character. Render statically, mount an interactive writer that checks each stroke, or check strokes headlessly without a DOM.
 - **`block`** — one practice problem: a row of cells plus an optional furigana annotation strip. Cells can be guided (one specific character to write or show), free (any of an expected string, matched freehand), or blank (visual placeholder).
-- **`page`** — a vertical-rl grid of multiple blocks (Japanese practice-sheet style). Blocks flow column-by-column; a block that crosses a column boundary is split per-cell automatically, even when it carries a furigana annotation, and strokes drawn across split surfaces are judged from a shared buffer.
+- **`page`** — a vertical-rl grid of multiple blocks (Japanese practice-sheet style). Blocks flow column-by-column; a block that crosses a column boundary is split per-cell automatically, even when it carries a furigana annotation, and strokes drawn across split surfaces are checked from a shared buffer.
 
 Features:
-- Stroke ending judgment: tome (stop), hane (hook), harai (sweep)
+- Stroke ending check: tome (stop), hane (hook), harai (sweep)
 - Stroke grouping to correct stroke counts (e.g. "あ" has 4 data strokes but 3 actual strokes)
 - animCJK-style stroke animation with seamless grouped strokes
 - Click-to-select stroke highlighting
-- Logger for debugging pointer events and judgment results
+- Logger for debugging pointer events and check verdicts
 - Unified `CharResult` leaf across all primitives, flattenable via `collectCharResults()`
 
 ## Packages
 
 | Package | Description |
 |---------|-------------|
-| [@k1low/kakitori](./packages/core) | Core library: char / block / page primitives + per-stroke tome / hane / harai judgment |
+| [@k1low/kakitori](./packages/core) | Core library: char / block / page primitives + per-stroke tome / hane / harai checking |
 | [@k1low/kakitori-data](./packages/data) | Stroke ending (tome / hane / harai) + stroke grouping data, plus CLI tools |
 
 ## Usage
@@ -36,7 +36,7 @@ Features:
 ```ts
 import { char } from "@k1low/kakitori";
 
-// Mount an interactive writer that judges each stroke.
+// Mount an interactive writer that checks each stroke.
 const target = document.getElementById("writer")!;
 const c = char.create("学");
 c.mount(target, {
