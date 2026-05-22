@@ -201,6 +201,82 @@
         min-width: 160px;
         min-height: 160px;
       }
+
+      /* block examples — shares the visual language with char examples
+         but the host is wider (multi-cell row) and gets its own min-height
+         so it doesn't collapse while the chars load. */
+      .block-example {
+        margin-bottom: 2rem;
+      }
+      .block-example h4 {
+        font-size: 1rem;
+        margin: 0 0 0.25rem;
+      }
+      .block-example p {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.5rem;
+      }
+      .block-example-body {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .block-example-demo {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .block-example-body pre {
+        flex: 1;
+        min-width: 280px;
+        margin: 0;
+      }
+      .block-example-controls {
+        display: flex;
+        gap: 0.5rem;
+      }
+      .block-example-host {
+        display: inline-block;
+        background: #fff;
+        border-radius: 4px;
+        /* Kill the inherited line-height so the host hugs the
+           block's rendered height instead of leaving a half-line
+           of slack at the bottom. */
+        line-height: 0;
+      }
+      .block-example-status {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        min-height: 1.4em;
+      }
+      .block-example-chip {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 1.4em;
+        height: 1.4em;
+        padding: 0 4px;
+        border: 1px solid #ccc;
+        border-radius: 3px;
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: #999;
+        background: #fafafa;
+      }
+      .block-example-chip.ok {
+        border-color: #4a4;
+        color: #4a4;
+        background: #effe8f;
+      }
+      .block-example-chip.ng {
+        border-color: #c44;
+        color: #c44;
+        background: #fee;
+      }
       #char-result {
         margin-top: 0.5rem;
         font-size: 0.85rem;
@@ -726,32 +802,146 @@ const result = b.result();</pre>
       </p>
 
       <div class="demo-controls">
-        <label for="block-usecase">Use case:</label>
-        <select id="block-usecase">
-          <option value="1">1: 学校 (guided + guided, write)</option>
-          <option value="2">2: [_]校 (write 学 / show 校)</option>
-          <option value="3">3: がっこう (free, write)</option>
-          <option value="4">4: がっ + 校 (free write + guided show)</option>
-          <option value="5" selected>5: 学校 + ふりがな がっこう (guided + furigana)</option>
-          <option value="6">6: [_]校 + ふりがな がっこう</option>
-          <option value="7">7: 学校 (both show) + ふりがな のみ書く</option>
-          <option value="8">8: 学校 (write, お手本 outline 非表示)</option>
-        </select>
         <button id="block-reset">Reset</button>
         <button id="block-undo">Undo</button>
         <button id="block-status-btn">Status</button>
-        <label for="block-correction" style="margin-left: 0.5rem;">Correction:</label>
-        <select id="block-correction">
-          <option value="per-stroke">per-stroke</option>
-          <option value="per-char">per-char</option>
-          <option value="per-block">per-block</option>
-        </select>
       </div>
       <div class="demo-stage">
         <div id="block-host"></div>
         <pre id="block-log"></pre>
       </div>
       <div id="block-status"></div>
+
+      <h3>Examples</h3>
+      <p>
+        Five common block configurations. Each example has its own block instance —
+        Restart re-creates the block from scratch. The chip row below each block colors green / red
+        per cell as <code>onCellComplete</code> fires.
+      </p>
+
+      <div class="block-example">
+        <h4>1. Normal (two guided cells, write)</h4>
+        <p>Two guided cells side by side. The user writes both characters in order; each cell commits independently.</p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-normal" class="block-example-host"></div>
+            <div data-block-status-for="normal" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="normal" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "学", mode: "write" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+  },
+  cellSize: 140,
+});</pre>
+        </div>
+      </div>
+
+      <div class="block-example">
+        <h4>2. Show + write</h4>
+        <p>First cell renders the template (read-only); second cell is the writable target. Useful for "trace then write" prompts.</p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-show-write" class="block-example-host"></div>
+            <div data-block-status-for="show-write" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="show-write" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "学", mode: "show" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+  },
+  cellSize: 140,
+});</pre>
+        </div>
+      </div>
+
+      <div class="block-example">
+        <h4>3. Free cell</h4>
+        <p>
+          A free cell decouples visible width from answer length: <code>expected: "学校"</code> (2 characters)
+          but <code>span: 3</code> reserves 3 grid slots, so the user can write freely across the strip.
+        </p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-free" class="block-example-host"></div>
+            <div data-block-status-for="free" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="free" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "free", expected: "学校", mode: "write", span: 3 },
+    ],
+  },
+  cellSize: 140,
+});</pre>
+        </div>
+      </div>
+
+      <div class="block-example">
+        <h4>4. With furigana annotation</h4>
+        <p>Two guided cells plus a write-mode furigana strip spanning both. The annotation accepts the reading freely across the strip.</p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-annotated" class="block-example-host"></div>
+            <div data-block-status-for="annotated" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="annotated" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "学", mode: "write" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+    annotations: [
+      { cellRange: [0, 1], expected: "がっこう", mode: "write" },
+    ],
+  },
+  cellSize: 140,
+});</pre>
+        </div>
+      </div>
+
+      <div class="block-example">
+        <h4>5. Per-block correction</h4>
+        <p>
+          Block-wide <code>correction: "per-block"</code>: every cell defers its check until the entire block is written. NG cells wipe and re-arm in place;
+          <code>onCellComplete</code> / <code>onBlockComplete</code> fire in one burst on the final OK round.
+        </p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-per-block" class="block-example-host"></div>
+            <div data-block-status-for="per-block" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="per-block" data-action="reset">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "学", mode: "write" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+  },
+  cellSize: 140,
+  correction: "per-block",
+});</pre>
+        </div>
+      </div>
 
       <h3>BlockResult</h3>
       <p>

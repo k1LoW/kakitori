@@ -30,8 +30,6 @@ export function setupBlock(root: HTMLElement): void {
   const resetBtn = root.querySelector<HTMLButtonElement>("#block-reset")!;
   const undoBtn = root.querySelector<HTMLButtonElement>("#block-undo")!;
   const statusBtn = root.querySelector<HTMLButtonElement>("#block-status-btn")!;
-  const useCaseSelect = root.querySelector<HTMLSelectElement>("#block-usecase")!;
-  const correctionSelect = root.querySelector<HTMLSelectElement>("#block-correction");
 
   let currentBlock: Block | null = null;
 
@@ -50,83 +48,20 @@ export function setupBlock(root: HTMLElement): void {
     logEl.replaceChildren();
   }
 
-  function specForUseCase(uc: string): BlockSpec {
-    switch (uc) {
-      case "1":
-        return {
-          cells: [
-            { kind: "guided", char: "学", mode: "write" },
-            { kind: "guided", char: "校", mode: "write" },
-          ],
-        };
-      case "2":
-        return {
-          cells: [
-            { kind: "guided", char: "学", mode: "write" },
-            { kind: "guided", char: "校", mode: "show" },
-          ],
-        };
-      case "3":
-        return {
-          cells: [{ kind: "free", expected: "がっこう", mode: "write" }],
-        };
-      case "4":
-        return {
-          cells: [
-            { kind: "free", expected: "がっ", mode: "write" },
-            { kind: "guided", char: "校", mode: "show" },
-          ],
-        };
-      case "5":
-        return {
-          cells: [
-            { kind: "guided", char: "学", mode: "write" },
-            { kind: "guided", char: "校", mode: "write" },
-          ],
-          annotations: [
-            { cellRange: [0, 1], expected: "がっこう", mode: "write" },
-          ],
-        };
-      case "6":
-        return {
-          cells: [
-            { kind: "guided", char: "学", mode: "write" },
-            { kind: "guided", char: "校", mode: "show" },
-          ],
-          annotations: [
-            { cellRange: [0, 1], expected: "がっこう", mode: "write" },
-          ],
-        };
-      case "7":
-        return {
-          cells: [
-            { kind: "guided", char: "学", mode: "show" },
-            { kind: "guided", char: "校", mode: "show" },
-          ],
-          annotations: [
-            { cellRange: [0, 1], expected: "がっこう", mode: "write" },
-          ],
-        };
-      case "8":
-        return {
-          cells: [
-            {
-              kind: "guided",
-              char: "学",
-              mode: "write",
-              overrides: { showOutline: false },
-            },
-            {
-              kind: "guided",
-              char: "校",
-              mode: "write",
-              overrides: { showOutline: false },
-            },
-          ],
-        };
-    }
-    throw new Error(`unknown use case: ${uc}`);
-  }
+  // The live example mirrors the code sample at the top of the
+  // section: two guided cells (学校) plus a write-mode furigana
+  // strip (がっこう). Specific configuration variants moved to the
+  // Examples section below; this demo focuses on the log + Reset /
+  // Undo / Status interactions on a single representative spec.
+  const liveExampleSpec: BlockSpec = {
+    cells: [
+      { kind: "guided", char: "学", mode: "write" },
+      { kind: "guided", char: "校", mode: "write" },
+    ],
+    annotations: [
+      { cellRange: [0, 1], expected: "がっこう", mode: "write" },
+    ],
+  };
 
   function rebuild() {
     currentBlock?.destroy();
@@ -134,15 +69,13 @@ export function setupBlock(root: HTMLElement): void {
     clearLog();
     statusEl.textContent = "";
 
-    const spec = specForUseCase(useCaseSelect.value);
     log(
-      `build use case ${useCaseSelect.value}: cells=${spec.cells.length} annotations=${spec.annotations?.length ?? 0}`,
+      `build: cells=${liveExampleSpec.cells.length} annotations=${liveExampleSpec.annotations?.length ?? 0}`,
     );
 
-    const correction = (correctionSelect?.value ??
-      "per-stroke") as "per-stroke" | "per-char" | "per-block";
+    const correction = "per-stroke" as const;
     currentBlock = block.create(hostEl, {
-      spec,
+      spec: liveExampleSpec,
       cellSize: 140,
       loaders: { charDataLoader: cachedCharDataLoader },
       logger: (msg) => log(msg),
@@ -195,8 +128,173 @@ export function setupBlock(root: HTMLElement): void {
     log(`result: ${JSON.stringify(currentBlock.result())}`);
   });
 
-  useCaseSelect.addEventListener("change", rebuild);
-  correctionSelect?.addEventListener("change", rebuild);
-
   rebuild();
+
+  setupBlockExamples(root);
+}
+
+type BlockExampleKey =
+  | "normal"
+  | "show-write"
+  | "free"
+  | "annotated"
+  | "per-block";
+
+interface BlockExampleConfig {
+  key: BlockExampleKey;
+  /** Cell-count hint for the initial chip row before onCellComplete fires. */
+  cellCount: number;
+  build: () => Parameters<typeof block.create>[1];
+}
+
+const BLOCK_EXAMPLE_CELL_SIZE = 140;
+
+const BLOCK_EXAMPLES: BlockExampleConfig[] = [
+  {
+    key: "normal",
+    cellCount: 2,
+    build: () => ({
+      spec: {
+        cells: [
+          { kind: "guided", char: "学", mode: "write" },
+          { kind: "guided", char: "校", mode: "write" },
+        ],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+  {
+    key: "show-write",
+    cellCount: 2,
+    build: () => ({
+      spec: {
+        cells: [
+          { kind: "guided", char: "学", mode: "show" },
+          { kind: "guided", char: "校", mode: "write" },
+        ],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+  {
+    key: "free",
+    cellCount: 1,
+    build: () => ({
+      spec: {
+        // "学校" is 2 characters but `span: 3` reserves 3 grid slots,
+        // demonstrating that free cells decouple visible width from
+        // answer length.
+        cells: [{ kind: "free", expected: "学校", mode: "write", span: 3 }],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+  {
+    key: "annotated",
+    cellCount: 2,
+    build: () => ({
+      spec: {
+        cells: [
+          { kind: "guided", char: "学", mode: "write" },
+          { kind: "guided", char: "校", mode: "write" },
+        ],
+        annotations: [
+          { cellRange: [0, 1], expected: "がっこう", mode: "write" },
+        ],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+  {
+    key: "per-block",
+    cellCount: 2,
+    build: () => ({
+      spec: {
+        cells: [
+          { kind: "guided", char: "学", mode: "write" },
+          { kind: "guided", char: "校", mode: "write" },
+        ],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      correction: "per-block",
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+];
+
+function setupBlockExamples(root: HTMLElement): void {
+  for (const config of BLOCK_EXAMPLES) {
+    const hostEl = root.querySelector<HTMLElement>(
+      `#block-example-${config.key}`,
+    );
+    if (!hostEl) {
+      continue;
+    }
+    const host = hostEl;
+    const statusEl = root.querySelector<HTMLElement>(
+      `[data-block-status-for="${config.key}"]`,
+    );
+
+    let chips: HTMLElement[] = [];
+    function renderChips() {
+      if (!statusEl) {
+        return;
+      }
+      statusEl.replaceChildren();
+      chips = [];
+      for (let i = 0; i < config.cellCount; i++) {
+        const chip = document.createElement("span");
+        chip.className = "block-example-chip";
+        chip.textContent = String(i + 1);
+        statusEl.appendChild(chip);
+        chips.push(chip);
+      }
+    }
+    function markChip(index: number, kind: "ok" | "ng") {
+      const chip = chips[index];
+      if (!chip) {
+        return;
+      }
+      chip.classList.remove("ok", "ng");
+      chip.classList.add(kind);
+    }
+
+    let instance: Block | null = null;
+    function build() {
+      instance?.destroy();
+      host.replaceChildren();
+      renderChips();
+      const opts = config.build();
+      const userOnCellComplete = opts.onCellComplete;
+      instance = block.create(host, {
+        ...opts,
+        onCellComplete: (index, kind, chars) => {
+          userOnCellComplete?.(index, kind, chars);
+          // Mark the cell chip from the first chars[].matched roll-up;
+          // annotation completions land on the same `index` as cells in
+          // the matched/non-matched sense but render to a separate
+          // strip — we only mark the cell row here to keep the chip
+          // count aligned with `config.cellCount`.
+          if (kind !== "cell") {
+            return;
+          }
+          const ok = chars.every((c) => c.matched);
+          markChip(index, ok ? "ok" : "ng");
+        },
+      });
+    }
+    build();
+
+    root
+      .querySelectorAll<HTMLButtonElement>(
+        `[data-block-example="${config.key}"][data-action="reset"]`,
+      )
+      .forEach((btn) => {
+        btn.addEventListener("click", build);
+      });
+  }
 }
