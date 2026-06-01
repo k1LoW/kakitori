@@ -187,7 +187,9 @@ export function checkStrokeEnding(
   // getEndDirection() with a near-zero vector.
   const motionEndIdx = findStationaryTailStart(points);
   const hasStationaryTail = motionEndIdx < points.length - 1;
-  const pauseMs = computeTailPauseMs(points);
+  const pauseMs = hasStationaryTail
+    ? Math.max(0, points[points.length - 1].t - points[motionEndIdx].t)
+    : 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
