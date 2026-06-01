@@ -3,7 +3,7 @@ import type {
   StrokeEndingResult,
   TimedPoint,
 } from "./types.js";
-import { checkStrokeEnding } from "./StrokeEndingChecker.js";
+import { checkStrokeEnding, computeTailPauseMs } from "./StrokeEndingChecker.js";
 import type { CharLogger } from "./charOptions.js";
 import type { HanziCharacterData, Pt } from "./hanziWriterInternals.js";
 import { findDataStroke, type StrokeGroups } from "./strokeGroups.js";
@@ -120,16 +120,11 @@ export function computeEndingCheck(
     }
   }
 
-  // Match StrokeEndingChecker.checkStroke()'s release-marker detection so the log
-  // does not report a misleading "pause" for motion-only sequences (where
-  // the final dt is just the last segment, not a pointerup pause).
-  const lastIsRelease =
-    points.length >= 2 &&
-    points[points.length - 1].x === points[points.length - 2].x &&
-    points[points.length - 1].y === points[points.length - 2].y;
-  const pauseBeforeRelease = lastIsRelease
-    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
-    : 0;
+  // Reuse the checker's pause computation so the log matches the verdict.
+  // Trailing samples within ±1 unit form one "stationary cluster" and
+  // their accumulated duration is the pause; motion-only sequences
+  // report 0.
+  const pauseBeforeRelease = computeTailPauseMs(points);
   log?.(
     `check input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
   );

@@ -93,6 +93,50 @@ function analyzeTailFromTimedPoints(
 // Calibration baseline for threshold scaling. Independent from DEFAULT_SIZE (user-facing default); they may diverge.
 const BASE_SIZE = 300;
 
+/**
+ * Walk backwards from the last sample and return the index of the first
+ * "stationary" sample — the boundary between motion and the trailing
+ * pause cluster. Consecutive steps whose `|Δx| ≤ 1` and `|Δy| ≤ 1` are
+ * treated as the user holding still: the ±1 tolerance absorbs sub-pixel
+ * jitter that pointer devices keep emitting while the finger is stopped.
+ *
+ * The returned index is `points.length - 1` when there is no stationary
+ * tail (the very last sample is a real motion sample), so callers can
+ * detect that case with `motionEndIdx < points.length - 1`.
+ *
+ * Exported so debug/logging paths can report the SAME pause the checker
+ * uses, instead of recomputing with a stale exact-match definition.
+ */
+export function findStationaryTailStart(
+  points: ReadonlyArray<TimedPoint>,
+): number {
+  let i = points.length - 1;
+  while (
+    i > 0 &&
+    Math.abs(points[i].x - points[i - 1].x) <= 1 &&
+    Math.abs(points[i].y - points[i - 1].y) <= 1
+  ) {
+    i--;
+  }
+  return i;
+}
+
+/**
+ * Time the user spent holding still at the end of `points`, in
+ * milliseconds. Zero when there is no stationary cluster (the final
+ * sample is a real motion sample).
+ */
+export function computeTailPauseMs(points: ReadonlyArray<TimedPoint>): number {
+  if (points.length < 2) {
+    return 0;
+  }
+  const motionEndIdx = findStationaryTailStart(points);
+  if (motionEndIdx >= points.length - 1) {
+    return 0;
+  }
+  return Math.max(0, points[points.length - 1].t - points[motionEndIdx].t);
+}
+
 export interface CheckOptions {
   /**
    * Side length of the drawable area in the SAME coord space as `points`.
@@ -134,30 +178,22 @@ export function checkStrokeEnding(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  // The convention: when the final element of `points` shares its xy with
-  // the previous sample, it is treated as the moment of pointerup; the gap
-  // between their timestamps is the user's pause before releasing. When
-  // the last point is just another motion sample (xy differs), the final
-  // segment duration is NOT a pause and would produce false tome detections
-  // on low-frequency sampling, so we report 0.
-  //
-  // The same condition decides whether direction and tail analysis should
-  // skip the last sample: a synthetic release point at the same xy makes
-  // getEndDirection() return [0, 0] and lets the tip window in
-  // analyzeTailFromTimedPoints() collapse the tip distance / dilute tip
-  // speed with the pause duration. Motion-only sequences are analyzed in
-  // full.
-  const lastIsRelease =
-    points.length >= 2 &&
-    points[points.length - 1].x === points[points.length - 2].x &&
-    points[points.length - 1].y === points[points.length - 2].y;
-  const pauseMs = lastIsRelease
-    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+  // Trailing samples whose xy stays within 1 unit of the previous sample
+  // are treated as the user holding still before release; see
+  // findStationaryTailStart() for the rationale and tolerance choice.
+  // motionPoints drops that cluster before tail analysis: keeping
+  // stationary samples in the tip window collapses tip distance and
+  // dilutes tip speed with the pause duration, and pollutes
+  // getEndDirection() with a near-zero vector.
+  const motionEndIdx = findStationaryTailStart(points);
+  const hasStationaryTail = motionEndIdx < points.length - 1;
+  const pauseMs = hasStationaryTail
+    ? Math.max(0, points[points.length - 1].t - points[motionEndIdx].t)
     : 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
-  const motionPoints = lastIsRelease ? points.slice(0, -1) : points;
+  const motionPoints = hasStationaryTail ? points.slice(0, motionEndIdx + 1) : points;
 
   const tailSize = Math.max(3, Math.floor(motionPoints.length * 0.2));
   const drawnTail = motionPoints.slice(-tailSize);
