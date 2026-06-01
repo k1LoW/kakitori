@@ -134,30 +134,38 @@ export function checkStrokeEnding(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  // The convention: when the final element of `points` shares its xy with
-  // the previous sample, it is treated as the moment of pointerup; the gap
-  // between their timestamps is the user's pause before releasing. When
-  // the last point is just another motion sample (xy differs), the final
-  // segment duration is NOT a pause and would produce false tome detections
-  // on low-frequency sampling, so we report 0.
+  // The convention: trailing samples whose xy stays within 1 unit of the
+  // previous sample are treated as the user holding still before release.
+  // Walking backwards we find the first such "stationary cluster" and use
+  // the time between its first sample and the very last sample as pauseMs.
+  // The ±1 tolerance absorbs sub-pixel jitter that pointer devices emit
+  // while the finger is effectively stopped; an exact-match check would
+  // miss those and under-report the pause.
   //
-  // The same condition decides whether direction and tail analysis should
-  // skip the last sample: a synthetic release point at the same xy makes
-  // getEndDirection() return [0, 0] and lets the tip window in
-  // analyzeTailFromTimedPoints() collapse the tip distance / dilute tip
-  // speed with the pause duration. Motion-only sequences are analyzed in
-  // full.
-  const lastIsRelease =
-    points.length >= 2 &&
-    points[points.length - 1].x === points[points.length - 2].x &&
-    points[points.length - 1].y === points[points.length - 2].y;
-  const pauseMs = lastIsRelease
-    ? Math.max(0, points[points.length - 1].t - points[points.length - 2].t)
+  // When the last point is just another motion sample (xy differs by more
+  // than 1), the final segment duration is NOT a pause and would produce
+  // false tome detections on low-frequency sampling, so pauseMs is 0.
+  //
+  // The same cluster is dropped before direction and tail analysis: keeping
+  // stationary samples in the tip window collapses the tip distance and
+  // dilutes tip speed with the pause duration, and pollutes
+  // getEndDirection() with a near-zero vector.
+  let motionEndIdx = points.length - 1;
+  while (
+    motionEndIdx > 0 &&
+    Math.abs(points[motionEndIdx].x - points[motionEndIdx - 1].x) <= 1 &&
+    Math.abs(points[motionEndIdx].y - points[motionEndIdx - 1].y) <= 1
+  ) {
+    motionEndIdx--;
+  }
+  const hasStationaryTail = motionEndIdx < points.length - 1;
+  const pauseMs = hasStationaryTail
+    ? Math.max(0, points[points.length - 1].t - points[motionEndIdx].t)
     : 0;
   const tomeThreshold = 80;
   const hasTomePause = pauseMs >= tomeThreshold;
 
-  const motionPoints = lastIsRelease ? points.slice(0, -1) : points;
+  const motionPoints = hasStationaryTail ? points.slice(0, motionEndIdx + 1) : points;
 
   const tailSize = Math.max(3, Math.floor(motionPoints.length * 0.2));
   const drawnTail = motionPoints.slice(-tailSize);
