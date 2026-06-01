@@ -18,9 +18,13 @@ export type StrokeEndingType = "tome" | "hane" | "harai";
  * `t` is milliseconds (typically `performance.now()`).
  *
  * The final element of a stroke array is treated as the moment the user
- * released the pointer: its `t` is the release time and its position is
- * usually the same as the previous sample. The gap `last.t - prev.t` is what
- * tome/hane/harai detection treats as "pause before release".
+ * released the pointer: its `t` is the release time. tome/hane/harai
+ * detection finds the trailing run of samples whose xy stays within 1
+ * unit of the previous one — a "stationary cluster" left by holding the
+ * finger still while pointer devices keep emitting jitter — and uses the
+ * time from the cluster's first sample to the release as "pause before
+ * release". When the last sample is real motion (xy differs by more than
+ * 1 from the previous one), the pause is treated as 0.
  */
 export interface TimedPoint {
   x: number;
