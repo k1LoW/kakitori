@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.15.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.15.0...packages/core/v0.15.1) - 2026-06-01
+
+### Other Changes
+- feat(site): add block Examples section + trim Live Example controls by @k1LoW in https://github.com/k1LoW/kakitori/pull/91
+- docs: refresh README vocabulary to match judge → check rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/94
+- docs(core): align package.json description with judge → check rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/95
+- fix(core): accumulate tome pause across stationary trailing samples by @k1LoW in https://github.com/k1LoW/kakitori/pull/96
+
 ## [v0.15.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.14.0...packages/core/v0.15.0) - 2026-05-21
 ### Breaking Changes 🛠
 - feat(core)!: drawingWidth in display pixels + site char examples by @k1LoW in https://github.com/k1LoW/kakitori/pull/88

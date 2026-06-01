@@ -1,6 +1,6 @@
 {
   "name": "@k1low/kakitori",
-  "version": "0.15.0",
+  "version": "0.15.1",
   "description": "A handwriting practice library for kanji, kana, and numbers — per-stroke tome / hane / harai checking, composable practice problems, and a paper-style multi-block layout",
   "license": "MIT",
   "repository": {
