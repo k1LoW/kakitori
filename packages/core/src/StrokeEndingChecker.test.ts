@@ -53,10 +53,10 @@ describe("check", () => {
     });
 
     it("accumulates pause time across consecutive stationary samples (xy delta <= 1)", () => {
-      // The user holds still at the end. Each individual gap is below the
-      // tome threshold (40ms), and consecutive samples drift by 1 unit
-      // (sub-pixel jitter), but together they accumulate to 120ms — well
-      // over the 80ms tome threshold.
+      // The user holds still at the end. Each individual gap is 40ms,
+      // safely under the 80ms tome threshold, and consecutive samples
+      // drift by 1 unit (sub-pixel jitter), but together they accumulate
+      // to 120ms — well over the 80ms tome threshold.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
