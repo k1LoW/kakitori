@@ -119,9 +119,6 @@ function createFreeWritingCell(
   // cell down before config resolves cannot land start() on a destroyed
   // instance the way a `ready().then(start)` chain would.
   c.start();
-  void c.ready().catch((err: unknown) => {
-    console.error("[sizing] ready() failed:", err);
-  });
   return c;
 }
 
