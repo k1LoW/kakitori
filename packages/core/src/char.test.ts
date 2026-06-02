@@ -2380,7 +2380,7 @@ describe("char", () => {
       // source space via `sourceBox`, once already in internal coords.
       // The stored `result.points` must be identical (modulo floating-
       // point projection) so downstream consumers (replay, overlay
-      // rendering against hanzi-writer-data-jp) can treat the result
+      // rendering against @k1low/hanzi-writer-data-jp) can treat the result
       // shape uniformly without knowing which input path produced it.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,

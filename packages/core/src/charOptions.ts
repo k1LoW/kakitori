@@ -325,7 +325,7 @@ export interface CharStrokeResult {
    * Replay is always a single shape: re-feed `points` through
    * {@link Char.checkStroke} with NO `sourceBox`. The values can also
    * be drawn directly alongside any other internal-coord geometry
-   * (e.g. paths / medians from hanzi-writer-data-jp) without
+   * (e.g. paths / medians from `@k1low/hanzi-writer-data-jp`) without
    * additional conversion.
    *
    * Undefined for synthetic show-mode strokes (no user input) and for
