@@ -2375,6 +2375,51 @@ describe("char", () => {
       expect(r1.matched).toBe(true);
     });
 
+    it("CharStrokeResult.points is always in internal coords regardless of sourceBox", async () => {
+      // Hand checkStroke the SAME stroke twice — once expressed in
+      // source space via `sourceBox`, once already in internal coords.
+      // The stored `result.points` must be identical (modulo floating-
+      // point projection) so downstream consumers (replay, overlay
+      // rendering against hanzi-writer-data-jp) can treat the result
+      // shape uniformly without knowing which input path produced it.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+
+      const sourceBox = { x: 0, y: 0, size: 1024 };
+      const sourceTrace = [
+        { x: 0, y: 900, t: 0 },
+        { x: 50, y: 850, t: 0 },
+        { x: 100, y: 800, t: 0 },
+      ];
+      const r = await k.checkStroke(0, sourceTrace, { sourceBox });
+      expect(r.points).toBeDefined();
+      const got = r.points!;
+      // The Y=0 / 1024-square sourceBox is the identity-after-flip case
+      // documented on projectToInternal: x passes through, y becomes
+      // HANZI_Y_MAX - y_source.
+      expect(got).toHaveLength(sourceTrace.length);
+      got.forEach((p, i) => {
+        expect(p.x).toBeCloseTo(sourceTrace[i].x);
+        expect(p.y).toBeCloseTo(900 - sourceTrace[i].y);
+        expect(p.t).toBe(sourceTrace[i].t);
+      });
+
+      // Re-feeding the stored points back through checkStroke WITHOUT
+      // sourceBox should reproduce the same verdict — the replay round
+      // trip the new contract promises.
+      const k2 = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k2.ready();
+      const replay = await k2.checkStroke(0, got);
+      expect(replay.matched).toBe(r.matched);
+      expect(replay.similarity).toBeCloseTo(r.similarity);
+    });
+
     it("sourceBox.size must be positive and finite", async () => {
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,

@@ -2170,14 +2170,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
     }
 
-    // Carry the original caller-supplied points (not the
-    // internal-projection) so consumers can re-feed them through
-    // Char.checkStroke for replay without re-projecting. opts.sourceBox is
-    // not part of CharStrokeResult — callers who use a sourceBox should
-    // also keep it externally if they want to replay verbatim.
+    // Store the internal-projected points so CharStrokeResult.points is
+    // always in hanzi-writer internal coords (Y-up, x ∈ [0, HANZI_PRESCALED_SIZE],
+    // y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]) regardless of whether the caller
+    // supplied a sourceBox. Replay is then a single shape: re-feed the
+    // points through Char.checkStroke with NO sourceBox.
     const strokeResult: CharStrokeResult = strokeEnding
-      ? { matched: captured.matched, similarity, strokeEnding, points }
-      : { matched: captured.matched, similarity, points };
+      ? { matched: captured.matched, similarity, strokeEnding, points: internalPoints }
+      : { matched: captured.matched, similarity, points: internalPoints };
 
     j.perStroke[strokeNum] = strokeResult;
     return strokeResult;
