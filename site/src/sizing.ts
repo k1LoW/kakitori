@@ -64,10 +64,14 @@ const DRAWING_WIDTH_DEFAULT = 6;
  * Build a fresh Char instance, pin the wrapper to `size × size` (so it
  * does not collapse visually between teardown and the new mount), and
  * start a free-drawing practice cell with the "paper" feel: no outline,
- * no template character, retained ink. correction: "per-char" +
- * maxRetries: 0 makes the cell accept any freely-drawn input and commit
- * on the first attempt, so the user can switch slider values and
- * restart freely without ever getting stuck in a retry loop.
+ * no template character, retained ink.
+ *
+ * `correction: "per-char"` bypasses hanzi-writer's per-stroke matcher
+ * so the user can freely draw without per-stroke rejection;
+ * `maxRetries: 0` means the first full attempt commits regardless of
+ * OK / NG verdict, so the cell never gets stuck in a retry loop while
+ * the user is exploring slider values. Combined with retainStrokes,
+ * whatever the user drew stays on screen after the attempt commits.
  *
  * Returns the new Char so the caller can destroy() it before the next
  * remount. Recreating instead of unmount+mount-on-the-same-instance
