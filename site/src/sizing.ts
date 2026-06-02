@@ -137,8 +137,6 @@ function formatPointsForInspector(points: ReadonlyArray<TimedPoint>): string {
     }
   }
   const fmt = (n: number) => n.toFixed(1).padStart(8);
-  const head = points.slice(0, 3);
-  const tail = points.slice(-3);
   const fmtRow = (p: TimedPoint) =>
     `  { x: ${fmt(p.x)}, y: ${fmt(p.y)}, t: ${p.t.toFixed(0).padStart(6)} }`;
 
@@ -147,19 +145,22 @@ function formatPointsForInspector(points: ReadonlyArray<TimedPoint>): string {
   lines.push(`x range: ${fmt(minX)} .. ${fmt(maxX)}`);
   lines.push(`y range: ${fmt(minY)} .. ${fmt(maxY)}   (region: -124 .. 900)`);
   lines.push("");
-  lines.push("first 3:");
-  for (const p of head) {
-    lines.push(fmtRow(p));
-  }
-  if (points.length > 6) {
-    lines.push("  ...");
-    lines.push("last 3:");
-    for (const p of tail) {
+  // Short strokes are printed in full so head + tail windows do not
+  // overlap and double up the same sample. Long strokes get the
+  // collapsed first 3 / ... / last 3 view.
+  if (points.length <= 6) {
+    lines.push("samples (all):");
+    for (const p of points) {
       lines.push(fmtRow(p));
     }
-  } else if (points.length > 3) {
-    lines.push("last:");
-    for (const p of tail) {
+  } else {
+    lines.push("first 3:");
+    for (const p of points.slice(0, 3)) {
+      lines.push(fmtRow(p));
+    }
+    lines.push("  ...");
+    lines.push("last 3:");
+    for (const p of points.slice(-3)) {
       lines.push(fmtRow(p));
     }
   }
