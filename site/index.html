@@ -202,6 +202,80 @@
         min-height: 160px;
       }
 
+      /* sizing section: cell size and pen-width interaction examples. */
+      .sizing-example { margin-bottom: 2rem; }
+      .sizing-example h3 { margin: 1.25rem 0 0.5rem; font-size: 1.1rem; }
+      .sizing-example p {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.75rem;
+      }
+      .sizing-control {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.85rem;
+        font-family: monospace;
+      }
+      .sizing-control input[type="range"] {
+        flex: 1;
+        max-width: 320px;
+      }
+      .sizing-row {
+        display: flex;
+        gap: 1.25rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .sizing-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        align-items: flex-start;
+      }
+      .sizing-caption {
+        font-family: monospace;
+        font-size: 0.78rem;
+        color: #555;
+      }
+      .sizing-writer {
+        display: inline-block;
+        border: 1px solid #bbb;
+        background: #fff;
+        border-radius: 4px;
+      }
+      .sizing-inspector-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .sizing-inspector {
+        flex: 1;
+        min-width: 280px;
+        background: #fafafa;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .sizing-inspector h4 { margin: 0; font-size: 0.9rem; }
+      .sizing-inspector pre {
+        margin: 0;
+        font-size: 0.78rem;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 3px;
+        padding: 0.5rem;
+        overflow-x: auto;
+        max-height: 240px;
+        white-space: pre;
+        font-family: monospace;
+      }
+
       /* block examples — shares the visual language with char examples
          but the host is wider (multi-cell row) and gets its own min-height
          so it doesn't collapse while the chars load. */
@@ -1052,6 +1126,83 @@ const scored = collectCharResults(p.result(), {
   modes: ["write"],
   completedOnly: true,
 });</pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- sizing                                                        -->
+    <!-- ============================================================ -->
+    <section id="sizing-section">
+      <h2 id="sizing">sizing</h2>
+      <p>
+        Three values control how a cell looks on screen and what comes back as data. They live in deliberately different units so callers can change one without dragging the others along.
+      </p>
+      <ul>
+        <li><code>size</code> (display px): the cell side length. The character is scaled to fit.</li>
+        <li><code>drawingWidth</code> (display px): the pen thickness. Size-independent, so a 6px pen draws as 6px ink in a 80px cell or in a 280px cell.</li>
+        <li><code>result.points</code> (internal coords): always returned in hanzi-writer's 1024-scale system (Y-up; the character region occupies <code>x ∈ [0, 1024]</code>, <code>y ∈ [-124, 900]</code>). The numbers do not depend on <code>size</code>, so a saved stroke replays into any cell or layers over the reference paths from <code>@k1low/hanzi-writer-data-jp</code> without rescaling.</li>
+      </ul>
+
+      <div class="sizing-example">
+        <h3>1. Same character, three sizes, shared drawingWidth</h3>
+        <p>
+          Move the slider and the pen thickness updates on every cell at once. The ink stays the same physical thickness across cells because <code>drawingWidth</code> is in display pixels, not internal coords. Each cell can also be restarted individually.
+        </p>
+        <div class="sizing-control">
+          <label for="sizing-dw">drawingWidth = <output id="sizing-dw-value">6</output> px</label>
+          <input type="range" id="sizing-dw" min="1" max="14" step="1" value="6" />
+        </div>
+        <div class="sizing-row" id="sizing-row">
+          <div class="sizing-cell">
+            <div id="sizing-cell-80" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 80, drawingWidth = <span data-dw-for="80">6</span></div>
+            <button data-sizing-reset="80">Restart</button>
+          </div>
+          <div class="sizing-cell">
+            <div id="sizing-cell-160" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 160, drawingWidth = <span data-dw-for="160">6</span></div>
+            <button data-sizing-reset="160">Restart</button>
+          </div>
+          <div class="sizing-cell">
+            <div id="sizing-cell-280" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 280, drawingWidth = <span data-dw-for="280">6</span></div>
+            <button data-sizing-reset="280">Restart</button>
+          </div>
+        </div>
+        <pre data-lang="ts">// All three cells use the same drawingWidth, expressed in display px.
+const c = char.create("永");
+c.mount(target, { size: 80,  drawingWidth: 6, /* ...same for 160 and 280 */ });
+c.start();</pre>
+      </div>
+
+      <div class="sizing-example">
+        <h3>2. result.points stay in internal coords no matter the cell size</h3>
+        <p>
+          Write a stroke. The right-hand inspector shows the latest stroke's <code>points</code>. Move the size slider and write again. The on-screen ink scales, but the numeric ranges stay anchored to the 1024-scale internal coordinate system.
+        </p>
+        <div class="sizing-control">
+          <label for="sizing-insp-size">cell size = <output id="sizing-insp-size-value">200</output> px</label>
+          <input type="range" id="sizing-insp-size" min="100" max="320" step="20" value="200" />
+        </div>
+        <div class="sizing-inspector-row">
+          <div id="sizing-inspector-writer" class="sizing-writer"></div>
+          <div class="sizing-inspector">
+            <h4>latest stroke</h4>
+            <pre id="sizing-inspector-out">draw a stroke to populate this panel.</pre>
+            <button data-sizing-reset="inspector">Restart</button>
+          </div>
+        </div>
+        <pre data-lang="ts">// The captured points come back in the same numeric range regardless of cell size.
+char.create("一").mount(target, {
+  size: 200,           // display px
+  retainStrokes: true,
+  showOutline: false,
+  showCharacter: false,
+  correction: "per-char",
+  maxRetries: 0,
+  onCorrectStroke: ({ points }) => console.log(points), // {x, y, t} in internal coords
+  onMistake:       ({ points }) => console.log(points),
+}).start();</pre>
+      </div>
     </section>
 
     <footer class="site-footer">

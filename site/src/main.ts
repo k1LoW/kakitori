@@ -4,6 +4,7 @@ import { setupHero } from "./hero.js";
 import { setupChar } from "./char.js";
 import { setupBlock } from "./block.js";
 import { setupPage } from "./page.js";
+import { setupSizing } from "./sizing.js";
 
 async function highlightCodeBlocks() {
   const blocks = Array.from(
@@ -58,4 +59,9 @@ if (blockSection) {
 const pageSection = document.getElementById("page-section");
 if (pageSection) {
   setupPage(pageSection);
+}
+
+const sizingSection = document.getElementById("sizing-section");
+if (sizingSection) {
+  setupSizing(sizingSection);
 }
