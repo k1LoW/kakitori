@@ -15,24 +15,31 @@ import type {
 // not retrigger an unpkg fetch. char.ts has its own cache; the two
 // modules deliberately stay independent so the sizing demo doesn't
 // reach into char.ts internals.
+//
+// Stored as Promises (matching configCache below) so concurrent first-
+// time mounts for the same character share a single in-flight fetch
+// instead of each kicking off their own. setupSizeDemo mounts three
+// "永" cells back-to-back, so without inflight sharing the same
+// character would be fetched three times in parallel on first paint.
 const charDataCache = new Map<
   string,
-  { strokes: string[]; medians: number[][][] }
+  Promise<{ strokes: string[]; medians: number[][][] }>
 >();
 const cachedCharDataLoader: CharDataLoaderFn = (ch, onLoad, onError) => {
-  const cached = charDataCache.get(ch);
-  if (cached) {
-    onLoad(cached);
-    return;
+  let promise = charDataCache.get(ch);
+  if (!promise) {
+    promise = new Promise((resolve, reject) => {
+      defaultCharDataLoader(ch, resolve, reject);
+    });
+    // Evict on rejection so a transient unpkg failure does not poison
+    // every subsequent fetch for the same character with the same
+    // rejected promise.
+    promise.catch(() => {
+      charDataCache.delete(ch);
+    });
+    charDataCache.set(ch, promise);
   }
-  defaultCharDataLoader(
-    ch,
-    (data) => {
-      charDataCache.set(ch, data);
-      onLoad(data);
-    },
-    onError,
-  );
+  promise.then(onLoad, onError);
 };
 
 const configCache = new Map<string, Promise<CharacterConfig | null>>();
