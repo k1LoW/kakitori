@@ -101,10 +101,16 @@ function createFreeWritingCell(
     onCorrectStroke: (data) => hooks?.onStrokePoints?.(data.points),
     onMistake: (data) => hooks?.onStrokePoints?.(data.points),
   });
-  void c.ready().then(
-    () => c.start(),
-    (err: unknown) => console.error("[sizing] ready() failed:", err),
-  );
+  // Call start() synchronously right after mount instead of gating on
+  // ready(). Char.start() defers its quiz wiring on configReady
+  // internally and bails when the instance has been destroyed or
+  // unmounted in the meantime, so a fast slider drag that tears the
+  // cell down before config resolves cannot land start() on a destroyed
+  // instance the way a `ready().then(start)` chain would.
+  c.start();
+  void c.ready().catch((err: unknown) => {
+    console.error("[sizing] ready() failed:", err);
+  });
   return c;
 }
 
