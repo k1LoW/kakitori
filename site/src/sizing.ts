@@ -61,21 +61,34 @@ const INSPECTOR_SIZE_DEFAULT = 200;
 const DRAWING_WIDTH_DEFAULT = 6;
 
 /**
- * Mount one practice cell with the "paper" feel: no outline, no
- * template character, retained ink. correction: "per-char" + maxRetries: 0
- * means the cell accepts any freely-drawn input and commits on the first
- * attempt, so the user can switch slider values and restart freely
- * without ever getting stuck in a retry loop.
+ * Build a fresh Char instance, pin the wrapper to `size × size` (so it
+ * does not collapse visually between teardown and the new mount), and
+ * start a free-drawing practice cell with the "paper" feel: no outline,
+ * no template character, retained ink. correction: "per-char" +
+ * maxRetries: 0 makes the cell accept any freely-drawn input and commit
+ * on the first attempt, so the user can switch slider values and
+ * restart freely without ever getting stuck in a retry loop.
+ *
+ * Returns the new Char so the caller can destroy() it before the next
+ * remount. Recreating instead of unmount+mount-on-the-same-instance
+ * keeps hanzi-writer's quiz lifecycle from sliding into an unwritable
+ * half-armed state on repeated remounts.
  */
-function mountFreeWritingCell(
-  c: Char,
+function createFreeWritingCell(
+  character: string,
   target: HTMLElement,
   size: number,
   drawingWidth: number,
   hooks?: {
     onStrokePoints?: (points: ReadonlyArray<TimedPoint>) => void;
   },
-): void {
+): Char {
+  target.style.width = `${size}px`;
+  target.style.height = `${size}px`;
+  const c = char.create(character, {
+    charDataLoader: cachedCharDataLoader,
+    configLoader: cachedConfigLoader,
+  });
   c.mount(target, {
     size,
     drawingWidth,
@@ -92,6 +105,7 @@ function mountFreeWritingCell(
     () => c.start(),
     (err: unknown) => console.error("[sizing] ready() failed:", err),
   );
+  return c;
 }
 
 function formatPointsForInspector(points: ReadonlyArray<TimedPoint>): string {
@@ -167,6 +181,23 @@ function setupSizeDemo(root: HTMLElement): void {
 
   const entries: CellEntry[] = [];
 
+  function rebuild(entry: CellEntry, dw: number): void {
+    if (entry.captionDw) {
+      entry.captionDw.textContent = String(dw);
+    }
+    try {
+      entry.instance.destroy();
+    } catch (err) {
+      console.error("[sizing] destroy() failed:", err);
+    }
+    entry.instance = createFreeWritingCell(
+      SIZE_DEMO_CHAR,
+      entry.target,
+      entry.size,
+      dw,
+    );
+  }
+
   for (const { size, id } of SIZE_DEMO_CELLS) {
     const target = root.querySelector<HTMLElement>(`#${id}`);
     if (!target) {
@@ -175,38 +206,34 @@ function setupSizeDemo(root: HTMLElement): void {
     const captionDw = root.querySelector<HTMLElement>(
       `[data-dw-for="${size}"]`,
     );
-    const c = char.create(SIZE_DEMO_CHAR, {
-      charDataLoader: cachedCharDataLoader,
-      configLoader: cachedConfigLoader,
-    });
-    mountFreeWritingCell(c, target, size, DRAWING_WIDTH_DEFAULT);
-    entries.push({ size, target, captionDw, instance: c });
+    const instance = createFreeWritingCell(
+      SIZE_DEMO_CHAR,
+      target,
+      size,
+      DRAWING_WIDTH_DEFAULT,
+    );
+    entries.push({ size, target, captionDw, instance });
   }
 
-  function applyDrawingWidth(dw: number): void {
-    dwValue!.value = String(dw);
-    for (const entry of entries) {
-      if (entry.captionDw) {
-        entry.captionDw.textContent = String(dw);
-      }
-      // The runtime API has no setDrawingWidth; remounting is the
-      // straightforward way to apply the new pen thickness. The
-      // existing instance is reused so config / strokeGroups are not
-      // re-fetched.
-      entry.instance.unmount();
-      mountFreeWritingCell(entry.instance, entry.target, entry.size, dw);
-    }
-  }
-
+  // Live value text follows the drag continuously; the writers are only
+  // rebuilt on slider release (change). Continuous rebuilds during a
+  // drag race hanzi-writer's async quiz setup and can leave cells
+  // unwritable.
   dwInput.addEventListener("input", () => {
+    dwValue!.value = dwInput.value;
+  });
+  dwInput.addEventListener("change", () => {
     const next = Number(dwInput.value);
     if (!Number.isFinite(next)) {
       return;
     }
-    applyDrawingWidth(next);
+    dwValue!.value = String(next);
+    for (const entry of entries) {
+      rebuild(entry, next);
+    }
   });
 
-  // Per-cell Restart: unmount + remount with the current drawingWidth
+  // Per-cell Restart: rebuild that cell with the current drawingWidth
   // (slider value), which also wipes any retained ink.
   root.querySelectorAll<HTMLButtonElement>("[data-sizing-reset]")
     .forEach((btn) => {
@@ -221,8 +248,7 @@ function setupSizeDemo(root: HTMLElement): void {
       }
       btn.addEventListener("click", () => {
         const dw = Number(dwInput.value) || DRAWING_WIDTH_DEFAULT;
-        entry.instance.unmount();
-        mountFreeWritingCell(entry.instance, entry.target, entry.size, dw);
+        rebuild(entry, dw);
       });
     });
 }
@@ -241,35 +267,52 @@ function setupInspectorDemo(root: HTMLElement): void {
     return;
   }
 
-  const instance = char.create(INSPECTOR_CHAR, {
-    charDataLoader: cachedCharDataLoader,
-    configLoader: cachedConfigLoader,
-  });
-
   function paintInspector(points: ReadonlyArray<TimedPoint>): void {
     out!.textContent = formatPointsForInspector(points);
   }
 
-  function remountAt(size: number): void {
+  let instance: Char = createFreeWritingCell(
+    INSPECTOR_CHAR,
+    writer,
+    INSPECTOR_SIZE_DEFAULT,
+    DRAWING_WIDTH_DEFAULT,
+    { onStrokePoints: paintInspector },
+  );
+
+  function rebuildAt(size: number): void {
     sizeValue!.value = String(size);
-    instance.unmount();
-    mountFreeWritingCell(instance, writer!, size, DRAWING_WIDTH_DEFAULT, {
-      onStrokePoints: paintInspector,
-    });
+    try {
+      instance.destroy();
+    } catch (err) {
+      console.error("[sizing] destroy() failed:", err);
+    }
+    instance = createFreeWritingCell(
+      INSPECTOR_CHAR,
+      writer!,
+      size,
+      DRAWING_WIDTH_DEFAULT,
+      { onStrokePoints: paintInspector },
+    );
   }
 
-  remountAt(INSPECTOR_SIZE_DEFAULT);
-
+  // Live value display follows the drag continuously so the user sees
+  // the picked size immediately.
   sizeInput.addEventListener("input", () => {
+    sizeValue!.value = sizeInput.value;
+  });
+  // Rebuild only on release (change). Continuous teardown + recreate
+  // during a fast drag races hanzi-writer's quiz setup and can leave
+  // the cell unwritable.
+  sizeInput.addEventListener("change", () => {
     const next = Number(sizeInput.value);
     if (!Number.isFinite(next)) {
       return;
     }
-    remountAt(next);
+    rebuildAt(next);
   });
 
   resetBtn?.addEventListener("click", () => {
     out.textContent = "draw a stroke to populate this panel.";
-    remountAt(Number(sizeInput.value) || INSPECTOR_SIZE_DEFAULT);
+    rebuildAt(Number(sizeInput.value) || INSPECTOR_SIZE_DEFAULT);
   });
 }
