@@ -2171,10 +2171,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
 
     // Store the internal-projected points so CharStrokeResult.points is
-    // always in hanzi-writer internal coords (Y-up, x ∈ [0, HANZI_PRESCALED_SIZE],
+    // always in hanzi-writer's internal coordinate system (Y-up; the
+    // character region occupies x ∈ [0, HANZI_PRESCALED_SIZE],
     // y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]) regardless of whether the caller
-    // supplied a sourceBox. Replay is then a single shape: re-feed the
-    // points through Char.checkStroke with NO sourceBox.
+    // supplied a sourceBox. Individual samples can fall outside that
+    // region when the input pointer ran past the cell / sourceBox edge
+    // (projection is linear, not clamped). Replay is then a single
+    // shape: re-feed the points through Char.checkStroke with NO
+    // sourceBox.
     const strokeResult: CharStrokeResult = strokeEnding
       ? { matched: captured.matched, similarity, strokeEnding, points: internalPoints }
       : { matched: captured.matched, similarity, points: internalPoints };
