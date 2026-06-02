@@ -707,10 +707,10 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       <div id="char-practice">
         <div class="controls">
           <span id="char-practice-char"></span>
-          <button id="char-quiz-btn">Start kakitori</button>
-          <button id="char-animate-btn">Animate</button>
-          <button id="char-highlight-btn">Next stroke</button>
-          <button id="char-reset-btn">Reset</button>
+          <button id="char-quiz-btn" type="button">Start kakitori</button>
+          <button id="char-animate-btn" type="button">Animate</button>
+          <button id="char-highlight-btn" type="button">Next stroke</button>
+          <button id="char-reset-btn" type="button">Reset</button>
         </div>
         <div id="char-practice-body">
           <div id="char-writer-col">
@@ -741,7 +741,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
             <div id="char-example-normal" class="char-example-writer"></div>
             <div data-status-for="normal" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="normal" data-action="reset">Restart</button>
+              <button data-example="normal" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -758,7 +758,7 @@ c.start();</pre>
             <div id="char-example-no-grid" class="char-example-writer"></div>
             <div data-status-for="no-grid" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="no-grid" data-action="reset">Restart</button>
+              <button data-example="no-grid" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -775,7 +775,7 @@ c.start();</pre>
             <div id="char-example-no-outline" class="char-example-writer"></div>
             <div data-status-for="no-outline" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="no-outline" data-action="reset">Restart</button>
+              <button data-example="no-outline" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -795,7 +795,7 @@ c.start();</pre>
             <div id="char-example-per-char" class="char-example-writer"></div>
             <div data-status-for="per-char" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="per-char" data-action="reset">Restart</button>
+              <button data-example="per-char" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -815,7 +815,7 @@ c.start();</pre>
             <div id="char-example-retain" class="char-example-writer"></div>
             <div data-status-for="retain" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="retain" data-action="reset">Restart</button>
+              <button data-example="retain" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -896,9 +896,9 @@ const result = b.result();</pre>
       </p>
 
       <div class="demo-controls">
-        <button id="block-reset">Reset</button>
-        <button id="block-undo">Undo</button>
-        <button id="block-status-btn">Status</button>
+        <button id="block-reset" type="button">Reset</button>
+        <button id="block-undo" type="button">Undo</button>
+        <button id="block-status-btn" type="button">Status</button>
       </div>
       <div class="demo-stage">
         <div id="block-host"></div>
@@ -921,7 +921,7 @@ const result = b.result();</pre>
             <div id="block-example-normal" class="block-example-host"></div>
             <div data-block-status-for="normal" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="normal" data-action="reset">Restart</button>
+              <button data-block-example="normal" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -944,7 +944,7 @@ const result = b.result();</pre>
             <div id="block-example-show-write" class="block-example-host"></div>
             <div data-block-status-for="show-write" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="show-write" data-action="reset">Restart</button>
+              <button data-block-example="show-write" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -970,7 +970,7 @@ const result = b.result();</pre>
             <div id="block-example-free" class="block-example-host"></div>
             <div data-block-status-for="free" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="free" data-action="reset">Restart</button>
+              <button data-block-example="free" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -992,7 +992,7 @@ const result = b.result();</pre>
             <div id="block-example-annotated" class="block-example-host"></div>
             <div data-block-status-for="annotated" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="annotated" data-action="reset">Restart</button>
+              <button data-block-example="annotated" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -1021,7 +1021,7 @@ const result = b.result();</pre>
             <div id="block-example-per-block" class="block-example-host"></div>
             <div data-block-status-for="per-block" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="per-block" data-action="reset">Restart</button>
+              <button data-block-example="per-block" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -1108,10 +1108,10 @@ const p = page.create(target, {
       </p>
 
       <div class="demo-controls">
-        <button id="page-reset">Reset</button>
-        <button id="page-undo">Undo</button>
-        <button id="page-status-btn">Status</button>
-        <button id="page-check-btn">Submit (check)</button>
+        <button id="page-reset" type="button">Reset</button>
+        <button id="page-undo" type="button">Undo</button>
+        <button id="page-status-btn" type="button">Status</button>
+        <button id="page-check-btn" type="button">Submit (check)</button>
         <label for="page-correction" style="margin-left: 0.5rem;">Correction:</label>
         <select id="page-correction">
           <option value="per-stroke">per-stroke</option>
@@ -1222,17 +1222,17 @@ const scored = collectCharResults(p.result(), {
           <div class="sizing-cell">
             <div id="sizing-cell-80" class="sizing-writer"></div>
             <div class="sizing-caption">size = 80, drawingWidth = <span data-dw-for="80">6</span></div>
-            <button data-sizing-reset="80">Restart</button>
+            <button data-sizing-reset="80" type="button">Restart</button>
           </div>
           <div class="sizing-cell">
             <div id="sizing-cell-160" class="sizing-writer"></div>
             <div class="sizing-caption">size = 160, drawingWidth = <span data-dw-for="160">6</span></div>
-            <button data-sizing-reset="160">Restart</button>
+            <button data-sizing-reset="160" type="button">Restart</button>
           </div>
           <div class="sizing-cell">
             <div id="sizing-cell-280" class="sizing-writer"></div>
             <div class="sizing-caption">size = 280, drawingWidth = <span data-dw-for="280">6</span></div>
-            <button data-sizing-reset="280">Restart</button>
+            <button data-sizing-reset="280" type="button">Restart</button>
           </div>
         </div>
         <pre data-lang="ts">// All three cells use the same drawingWidth, expressed in display px.
@@ -1255,7 +1255,7 @@ c.start();</pre>
           <div class="sizing-inspector">
             <h4>latest stroke</h4>
             <pre id="sizing-inspector-out">draw a stroke to populate this panel.</pre>
-            <button data-sizing-reset="inspector">Restart</button>
+            <button data-sizing-reset="inspector" type="button">Restart</button>
           </div>
         </div>
         <pre data-lang="ts">// The captured points come back in the same numeric range regardless of cell size.
