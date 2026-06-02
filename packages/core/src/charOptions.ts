@@ -307,10 +307,13 @@ export interface CharStrokeResult {
    */
   strokeEnding?: StrokeEndingResult;
   /**
-   * Raw drawn samples for this stroke, with timestamps. Always in
-   * hanzi-writer internal coords (Y-up, `x ∈ [0, HANZI_PRESCALED_SIZE]`,
-   * `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`) regardless of how the result was
-   * produced:
+   * Raw drawn samples for this stroke, with timestamps. Always
+   * expressed in hanzi-writer's internal coordinate system (Y-up; the
+   * character region occupies `x ∈ [0, HANZI_PRESCALED_SIZE]`,
+   * `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`). Individual samples can fall
+   * outside that region when the user draws past the cell edge
+   * (projection is linear, not clamped). Same coordinate system
+   * regardless of how the result was produced:
    *
    * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): the capture
    *   pipeline projects the user's client-space pointer events into
