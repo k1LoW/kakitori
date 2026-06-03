@@ -2376,12 +2376,14 @@ describe("char", () => {
     });
 
     it("CharStrokeResult.points is always in internal coords regardless of sourceBox", async () => {
-      // Hand checkStroke the SAME stroke twice — once expressed in
-      // source space via `sourceBox`, once already in internal coords.
-      // The stored `result.points` must be identical (modulo floating-
-      // point projection) so downstream consumers (replay, overlay
-      // rendering against @k1low/hanzi-writer-data-jp) can treat the result
-      // shape uniformly without knowing which input path produced it.
+      // Verify both halves of the new contract: (a) calling checkStroke
+      // with a sourceBox stores the internal-projected form (not the
+      // caller-supplied source coords), and (b) re-feeding those stored
+      // points back through checkStroke WITHOUT a sourceBox round-trips
+      // to the same verdict, so downstream consumers (replay, overlay
+      // rendering against @k1low/hanzi-writer-data-jp) can treat the
+      // result shape uniformly without knowing which input path
+      // produced it.
       const k = char.create("あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
