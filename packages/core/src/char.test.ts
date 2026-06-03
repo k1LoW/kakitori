@@ -6,7 +6,7 @@ import {
   displayPxToHanziWriterDrawingWidth,
   projectToInternal,
 } from "./char.js";
-import { DEFAULT_DRAWING_WIDTH, HANZI_PRESCALED_SIZE } from "./constants.js";
+import { DEFAULT_DRAWING_WIDTH, HANZI_PRESCALED_SIZE, HANZI_Y_MAX } from "./constants.js";
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
@@ -2405,7 +2405,7 @@ describe("char", () => {
       expect(got).toHaveLength(sourceTrace.length);
       got.forEach((p, i) => {
         expect(p.x).toBeCloseTo(sourceTrace[i].x);
-        expect(p.y).toBeCloseTo(900 - sourceTrace[i].y);
+        expect(p.y).toBeCloseTo(HANZI_Y_MAX - sourceTrace[i].y);
         expect(p.t).toBe(sourceTrace[i].t);
       });
 

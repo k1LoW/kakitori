@@ -2,6 +2,8 @@ import {
   char,
   defaultCharDataLoader,
   defaultConfigLoader,
+  HANZI_Y_MAX,
+  HANZI_Y_MIN,
 } from "@k1low/kakitori";
 import type {
   Char,
@@ -151,7 +153,7 @@ function formatPointsForInspector(points: ReadonlyArray<TimedPoint>): string {
   const lines: string[] = [];
   lines.push(`samples: ${points.length}`);
   lines.push(`x range: ${fmt(minX)} .. ${fmt(maxX)}`);
-  lines.push(`y range: ${fmt(minY)} .. ${fmt(maxY)}   (region: -124 .. 900)`);
+  lines.push(`y range: ${fmt(minY)} .. ${fmt(maxY)}   (region: ${HANZI_Y_MIN} .. ${HANZI_Y_MAX})`);
   lines.push("");
   // Short strokes are printed in full so head + tail windows do not
   // overlap and double up the same sample. Long strokes get the
