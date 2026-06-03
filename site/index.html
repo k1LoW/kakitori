@@ -202,6 +202,100 @@
         min-height: 160px;
       }
 
+      /* sizing section: cell size and pen-width interaction examples. */
+      .sizing-diagram {
+        margin: 1rem 0 1.5rem;
+        padding: 0.75rem 1rem 1rem;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .sizing-diagram svg {
+        display: block;
+        max-width: 100%;
+        height: auto;
+      }
+      .sizing-diagram figcaption {
+        margin-top: 0.5rem;
+        font-size: 0.78rem;
+        color: #444;
+      }
+      .sizing-example { margin-bottom: 2rem; }
+      .sizing-example h3 { margin: 1.25rem 0 0.5rem; font-size: 1.1rem; }
+      .sizing-example p {
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 0.75rem;
+      }
+      .sizing-control {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.75rem;
+        font-size: 0.85rem;
+        font-family: monospace;
+      }
+      .sizing-control input[type="range"] {
+        flex: 1;
+        max-width: 320px;
+      }
+      .sizing-row {
+        display: flex;
+        gap: 1.25rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+      }
+      .sizing-cell {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        align-items: flex-start;
+      }
+      .sizing-caption {
+        font-family: monospace;
+        font-size: 0.78rem;
+        color: #555;
+      }
+      .sizing-writer {
+        display: inline-block;
+        border: 1px solid #bbb;
+        background: #fff;
+        border-radius: 4px;
+        min-width: 80px;
+        min-height: 80px;
+      }
+      .sizing-inspector-row {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+        flex-wrap: wrap;
+      }
+      .sizing-inspector {
+        flex: 1;
+        min-width: 280px;
+        background: #fafafa;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 0.75rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+      }
+      .sizing-inspector h4 { margin: 0; font-size: 0.9rem; }
+      .sizing-inspector pre {
+        margin: 0;
+        font-size: 0.78rem;
+        color: #222;
+        background: #fff;
+        border: 1px solid #e5e5e5;
+        border-radius: 3px;
+        padding: 0.5rem;
+        overflow-x: auto;
+        max-height: 240px;
+        white-space: pre;
+        font-family: monospace;
+      }
+
       /* block examples — shares the visual language with char examples
          but the host is wider (multi-cell row) and gets its own min-height
          so it doesn't collapse while the chars load. */
@@ -613,10 +707,10 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
       <div id="char-practice">
         <div class="controls">
           <span id="char-practice-char"></span>
-          <button id="char-quiz-btn">Start kakitori</button>
-          <button id="char-animate-btn">Animate</button>
-          <button id="char-highlight-btn">Next stroke</button>
-          <button id="char-reset-btn">Reset</button>
+          <button id="char-quiz-btn" type="button">Start kakitori</button>
+          <button id="char-animate-btn" type="button">Animate</button>
+          <button id="char-highlight-btn" type="button">Next stroke</button>
+          <button id="char-reset-btn" type="button">Reset</button>
         </div>
         <div id="char-practice-body">
           <div id="char-writer-col">
@@ -647,7 +741,7 @@ char.render(document.getElementById("preview")!, "学", { size: 80 });</pre>
             <div id="char-example-normal" class="char-example-writer"></div>
             <div data-status-for="normal" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="normal" data-action="reset">Restart</button>
+              <button data-example="normal" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -664,7 +758,7 @@ c.start();</pre>
             <div id="char-example-no-grid" class="char-example-writer"></div>
             <div data-status-for="no-grid" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="no-grid" data-action="reset">Restart</button>
+              <button data-example="no-grid" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -681,7 +775,7 @@ c.start();</pre>
             <div id="char-example-no-outline" class="char-example-writer"></div>
             <div data-status-for="no-outline" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="no-outline" data-action="reset">Restart</button>
+              <button data-example="no-outline" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -701,7 +795,7 @@ c.start();</pre>
             <div id="char-example-per-char" class="char-example-writer"></div>
             <div data-status-for="per-char" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="per-char" data-action="reset">Restart</button>
+              <button data-example="per-char" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -721,7 +815,7 @@ c.start();</pre>
             <div id="char-example-retain" class="char-example-writer"></div>
             <div data-status-for="retain" class="char-example-status"></div>
             <div class="char-example-controls">
-              <button data-example="retain" data-action="reset">Restart</button>
+              <button data-example="retain" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const c = char.create("学");
@@ -802,9 +896,9 @@ const result = b.result();</pre>
       </p>
 
       <div class="demo-controls">
-        <button id="block-reset">Reset</button>
-        <button id="block-undo">Undo</button>
-        <button id="block-status-btn">Status</button>
+        <button id="block-reset" type="button">Reset</button>
+        <button id="block-undo" type="button">Undo</button>
+        <button id="block-status-btn" type="button">Status</button>
       </div>
       <div class="demo-stage">
         <div id="block-host"></div>
@@ -827,7 +921,7 @@ const result = b.result();</pre>
             <div id="block-example-normal" class="block-example-host"></div>
             <div data-block-status-for="normal" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="normal" data-action="reset">Restart</button>
+              <button data-block-example="normal" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -850,7 +944,7 @@ const result = b.result();</pre>
             <div id="block-example-show-write" class="block-example-host"></div>
             <div data-block-status-for="show-write" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="show-write" data-action="reset">Restart</button>
+              <button data-block-example="show-write" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -876,7 +970,7 @@ const result = b.result();</pre>
             <div id="block-example-free" class="block-example-host"></div>
             <div data-block-status-for="free" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="free" data-action="reset">Restart</button>
+              <button data-block-example="free" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -898,7 +992,7 @@ const result = b.result();</pre>
             <div id="block-example-annotated" class="block-example-host"></div>
             <div data-block-status-for="annotated" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="annotated" data-action="reset">Restart</button>
+              <button data-block-example="annotated" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -927,7 +1021,7 @@ const result = b.result();</pre>
             <div id="block-example-per-block" class="block-example-host"></div>
             <div data-block-status-for="per-block" class="block-example-status"></div>
             <div class="block-example-controls">
-              <button data-block-example="per-block" data-action="reset">Restart</button>
+              <button data-block-example="per-block" data-action="reset" type="button">Restart</button>
             </div>
           </div>
           <pre data-lang="ts">const b = block.create(target, {
@@ -1014,10 +1108,10 @@ const p = page.create(target, {
       </p>
 
       <div class="demo-controls">
-        <button id="page-reset">Reset</button>
-        <button id="page-undo">Undo</button>
-        <button id="page-status-btn">Status</button>
-        <button id="page-check-btn">Submit (check)</button>
+        <button id="page-reset" type="button">Reset</button>
+        <button id="page-undo" type="button">Undo</button>
+        <button id="page-status-btn" type="button">Status</button>
+        <button id="page-check-btn" type="button">Submit (check)</button>
         <label for="page-correction" style="margin-left: 0.5rem;">Correction:</label>
         <select id="page-correction">
           <option value="per-stroke">per-stroke</option>
@@ -1052,6 +1146,130 @@ const scored = collectCharResults(p.result(), {
   modes: ["write"],
   completedOnly: true,
 });</pre>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- sizing                                                        -->
+    <!-- ============================================================ -->
+    <section id="sizing-section">
+      <h2 id="sizing">sizing</h2>
+      <p>
+        Three values control how a cell looks on screen and what comes back as data. They live in deliberately different units so callers can change one without dragging the others along.
+      </p>
+      <ul>
+        <li><code>size</code> (display px): the cell side length. The character is scaled to fit.</li>
+        <li><code>drawingWidth</code> (display px): the pen thickness. Size-independent, so a 6px pen draws as 6px ink in a 80px cell or in a 280px cell.</li>
+        <li><code>result.points</code> (internal coords): always returned in hanzi-writer's 1024-scale system (Y-up; the character region occupies <code>x ∈ [0, 1024]</code>, <code>y ∈ [-124, 900]</code>). The numbers do not depend on <code>size</code>, so a saved stroke replays into any cell or layers over the reference paths from <code>@k1low/hanzi-writer-data-jp</code> without rescaling.</li>
+      </ul>
+
+      <figure class="sizing-diagram" aria-labelledby="sizing-diagram-caption">
+        <svg viewBox="0 0 520 320" width="520" height="320" role="img" aria-label="hanzi-writer internal coordinate system diagram">
+          <!-- Character region: internal x ∈ [0, 1024] maps to SVG x ∈ [100, 340];
+               internal y ∈ [-124, 900] (Y-up) maps to SVG y ∈ [270, 30] (Y-down).
+               Baseline (internal y=0) lands at SVG y ≈ 241. -->
+          <rect x="100" y="30"  width="240" height="211" fill="#fff"     stroke="none" />
+          <rect x="100" y="241" width="240" height="29"  fill="#f3edd7" stroke="none" />
+          <rect x="100" y="30"  width="240" height="240" fill="none"    stroke="#666" stroke-width="1" />
+
+          <!-- Baseline (internal y = 0) -->
+          <line x1="100" y1="241" x2="340" y2="241" stroke="#888" stroke-width="1" stroke-dasharray="4,3" />
+
+          <!-- Y axis (Y-up), origin at (100, 241), pointing up -->
+          <line x1="100" y1="241" x2="100" y2="15" stroke="#0366d6" stroke-width="1.5" />
+          <polygon points="100,5 96,17 104,17" fill="#0366d6" />
+          <text x="92" y="14" text-anchor="end" font-family="monospace" font-size="12" fill="#0366d6">y (up)</text>
+
+          <!-- X axis, origin at (100, 241), pointing right -->
+          <line x1="100" y1="241" x2="365" y2="241" stroke="#0366d6" stroke-width="1.5" />
+          <polygon points="375,241 363,237 363,245" fill="#0366d6" />
+          <text x="378" y="245" text-anchor="start" font-family="monospace" font-size="12" fill="#0366d6">x</text>
+
+          <!-- Y coordinate labels (left of region) -->
+          <text x="92" y="34"  text-anchor="end" font-family="monospace" font-size="11" fill="#444">900</text>
+          <text x="92" y="245" text-anchor="end" font-family="monospace" font-size="11" fill="#444">0</text>
+          <text x="92" y="274" text-anchor="end" font-family="monospace" font-size="11" fill="#444">-124</text>
+
+          <!-- X coordinate labels (below region) -->
+          <text x="100" y="290" text-anchor="middle" font-family="monospace" font-size="11" fill="#444">0</text>
+          <text x="340" y="290" text-anchor="middle" font-family="monospace" font-size="11" fill="#444">1024</text>
+
+          <!-- Region annotations (right side) -->
+          <text x="350" y="245" text-anchor="start" font-family="monospace" font-size="10" fill="#888">y = 0 (baseline)</text>
+          <text x="350" y="265" text-anchor="start" font-family="monospace" font-size="10" fill="#888">descender</text>
+
+          <!-- Center label inside the box -->
+          <text x="220" y="135" text-anchor="middle" font-family="sans-serif" font-size="12" fill="#bbb">character region</text>
+          <text x="220" y="152" text-anchor="middle" font-family="monospace"  font-size="11" fill="#bbb">1024 × 1024</text>
+
+          <!-- Width / height brackets -->
+          <text x="220" y="308" text-anchor="middle" font-family="sans-serif" font-size="10" fill="#888">1024 units wide (x)</text>
+        </svg>
+        <figcaption id="sizing-diagram-caption">
+          hanzi-writer's internal coordinate system, which is what <code>result.points</code> and the medians / paths from <code>@k1low/hanzi-writer-data-jp</code> both live in. The character region is a 1024 × 1024 square with the Y axis pointing up. The baseline sits at <code>y = 0</code>; descenders (e.g. the tail of <code>ふ</code>) extend down to <code>y = -124</code>, which is why the Y range is asymmetric. To render at a display size of <code>size</code> pixels, multiply by <code>size / 1024</code> and flip Y around the baseline.
+        </figcaption>
+      </figure>
+
+      <div class="sizing-example">
+        <h3>1. Same character, three sizes, shared drawingWidth</h3>
+        <p>
+          Move the slider and the pen thickness updates on every cell at once. The ink stays the same physical thickness across cells because <code>drawingWidth</code> is in display pixels, not internal coords. Each cell can also be restarted individually.
+        </p>
+        <div class="sizing-control">
+          <label for="sizing-dw">drawingWidth = <output id="sizing-dw-value">6</output> px</label>
+          <input type="range" id="sizing-dw" min="1" max="14" step="1" value="6" />
+        </div>
+        <div class="sizing-row" id="sizing-row">
+          <div class="sizing-cell">
+            <div id="sizing-cell-80" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 80, drawingWidth = <span data-dw-for="80">6</span></div>
+            <button data-sizing-reset="80" type="button">Restart</button>
+          </div>
+          <div class="sizing-cell">
+            <div id="sizing-cell-160" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 160, drawingWidth = <span data-dw-for="160">6</span></div>
+            <button data-sizing-reset="160" type="button">Restart</button>
+          </div>
+          <div class="sizing-cell">
+            <div id="sizing-cell-280" class="sizing-writer"></div>
+            <div class="sizing-caption">size = 280, drawingWidth = <span data-dw-for="280">6</span></div>
+            <button data-sizing-reset="280" type="button">Restart</button>
+          </div>
+        </div>
+        <pre data-lang="ts">// All three cells use the same drawingWidth, expressed in display px.
+const c = char.create("永");
+c.mount(target, { size: 80,  drawingWidth: 6, /* ...same for 160 and 280 */ });
+c.start();</pre>
+      </div>
+
+      <div class="sizing-example">
+        <h3>2. result.points stay in internal coords no matter the cell size</h3>
+        <p>
+          Write a stroke. The right-hand inspector shows the latest stroke's <code>points</code>. Move the size slider and write again. The on-screen ink scales, but the numeric ranges stay anchored to the 1024-scale internal coordinate system.
+        </p>
+        <div class="sizing-control">
+          <label for="sizing-insp-size">cell size = <output id="sizing-insp-size-value">200</output> px</label>
+          <input type="range" id="sizing-insp-size" min="100" max="320" step="20" value="200" />
+        </div>
+        <div class="sizing-inspector-row">
+          <div id="sizing-inspector-writer" class="sizing-writer"></div>
+          <div class="sizing-inspector">
+            <h4>latest stroke</h4>
+            <pre id="sizing-inspector-out">draw a stroke to populate this panel.</pre>
+            <button data-sizing-reset="inspector" type="button">Restart</button>
+          </div>
+        </div>
+        <pre data-lang="ts">// The captured points come back in the same numeric range regardless of cell size.
+char.create("一").mount(target, {
+  size: 200,           // display px
+  retainStrokes: true,
+  showOutline: false,
+  showCharacter: false,
+  correction: "per-char",
+  maxRetries: 0,
+  onCorrectStroke: ({ points }) => console.log(points), // {x, y, t} in internal coords
+  onMistake:       ({ points }) => console.log(points),
+}).start();</pre>
+      </div>
     </section>
 
     <footer class="site-footer">

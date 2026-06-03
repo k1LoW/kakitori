@@ -6,7 +6,7 @@ import {
   displayPxToHanziWriterDrawingWidth,
   projectToInternal,
 } from "./char.js";
-import { DEFAULT_DRAWING_WIDTH, HANZI_PRESCALED_SIZE } from "./constants.js";
+import { DEFAULT_DRAWING_WIDTH, HANZI_PRESCALED_SIZE, HANZI_Y_MAX } from "./constants.js";
 import type {
   CharCreateOptions,
   CharDataLoaderFn,
@@ -2373,6 +2373,53 @@ describe("char", () => {
       const r1 = await k.checkStroke(1, stroke1, { sourceBox });
       expect(r0.matched).toBe(true);
       expect(r1.matched).toBe(true);
+    });
+
+    it("CharStrokeResult.points is always in internal coords regardless of sourceBox", async () => {
+      // Verify both halves of the new contract: (a) calling checkStroke
+      // with a sourceBox stores the internal-projected form (not the
+      // caller-supplied source coords), and (b) re-feeding those stored
+      // points back through checkStroke WITHOUT a sourceBox round-trips
+      // to the same verdict, so downstream consumers (replay, overlay
+      // rendering against @k1low/hanzi-writer-data-jp) can treat the
+      // result shape uniformly without knowing which input path
+      // produced it.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+
+      const sourceBox = { x: 0, y: 0, size: 1024 };
+      const sourceTrace = [
+        { x: 0, y: 900, t: 0 },
+        { x: 50, y: 850, t: 0 },
+        { x: 100, y: 800, t: 0 },
+      ];
+      const r = await k.checkStroke(0, sourceTrace, { sourceBox });
+      expect(r.points).toBeDefined();
+      const got = r.points!;
+      // The Y=0 / 1024-square sourceBox is the identity-after-flip case
+      // documented on projectToInternal: x passes through, y becomes
+      // HANZI_Y_MAX - y_source.
+      expect(got).toHaveLength(sourceTrace.length);
+      got.forEach((p, i) => {
+        expect(p.x).toBeCloseTo(sourceTrace[i].x);
+        expect(p.y).toBeCloseTo(HANZI_Y_MAX - sourceTrace[i].y);
+        expect(p.t).toBe(sourceTrace[i].t);
+      });
+
+      // Re-feeding the stored points back through checkStroke WITHOUT
+      // sourceBox should reproduce the same verdict — the replay round
+      // trip the new contract promises.
+      const k2 = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k2.ready();
+      const replay = await k2.checkStroke(0, got);
+      expect(replay.matched).toBe(r.matched);
+      expect(replay.similarity).toBeCloseTo(r.similarity);
     });
 
     it("sourceBox.size must be positive and finite", async () => {

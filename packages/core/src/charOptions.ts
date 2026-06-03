@@ -307,21 +307,26 @@ export interface CharStrokeResult {
    */
   strokeEnding?: StrokeEndingResult;
   /**
-   * Raw drawn samples for this stroke, with timestamps. Suitable as
-   * the second argument to {@link Char.checkStroke} for replay / re-judging.
+   * Raw drawn samples for this stroke, with timestamps. Always
+   * expressed in hanzi-writer's internal coordinate system (Y-up; the
+   * character region occupies `x ∈ [0, HANZI_PRESCALED_SIZE]`,
+   * `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`). Individual samples can fall
+   * outside that region when the user draws past the cell edge
+   * (projection is linear, not clamped). Same coordinate system
+   * regardless of how the result was produced:
    *
-   * **Coordinate space depends on the path that produced the result:**
+   * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): the capture
+   *   pipeline projects the user's client-space pointer events into
+   *   internal coords before storing them.
+   * - **Headless `Char.checkStroke`**: the checker projects the
+   *   caller's input into internal coords (via `opts.sourceBox` when
+   *   provided) and stores the projected form.
    *
-   * - **Mounted quiz** (`onCorrectStroke` / `onMistake`): hanzi-writer
-   *   internal coords (Y-up, `x ∈ [0, HANZI_PRESCALED_SIZE]`,
-   *   `y ∈ [HANZI_Y_MIN, HANZI_Y_MAX]`). The capture pipeline projects
-   *   the user's client-space pointer events into this space before
-   *   storing them. Replay via `Char.checkStroke` should omit `opts.sourceBox`.
-   * - **Headless `Char.checkStroke`**: exactly the points the caller passed
-   *   in. If the caller used `opts.sourceBox`, those are in the
-   *   caller's source space (Y-down browser convention); without
-   *   `sourceBox`, they are already in hanzi-writer internal coords.
-   *   Re-pass the same `sourceBox` (or none) to replay verbatim.
+   * Replay is always a single shape: re-feed `points` through
+   * {@link Char.checkStroke} with NO `sourceBox`. The values can also
+   * be drawn directly alongside any other internal-coord geometry
+   * (e.g. paths / medians from `@k1low/hanzi-writer-data-jp`) without
+   * additional conversion.
    *
    * Undefined for synthetic show-mode strokes (no user input) and for
    * placeholder gap entries.
