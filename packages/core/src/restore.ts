@@ -187,8 +187,7 @@ export function charRestore(
   // Show-mode cells carry no user strokes; auto-enable the reference
   // character so the cell isn't visibly empty. Caller can force
   // `false` to suppress.
-  const showCharacter =
-    options.showCharacter ?? (isShowMode || options.showOutline === true);
+  const showCharacter = options.showCharacter ?? isShowMode;
 
   const drawingWidth = options.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
   const drawingColor = options.drawingColor ?? DEFAULT_DRAWING_COLOR;

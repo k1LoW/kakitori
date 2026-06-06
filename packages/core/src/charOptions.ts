@@ -51,9 +51,10 @@ export interface RestoreOptions {
    */
   showCharacter?: boolean;
   /**
-   * Whether to paint a light outline of the reference character.
-   * Reserved for future use; currently treated the same as
-   * `showCharacter` with a lighter color.
+   * Reserved for future use. A dedicated "light outline" rendering
+   * (paler than `showCharacter`) is not implemented yet, so this
+   * option is currently a no-op; set `showCharacter: true` if you
+   * want the reference character drawn today.
    */
   showOutline?: boolean;
   /** Color used when painting the reference character. Defaults to "#555". */
