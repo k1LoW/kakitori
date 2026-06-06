@@ -6,6 +6,7 @@ import type {
   MountOptions,
 } from "../charOptions.js";
 import type { CharStrokeData } from "../types.js";
+import { blockRestore } from "../restore.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
   BlankCell,
@@ -243,6 +244,7 @@ export const block = {
     const container = resolveTarget(target);
     return createBlock(container, opts);
   },
+  restore: blockRestore,
 };
 
 function resolveTarget(target: HTMLElement | string): HTMLElement {

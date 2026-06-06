@@ -6,6 +6,7 @@ export type {
   BlockCellResult,
   BlockLoaders,
   BlockResult,
+  BlockRestoreOptions,
   BlockSpec,
   Cell,
   Expected,

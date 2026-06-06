@@ -5,6 +5,7 @@ import type {
   ConfigLoaderFn,
   MountOptions,
 } from "../charOptions.js";
+import type { WritingMode } from "./block.js";
 /** Single string or list of acceptable answers for a free cell or annotation. */
 export type Expected = string | string[];
 
@@ -136,4 +137,35 @@ export interface BlockLoaders {
   charDataLoader?: CharDataLoaderFn;
   /** Pass `null` to disable auto-loading of strokeEndings / strokeGroups. */
   configLoader?: ConfigLoaderFn | null;
+}
+
+/**
+ * Options for `block.restore`, the static result renderer for a
+ * {@link BlockResult}. Mirrors `block.create`'s layout vocabulary
+ * (`cellSize`, `writingMode`) plus the per-char visual knobs forwarded
+ * to {@link RestoreOptions}. Annotations are not rendered in v1
+ * because `BlockAnnotationResult` does not carry layout (`cellRange`
+ * etc.); only cell content is drawn.
+ */
+export interface BlockRestoreOptions {
+  /** Per-cell side length in display pixels. Required. */
+  cellSize: number;
+  /** Layout direction. Defaults to `"vertical-rl"`. */
+  writingMode?: WritingMode;
+  /** Per-cell padding inside the cell box. Defaults to 0. */
+  padding?: number;
+  /** Cell border width in display pixels. Defaults to 1. */
+  cellBorderWidth?: number;
+  /** Cell border color. Defaults to `"#bbb"`. */
+  cellBorderColor?: string;
+  // Visual options forwarded to char.restore for every char slot.
+  drawingWidth?: number;
+  drawingColor?: string;
+  showGrid?: import("../charOptions.js").RestoreOptions["showGrid"];
+  showCharacter?: boolean;
+  showOutline?: boolean;
+  strokeColor?: string;
+  okColor?: string;
+  ngColor?: string;
+  charDataLoader?: CharDataLoaderFn;
 }

@@ -27,6 +27,58 @@ export interface RenderOptions {
 }
 
 /**
+ * Options for `char.restore`, the static result-replay renderer. Unlike
+ * {@link RenderOptions} and {@link MountOptions}, `size` is required: a
+ * saved {@link CharResult} carries no display geometry, so the caller
+ * has to decide it explicitly at restore time.
+ */
+export interface RestoreOptions {
+  /** Cell side length in display pixels. Required. */
+  size: number;
+  padding?: number;
+  /** Pen thickness for the user's strokes, in display pixels. Defaults to `DEFAULT_DRAWING_WIDTH`. */
+  drawingWidth?: number;
+  /** Color of the user's strokes. Defaults to a generic ink color. */
+  drawingColor?: string;
+  /** Whether to draw the cross-grid behind the cell. Defaults to true. */
+  showGrid?: boolean | GridOptions;
+  /**
+   * Whether to paint the reference character behind the user's
+   * strokes. Defaults to false for `mode === "write"` results; auto-
+   * enabled when `result.mode === "show"` (those have no user strokes,
+   * so the cell would be empty without the reference). Pass `false`
+   * explicitly to suppress even in show mode.
+   */
+  showCharacter?: boolean;
+  /**
+   * Whether to paint a light outline of the reference character.
+   * Reserved for future use; currently treated the same as
+   * `showCharacter` with a lighter color.
+   */
+  showOutline?: boolean;
+  /** Color used when painting the reference character. Defaults to "#555". */
+  strokeColor?: string;
+  /**
+   * Color applied to strokes whose `matched: true`. Defaults to
+   * `drawingColor`, i.e. no verdict-based coloring unless the caller
+   * opts in.
+   */
+  okColor?: string;
+  /**
+   * Color applied to strokes whose `matched: false`. Defaults to
+   * `drawingColor`, i.e. no verdict-based coloring unless the caller
+   * opts in.
+   */
+  ngColor?: string;
+  /**
+   * Loader used to fetch hanzi-writer character data when the
+   * reference character needs to be painted (`showCharacter: true`,
+   * or `mode === "show"`). Defaults to the unpkg-backed loader.
+   */
+  charDataLoader?: CharDataLoaderFn;
+}
+
+/**
  * Options that apply to a Char instance regardless of whether it is mounted
  * to the DOM. Cover headless judging and the character-level configuration
  * that check / quiz / animate share.

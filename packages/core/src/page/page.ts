@@ -11,6 +11,7 @@ import {
 } from "../block/index.js";
 import { createFreeCell, type FreeCellHandle } from "../block/freeCell.js";
 import type { CharResult } from "../charOptions.js";
+import { pageRestore } from "../restore.js";
 import { layoutPage, type BlockSegment } from "./layout.js";
 import type {
   Page,
@@ -37,6 +38,7 @@ export const page = {
     const container = resolveTarget(target);
     return createPage(container, opts);
   },
+  restore: pageRestore,
 };
 
 function resolveTarget(target: HTMLElement | string): HTMLElement {

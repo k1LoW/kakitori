@@ -39,6 +39,7 @@ import type {
   Pt,
   QuizStrokeMeta,
 } from "./hanziWriterInternals.js";
+import { charRestore } from "./restore.js";
 
 const DEFAULT_GRID_COLOR = "#ccc";
 const DEFAULT_GRID_DASH = "10,10";
@@ -87,7 +88,7 @@ function computeSimilarity(
   return threshold > 0 ? Math.max(0, Math.min(1, 1 - avgDist / threshold)) : 0;
 }
 
-function drawCrossGrid(
+export function drawCrossGrid(
   svg: SVGSVGElement,
   size: number,
   gridOpts: GridOptions | true,
@@ -2870,4 +2871,12 @@ export const char = {
    * char.render("#target", "永", { size: 60, onClick: ({ character }) => console.log(character) });
    */
   render: renderImpl,
+  /**
+   * Render a saved {@link CharResult} (from a prior `Char` quiz / check
+   * session) into `target` as a static SVG. Pure renderer: does not
+   * mount a Char, run the matcher, or attach event handlers.
+   * @example
+   * char.restore("#cell", savedResult, { size: 120 });
+   */
+  restore: charRestore,
 };
