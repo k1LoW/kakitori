@@ -88,6 +88,16 @@ export interface BlockCellResult {
    * candidate), blank=0.
    */
   chars: CharResult[];
+  /**
+   * Display-slot span this cell occupied in the original block
+   * layout, in `cellSize` units. Populated when the spec explicitly
+   * set `span` (free / blank cells with a width wider than the
+   * matched candidate / default 1); omitted when the spec relied on
+   * the default span. `block.restore` / `page.restore` honour this
+   * to preserve the original layout; the live `Block` runtime
+   * ignores it (it reads the span straight from the spec).
+   */
+  span?: number;
 }
 
 /** Result of a furigana annotation. One `CharResult` per character in the candidate. */

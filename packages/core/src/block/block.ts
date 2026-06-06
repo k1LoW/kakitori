@@ -1202,10 +1202,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     }
     if (state.cell.kind === "free") {
       const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
-      return { kind: "free", chars };
+      const out: BlockCellResult = { kind: "free", chars };
+      // Carry the spec's explicit span through so block.restore /
+      // page.restore can reproduce the original cell width even when
+      // it differs from the matched candidate length.
+      if (state.cell.span != null) {
+        out.span = state.cell.span;
+      }
+      return out;
     }
     // blank
-    return { kind: "blank", chars: state.syntheticChars ?? [] };
+    const out: BlockCellResult = {
+      kind: "blank",
+      chars: state.syntheticChars ?? [],
+    };
+    if (state.cell.span != null) {
+      out.span = state.cell.span;
+    }
+    return out;
   }
 
   function annotationResult(

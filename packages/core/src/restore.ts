@@ -248,6 +248,12 @@ export function charRestore(
 
 /** Slot width along the cell axis, in cellSize units. */
 function cellSpan(cell: BlockCellResult): number {
+  // Honour any explicit `span` carried over from the spec; without it
+  // free cells fall back to their content width and blank/guided cells
+  // default to one slot.
+  if (cell.span != null) {
+    return cell.span;
+  }
   if (cell.kind === "free") {
     return Math.max(cell.chars.length, 1);
   }

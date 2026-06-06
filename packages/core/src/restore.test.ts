@@ -397,6 +397,38 @@ describe("block.restore", () => {
     expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(4);
   });
 
+  it("honours explicit span carried over from the spec for free / blank cells", () => {
+    // Free cell with span=5 but only 2 matched chars: the wrapper must
+    // still be 5 slots wide so layouts that reserved extra width are
+    // restored faithfully. Blank cell with span=3 mirrors the same
+    // intent for visual placeholders.
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "free",
+          chars: [
+            charResult("学", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+            charResult("校", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+          span: 5,
+        },
+        { kind: "blank", chars: [], span: 3 },
+      ],
+      annotations: [],
+    };
+    block.restore(host, result, { cellSize: 50, writingMode: "horizontal-tb" });
+
+    const wrapper = getBlockWrapper();
+    // (5 + 3) slots × 50px = 400px total.
+    expect(wrapper.style.width).toBe("400px");
+    const cellWrappers = wrapper.querySelectorAll<HTMLElement>(":scope > div");
+    expect(cellWrappers).toHaveLength(2);
+    expect(cellWrappers[0].style.width).toBe("250px"); // free cell, 5 slots
+    expect(cellWrappers[1].style.width).toBe("150px"); // blank cell, 3 slots
+  });
+
   it("blank cell paints chrome only (no polyline)", () => {
     const result: BlockResult = {
       complete: true,

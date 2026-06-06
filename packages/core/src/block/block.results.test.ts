@@ -91,7 +91,9 @@ describe("Block.results", () => {
     });
     await flushMicrotasks();
     const snap = b.result();
-    expect(snap.cells[0]).toEqual({ kind: "blank", chars: [] });
+    // `span` propagates through from the spec so block.restore can
+    // reproduce the original width for placeholder cells.
+    expect(snap.cells[0]).toEqual({ kind: "blank", chars: [], span: 3 });
     // Vacuous true on both rollups since nothing has to be matched.
     expect(snap.complete).toBe(true);
     expect(snap.matched).toBe(true);
