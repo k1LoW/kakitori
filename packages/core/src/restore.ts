@@ -32,7 +32,9 @@ const DEFAULT_REFERENCE_COLOR = "#555";
 const DEFAULT_OUTLINE_COLOR = "#ddd";
 const DEFAULT_DRAWING_COLOR = "#222";
 const DEFAULT_CELL_BORDER_WIDTH = 1;
-const DEFAULT_CELL_BORDER_COLOR = "#bbb";
+// Match `block.create`'s default so restored chrome looks the same as
+// the live page without the caller needing to thread a color through.
+const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 
 /** Loose validation matching the one used in `Char.mount` / `char.render`. */
 function validateSizeAndPadding(

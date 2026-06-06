@@ -166,7 +166,7 @@ export interface BlockRestoreOptions {
   padding?: number;
   /** Cell border width in display pixels. Defaults to 1. */
   cellBorderWidth?: number;
-  /** Cell border color. Defaults to `"#bbb"`. */
+  /** Cell border color. Defaults to `"#ddd"`, matching `block.create`. */
   cellBorderColor?: string;
   // Visual options forwarded to char.restore for every char slot.
   drawingWidth?: number;
