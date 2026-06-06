@@ -425,17 +425,30 @@ function blockResultToSpec(blockResult: BlockResult): BlockSpec {
       };
     }
     if (c.kind === "blank") {
-      return { kind: "blank" };
+      const blank: Cell = { kind: "blank" };
+      if (c.span != null) {
+        blank.span = c.span;
+      }
+      return blank;
     }
     // free: layoutPage's cellSlotSpan reads `expected` length to
     // determine the span. Synthesize an `expected` string whose length
     // matches the chars[] entries.
     const len = Math.max(c.chars.length, 1);
-    return {
+    const free: Cell = {
       kind: "free",
       expected: "x".repeat(len),
       mode: "write",
     };
+    // Preserve the explicit span the spec carried (free cells with
+    // `span > expected.length` reserve extra width). Without this,
+    // layoutPage would compute segments at the narrower content
+    // width and `page.restore` could place subsequent blocks where
+    // they would have overlapped the wider cell in the live `page`.
+    if (c.span != null) {
+      free.span = c.span;
+    }
+    return free;
   });
   return { cells };
 }

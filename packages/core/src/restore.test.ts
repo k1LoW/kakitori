@@ -569,6 +569,59 @@ describe("page.restore", () => {
     expect(segments[1].style.left).toBe("0px");
   });
 
+  it("forces a following block to the next column when a prior free cell's span exceeds chars.length", () => {
+    // Regression: page.restore -> blockResultToSpec used to drop
+    // BlockCellResult.span when synthesizing cells for layoutPage, so a
+    // 4-cellsPerColumn column would happily fit a free cell with
+    // span:4 + chars.length:2 alongside a following 1-char block
+    // (treating the free cell as 2 slots wide). Preserve span so
+    // layoutPage sees the real width and pushes the next block to
+    // column 1.
+    const wideFree: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "free",
+          chars: [
+            charResult("一", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+            charResult("二", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+          span: 4,
+        },
+      ],
+      annotations: [],
+    };
+    const followUp: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "guided",
+          chars: [
+            charResult("三", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+      annotations: [],
+    };
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [wideFree, followUp],
+    };
+
+    page.restore(host, result, { columns: 2, cellsPerColumn: 4, cellSize: 50 });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    const segments = wrapper.querySelectorAll<HTMLElement>(":scope > div");
+    expect(segments).toHaveLength(2);
+    // vertical-rl: column 0 (right) sits at x=50, column 1 (left) at x=0.
+    // wideFree consumes column 0 in full; followUp is pushed to column 1.
+    expect(segments[0].style.left).toBe("50px");
+    expect(segments[1].style.left).toBe("0px");
+  });
+
   it("throws on invalid layout dimensions", () => {
     const empty: PageResult = { complete: true, matched: true, blocks: [] };
     expect(() => page.restore(host, empty, { columns: 0, cellsPerColumn: 4, cellSize: 50 })).toThrow(
