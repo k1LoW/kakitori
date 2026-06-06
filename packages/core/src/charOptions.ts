@@ -51,14 +51,17 @@ export interface RestoreOptions {
    */
   showCharacter?: boolean;
   /**
-   * Reserved for future use. A dedicated "light outline" rendering
-   * (paler than `showCharacter`) is not implemented yet, so this
-   * option is currently a no-op; set `showCharacter: true` if you
-   * want the reference character drawn today.
+   * Whether to paint a light outline of the reference character
+   * behind the user's strokes. Useful as a faint trace hint when
+   * reviewing what was written. Defaults to false. Independent of
+   * `showCharacter`: setting both layers the filled character on
+   * top of the outline.
    */
   showOutline?: boolean;
-  /** Color used when painting the reference character. Defaults to "#555". */
+  /** Color used when painting the reference character via `showCharacter`. Defaults to "#555". */
   strokeColor?: string;
+  /** Color used when painting the reference outline via `showOutline`. Defaults to "#ddd". */
+  outlineColor?: string;
   /**
    * Color applied to strokes whose `matched: true`. Defaults to
    * `drawingColor`, i.e. no verdict-based coloring unless the caller

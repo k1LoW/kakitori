@@ -165,6 +165,7 @@ export interface BlockRestoreOptions {
   showCharacter?: boolean;
   showOutline?: boolean;
   strokeColor?: string;
+  outlineColor?: string;
   okColor?: string;
   ngColor?: string;
   charDataLoader?: CharDataLoaderFn;

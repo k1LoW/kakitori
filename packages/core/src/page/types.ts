@@ -255,6 +255,7 @@ export interface PageRestoreOptions {
   showCharacter?: boolean;
   showOutline?: boolean;
   strokeColor?: string;
+  outlineColor?: string;
   okColor?: string;
   ngColor?: string;
   charDataLoader?: import("../charOptions.js").CharDataLoaderFn;

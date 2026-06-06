@@ -29,6 +29,7 @@ const BLOCK_RESTORE_CLASS = "kakitori-block-restore";
 const PAGE_RESTORE_CLASS = "kakitori-page-restore";
 
 const DEFAULT_REFERENCE_COLOR = "#555";
+const DEFAULT_OUTLINE_COLOR = "#ddd";
 const DEFAULT_DRAWING_COLOR = "#222";
 const DEFAULT_CELL_BORDER_WIDTH = 1;
 const DEFAULT_CELL_BORDER_COLOR = "#bbb";
@@ -83,8 +84,11 @@ function buildCellChrome(
   svg.setAttribute("width", String(size));
   svg.setAttribute("height", String(size));
   svg.classList.add(RESTORE_SVG_CLASS);
-  if (showGrid !== false && showGrid !== undefined) {
-    drawCrossGrid(svg, size, showGrid === true || showGrid === undefined ? true : showGrid);
+  // Match the create-side default: `block.create` / `page.create` /
+  // `Char.mount` all paint the cross-grid by default, so a saved cell
+  // restored without an explicit option should look the same.
+  if (showGrid !== false) {
+    drawCrossGrid(svg, size, showGrid === undefined || showGrid === true ? true : showGrid);
   }
   const scale = (size - 2 * padding) / HANZI_PRESCALED_SIZE;
   const group = document.createElementNS(SVG_NS, "g") as SVGGElement;
@@ -188,19 +192,29 @@ export function charRestore(
   // character so the cell isn't visibly empty. Caller can force
   // `false` to suppress.
   const showCharacter = options.showCharacter ?? isShowMode;
+  const showOutline = options.showOutline ?? false;
 
   const drawingWidth = options.drawingWidth ?? DEFAULT_DRAWING_WIDTH;
   const drawingColor = options.drawingColor ?? DEFAULT_DRAWING_COLOR;
   const okColor = options.okColor ?? drawingColor;
   const ngColor = options.ngColor ?? drawingColor;
   const referenceColor = options.strokeColor ?? DEFAULT_REFERENCE_COLOR;
+  const outlineColor = options.outlineColor ?? DEFAULT_OUTLINE_COLOR;
   const charDataLoader: CharDataLoaderFn =
     options.charDataLoader ?? defaultCharDataLoader;
+
+  const needsCharData =
+    (showCharacter || showOutline) && !!result.character;
 
   const paint = (
     charData: { strokes: string[]; medians: number[][][] } | null,
   ): void => {
     const { svg, group } = buildCellChrome(size, padding, options.showGrid);
+    // Outline first so the filled character (if any) paints on top of
+    // it, matching hanzi-writer's layering when both are shown.
+    if (showOutline && charData) {
+      appendCharacterPaths(group, charData.strokes, outlineColor);
+    }
     if (showCharacter && charData) {
       appendCharacterPaths(group, charData.strokes, referenceColor);
     }
@@ -215,7 +229,7 @@ export function charRestore(
     el.appendChild(svg);
   };
 
-  if (showCharacter && result.character) {
+  if (needsCharData) {
     charDataLoader(
       result.character,
       (data) => paint(data),
@@ -352,6 +366,7 @@ export function blockRestore(
         showCharacter: false,
         showOutline: false,
         strokeColor: options.strokeColor,
+        outlineColor: options.outlineColor,
         okColor: options.okColor,
         ngColor: options.ngColor,
         charDataLoader: options.charDataLoader,
@@ -378,6 +393,7 @@ export function blockRestore(
           showCharacter: options.showCharacter,
           showOutline: options.showOutline,
           strokeColor: options.strokeColor,
+          outlineColor: options.outlineColor,
           okColor: options.okColor,
           ngColor: options.ngColor,
           charDataLoader: options.charDataLoader,
@@ -532,6 +548,7 @@ export function pageRestore(
       showCharacter: options.showCharacter,
       showOutline: options.showOutline,
       strokeColor: options.strokeColor,
+      outlineColor: options.outlineColor,
       okColor: options.okColor,
       ngColor: options.ngColor,
       charDataLoader: options.charDataLoader,

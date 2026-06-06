@@ -177,6 +177,81 @@ describe("char.restore", () => {
     expect(paths.length).toBe(mockCharData.strokes.length);
   });
 
+  it("draws the cross-grid by default (showGrid undefined matches create-side default)", () => {
+    const result = charResult("学", [
+      strokeWithPoints(true, [
+        [0, 0, 0],
+        [10, 10, 50],
+      ]),
+    ]);
+    char.restore(host, result, { size: 200 });
+    const svg = getRestoreSvg(host);
+    const lines = svg.querySelectorAll("line");
+    expect(lines.length).toBeGreaterThanOrEqual(2); // grid = vertical + horizontal
+  });
+
+  it("suppresses the cross-grid when showGrid: false", () => {
+    const result = charResult("学", [
+      strokeWithPoints(true, [
+        [0, 0, 0],
+        [10, 10, 50],
+      ]),
+    ]);
+    char.restore(host, result, { size: 200, showGrid: false });
+    const svg = getRestoreSvg(host);
+    expect(svg.querySelectorAll("line").length).toBe(0);
+  });
+
+  it("paints the reference outline with outlineColor when showOutline: true", () => {
+    const result: CharResult = {
+      character: "学",
+      complete: true,
+      matched: true,
+      perStroke: [],
+    };
+    char.restore(host, result, {
+      size: 200,
+      showOutline: true,
+      outlineColor: "#abcdef",
+      charDataLoader: mockCharDataLoader,
+    });
+
+    const svg = getRestoreSvg(host);
+    const paths = svg.querySelectorAll("path");
+    expect(paths.length).toBe(mockCharData.strokes.length);
+    paths.forEach((p) => {
+      expect(p.getAttribute("fill")).toBe("#abcdef");
+    });
+  });
+
+  it("layers outline behind the filled character when both are set", () => {
+    const result: CharResult = {
+      character: "学",
+      complete: true,
+      matched: true,
+      perStroke: [],
+    };
+    char.restore(host, result, {
+      size: 200,
+      showCharacter: true,
+      showOutline: true,
+      strokeColor: "#111111",
+      outlineColor: "#eeeeee",
+      charDataLoader: mockCharDataLoader,
+    });
+
+    const svg = getRestoreSvg(host);
+    const paths = svg.querySelectorAll("path");
+    expect(paths.length).toBe(mockCharData.strokes.length * 2);
+    // First N paths are outline (painted first → behind), next N are character.
+    for (let i = 0; i < mockCharData.strokes.length; i++) {
+      expect(paths[i].getAttribute("fill")).toBe("#eeeeee");
+    }
+    for (let i = mockCharData.strokes.length; i < paths.length; i++) {
+      expect(paths[i].getAttribute("fill")).toBe("#111111");
+    }
+  });
+
   it("does not load char data when showCharacter is left false (default)", () => {
     let loadCount = 0;
     const countingLoader: CharDataLoaderFn = (_c, onLoad) => {
