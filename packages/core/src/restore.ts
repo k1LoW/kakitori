@@ -330,9 +330,14 @@ export function blockRestore(
     const cellWidth = writingMode === "horizontal-tb" ? span * cellSize : cellSize;
     const cellHeight = writingMode === "horizontal-tb" ? cellSize : span * cellSize;
 
-    // The cell wrapper carries the border around the whole cell (so
-    // free cells with N chars get one outer border instead of one per
-    // char slot). Each char slot inside is borderless.
+    // Outer border policy mirrors `block.create`: guided / free cells
+    // get one wrapper border around the whole span, while blank cells
+    // delegate to per-slot borders below so a span-N blank shows the
+    // same N-bordered placeholder layout that `block.create`'s
+    // `mountBlankCell` paints. Without this distinction a blank cell
+    // with span > 1 would either be missing per-slot borders (single
+    // outer border only) or carry both (double-thickness).
+    const useOuterBorder = cell.kind !== "blank";
     const cellWrapper = document.createElement("div");
     cellWrapper.style.position = "absolute";
     cellWrapper.style.boxSizing = "border-box";
@@ -340,71 +345,57 @@ export function blockRestore(
     cellWrapper.style.top = `${cellY}px`;
     cellWrapper.style.width = `${cellWidth}px`;
     cellWrapper.style.height = `${cellHeight}px`;
-    if (cellBorderWidth > 0) {
+    if (useOuterBorder && cellBorderWidth > 0) {
       cellWrapper.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
     }
     wrapper.appendChild(cellWrapper);
 
-    const slotCount = cell.kind === "blank" ? 0 : cell.chars.length;
-    if (slotCount === 0) {
-      // Blank (or empty free) cell: paint the empty chrome via
-      // charRestore with an empty result so showGrid / cell sizing
-      // stays consistent with non-blank cells.
-      const emptyResult: CharResult = {
-        character: "",
-        complete: false,
-        matched: true,
-        perStroke: [],
-      };
+    // Render one slot per span unit. Slots beyond `cell.chars.length`
+    // (blank cells, or free / guided cells whose recorded chars don't
+    // fill the reserved width) fall through to an empty chrome render
+    // so the spanned area visually matches `block.create`'s output
+    // instead of leaving the trailing slots blank.
+    const emptyChar: CharResult = {
+      character: "",
+      complete: false,
+      matched: true,
+      perStroke: [],
+    };
+    for (let k = 0; k < span; k++) {
+      const slotX = writingMode === "horizontal-tb" ? k * cellSize : 0;
+      const slotY = writingMode === "horizontal-tb" ? 0 : k * cellSize;
       const slot = document.createElement("div");
       slot.style.position = "absolute";
-      slot.style.left = "0";
-      slot.style.top = "0";
-      slot.style.width = `${cellWidth}px`;
-      slot.style.height = `${cellHeight}px`;
+      slot.style.boxSizing = "border-box";
+      slot.style.left = `${slotX}px`;
+      slot.style.top = `${slotY}px`;
+      slot.style.width = `${cellSize}px`;
+      slot.style.height = `${cellSize}px`;
+      if (!useOuterBorder && cellBorderWidth > 0) {
+        slot.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+      }
       cellWrapper.appendChild(slot);
-      charRestore(slot, emptyResult, {
+
+      const charForSlot = k < cell.chars.length ? cell.chars[k] : emptyChar;
+      const slotIsEmpty = charForSlot === emptyChar;
+      charRestore(slot, charForSlot, {
         size: cellSize,
         padding,
         drawingWidth: options.drawingWidth,
         drawingColor: options.drawingColor,
         showGrid: options.showGrid,
-        showCharacter: false,
-        showOutline: false,
+        // Empty placeholder slots never have a real character to show
+        // (synthetic empty CharResult), so suppress showCharacter /
+        // showOutline regardless of the caller's preference to avoid
+        // loading char data for an empty character string.
+        showCharacter: slotIsEmpty ? false : options.showCharacter,
+        showOutline: slotIsEmpty ? false : options.showOutline,
         strokeColor: options.strokeColor,
         outlineColor: options.outlineColor,
         okColor: options.okColor,
         ngColor: options.ngColor,
         charDataLoader: options.charDataLoader,
       });
-    } else {
-      for (let k = 0; k < slotCount; k++) {
-        const slotX =
-          writingMode === "horizontal-tb" ? k * cellSize : 0;
-        const slotY =
-          writingMode === "horizontal-tb" ? 0 : k * cellSize;
-        const slot = document.createElement("div");
-        slot.style.position = "absolute";
-        slot.style.left = `${slotX}px`;
-        slot.style.top = `${slotY}px`;
-        slot.style.width = `${cellSize}px`;
-        slot.style.height = `${cellSize}px`;
-        cellWrapper.appendChild(slot);
-        charRestore(slot, cell.chars[k], {
-          size: cellSize,
-          padding,
-          drawingWidth: options.drawingWidth,
-          drawingColor: options.drawingColor,
-          showGrid: options.showGrid,
-          showCharacter: options.showCharacter,
-          showOutline: options.showOutline,
-          strokeColor: options.strokeColor,
-          outlineColor: options.outlineColor,
-          okColor: options.okColor,
-          ngColor: options.ngColor,
-          charDataLoader: options.charDataLoader,
-        });
-      }
     }
 
     runningOffset += span * cellSize;

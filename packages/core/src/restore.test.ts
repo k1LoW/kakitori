@@ -429,6 +429,59 @@ describe("block.restore", () => {
     expect(cellWrappers[1].style.width).toBe("150px"); // blank cell, 3 slots
   });
 
+  it("blank cell renders one bordered slot per span unit; outer wrapper has no border", () => {
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [{ kind: "blank", chars: [], span: 3 }],
+      annotations: [],
+    };
+    block.restore(host, result, { cellSize: 50 });
+
+    const wrapper = getBlockWrapper();
+    const cellWrapper = wrapper.querySelector<HTMLElement>(":scope > div")!;
+    // Outer wrapper has no border — the per-slot borders fill in below.
+    expect(cellWrapper.style.borderTopWidth).toBe("");
+    // One slot per span unit, each with its own border + its own SVG.
+    const slots = cellWrapper.querySelectorAll<HTMLElement>(":scope > div");
+    expect(slots).toHaveLength(3);
+    slots.forEach((s) => {
+      expect(s.style.borderTopWidth).not.toBe("");
+      expect(s.style.width).toBe("50px");
+    });
+    expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(3);
+  });
+
+  it("free cell with span > chars.length fills trailing slots with empty chrome", () => {
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "free",
+          chars: [
+            charResult("学", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+            charResult("校", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+          span: 5,
+        },
+      ],
+      annotations: [],
+    };
+    block.restore(host, result, { cellSize: 50, writingMode: "horizontal-tb" });
+
+    const wrapper = getBlockWrapper();
+    // 5 slot SVGs even though only 2 chars: trailing 3 slots render
+    // empty chrome instead of being blank space.
+    const svgs = wrapper.querySelectorAll("svg.kakitori-restore-svg");
+    expect(svgs).toHaveLength(5);
+    // First 2 carry polylines, last 3 don't.
+    const polylineCounts = Array.from(svgs).map(
+      (s) => s.querySelectorAll("polyline").length,
+    );
+    expect(polylineCounts).toEqual([1, 1, 0, 0, 0]);
+  });
+
   it("blank cell paints chrome only (no polyline)", () => {
     const result: BlockResult = {
       complete: true,
