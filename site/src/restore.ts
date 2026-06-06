@@ -73,7 +73,7 @@ function buildSourceChar(
     retainStrokes: true,
     showAcceptedStroke: false,
     // Keep the reference outline visible so the user has something to
-    // trace — without it the per-char correction has no anchor and the
+    // trace. Without it the per-char correction has no anchor and the
     // restored preview ends up as freehand scribbles rather than a
     // recognisable character.
     showOutline: true,
