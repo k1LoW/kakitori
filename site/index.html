@@ -1272,6 +1272,53 @@ char.create("一").mount(target, {
       </div>
     </section>
 
+    <!-- ============================================================ -->
+    <!-- restore                                                       -->
+    <!-- ============================================================ -->
+    <section id="restore-section">
+      <h2 id="restore">restore</h2>
+      <p>
+        Because <code>result.points</code> stays in the 1024-scale internal coordinate system, a saved <code>CharResult</code> can be redrawn anywhere later via <code>char.restore</code>. No <code>Char</code> instance, no matcher, no quiz lifecycle. Just data going back into pixels.
+      </p>
+
+      <div class="sizing-example">
+        <h3>Write once, restore at any size</h3>
+        <p>
+          Trace the outline on the left. Once all strokes are written, the three preview cells on the right are populated by <code>char.restore</code> at three different display sizes from the resulting <code>CharResult</code>. Press <strong>Restart</strong> to write again.
+        </p>
+        <div class="sizing-inspector-row">
+          <div class="sizing-cell">
+            <div id="restore-source-writer" class="sizing-writer"></div>
+            <div class="sizing-caption">source cell (size = 240)</div>
+            <div class="sizing-control">
+              <button id="restore-source-reset-btn" type="button">Restart</button>
+            </div>
+          </div>
+          <div class="sizing-inspector">
+            <h4>restored previews</h4>
+            <div class="sizing-row">
+              <div class="sizing-cell">
+                <div id="restore-preview-80" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 80</div>
+              </div>
+              <div class="sizing-cell">
+                <div id="restore-preview-160" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 160</div>
+              </div>
+              <div class="sizing-cell">
+                <div id="restore-preview-240" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 240</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <pre data-lang="ts">// `result` was captured from a prior writing session
+// (e.g. via onComplete / Char.result()). char.restore renders it back
+// without needing a Char instance or any matcher state.
+char.restore(target, result, { size: 160 });</pre>
+      </div>
+    </section>
+
     <footer class="site-footer">
       <p>
         MIT licensed. Source at
