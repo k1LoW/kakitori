@@ -5,6 +5,11 @@ import {
   DEFAULT_NORMALIZE_TARGET,
   type NormalizeTarget,
 } from "../recognition/normalize.js";
+import {
+  HANZI_PRESCALED_SIZE,
+  HANZI_Y_MAX,
+  HANZI_Y_MIN,
+} from "../constants.js";
 import type { BlockLoaders } from "./types.js";
 
 /**
@@ -193,6 +198,27 @@ function loadCharMeta(
             }
             any = true;
           }
+        }
+        // Clamp the median bbox to the standard hanzi region before
+        // deriving the target. Some characters in
+        // `@k1low/hanzi-writer-data-jp` ship medians with stray samples
+        // that fall far outside `[0, HANZI_PRESCALED_SIZE]` /
+        // `[HANZI_Y_MIN, HANZI_Y_MAX]` (e.g. ま has a median point at
+        // y=-790, ~666 units above the standard top). Without clamping,
+        // those outliers blow up `longerSide` (ま: 1602 vs. ~900 for
+        // every well-behaved hiragana) and `normalize` then scales the
+        // user's bbox to fill the entire canvas, leaving zero margin
+        // when the saved CharResult is rendered through `restore` (the
+        // top stroke ends up touching the cell border). Clamping keeps
+        // the target faithful to where the character actually lives in
+        // hanzi-writer's coordinate system, and well-behaved data is
+        // unaffected (clamping is a no-op for any bbox already inside
+        // the standard region).
+        if (any) {
+          minX = Math.max(minX, 0);
+          maxX = Math.min(maxX, HANZI_PRESCALED_SIZE);
+          minY = Math.max(minY, HANZI_Y_MIN);
+          maxY = Math.min(maxY, HANZI_Y_MAX);
         }
         // Fall back to the full canvas when a character has no medians (a
         // theoretical edge case for character data without sampled paths).
