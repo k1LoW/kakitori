@@ -187,9 +187,12 @@ export interface BlockLoaders {
  * Options for `block.restore`, the static result renderer for a
  * {@link BlockResult}. Mirrors `block.create`'s layout vocabulary
  * (`cellSize`, `writingMode`) plus the per-char visual knobs forwarded
- * to {@link RestoreOptions}. Annotations are not rendered in v1
- * because `BlockAnnotationResult` does not carry layout (`cellRange`
- * etc.); only cell content is drawn.
+ * to {@link RestoreOptions}. Annotations are rendered as a strip
+ * alongside the cells when their {@link BlockAnnotationResult} carries
+ * the `cellRange` / `placement` / `sizeRatio` layout fields; legacy
+ * results saved before those fields existed are silently skipped (the
+ * strip space they would have occupied is not reserved either, so
+ * cells lay out as if no annotation were present).
  */
 export interface BlockRestoreOptions {
   /** Per-cell side length in display pixels. Required. */

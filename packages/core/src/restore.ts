@@ -395,19 +395,22 @@ export function blockRestore(
   const cellsExtent = spans.reduce((acc, s) => acc + s * cellSize, 0);
 
   // Reserve the annotation strip on the perpendicular axis when the
-  // result carries any annotations. Mirrors `block.create`'s sizing
-  // rule: strip thickness = max(sizeRatio * cellSize) across
+  // result carries any renderable annotations. Mirrors `block.create`'s
+  // sizing rule: strip thickness = max(sizeRatio * cellSize) across
   // annotations, defaulting to `DEFAULT_ANNOTATION_RATIO` when no
-  // sizeRatio is set. Annotations missing `cellRange` are skipped at
-  // render time but still count toward thickness if they provide a
-  // sizeRatio (kept symmetric so the wrapper sizes don't shift when a
-  // single annotation is omitted).
-  const annotations = result.annotations ?? [];
+  // sizeRatio is set. Annotations missing `cellRange` cannot be
+  // positioned and are dropped from both thickness and rendering, so
+  // legacy results that pre-date the cellRange / placement / sizeRatio
+  // fields lay out as if no annotation strip were present at all
+  // (instead of reserving a dead strip the renderer can't fill).
+  const renderableAnnotations = (result.annotations ?? []).filter(
+    (a) => a.cellRange !== undefined,
+  );
   const annotationThickness =
-    annotations.length === 0
+    renderableAnnotations.length === 0
       ? 0
       : Math.max(
-          ...annotations.map(
+          ...renderableAnnotations.map(
             (a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
           ),
         );
@@ -529,10 +532,10 @@ export function blockRestore(
   // spans `cellRange[from..to]` on the cell axis and sits perpendicular
   // (right for vertical-rl, top for horizontal-tb).
   if (annotationThickness > 0) {
-    for (let i = 0; i < annotations.length; i++) {
+    for (let i = 0; i < renderableAnnotations.length; i++) {
       renderAnnotation(
         wrapper,
-        annotations[i],
+        renderableAnnotations[i],
         i,
         cellRects,
         cellSize,
@@ -767,8 +770,13 @@ function blockResultToSpec(blockResult: BlockResult): BlockSpec {
  * Layout vocabulary mirrors `page.create`: `columns` / `cellsPerColumn`
  * / `cellSize` / `writingMode` (default `"vertical-rl"`). Blocks flow
  * in declaration order, splitting at column boundaries via the same
- * `layoutPage` pass used by `page.create`. Annotations are skipped in
- * v1 because `BlockAnnotationResult` does not carry layout.
+ * `layoutPage` pass used by `page.create`. Annotations are dropped
+ * from each block when slicing its cells into per-column segments:
+ * `BlockAnnotationResult` does carry layout (`cellRange` / `placement`
+ * / `sizeRatio`) and `block.restore` honours it, but rendering an
+ * annotation whose `cellRange` straddles a column wrap would require
+ * segment-aware slicing of the annotation strip, which is out of
+ * scope for v1.
  */
 export function pageRestore(
   target: string | HTMLElement,

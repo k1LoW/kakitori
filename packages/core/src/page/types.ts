@@ -231,7 +231,13 @@ export interface PageResult {
  * layout is not stored on `PageResult` (so the same result can be
  * rendered at different shapes); the caller passes it here.
  *
- * Annotations are not rendered in v1 (mirror of `block.restore`).
+ * Annotations are not rendered in v1. Unlike `block.restore` (which
+ * does render annotations whose layout fields are present),
+ * `page.restore` drops annotations from each block when slicing the
+ * block's cells into per-column segments: faithful rendering would
+ * need segment-aware annotation slicing so a `cellRange` spanning the
+ * wrap point is split across the column break, which is out of scope
+ * here.
  */
 export interface PageRestoreOptions {
   /** Page column count (vertical-rl) or row count (horizontal-tb). Required. */
