@@ -214,21 +214,41 @@ function loadCharMeta(
         // hanzi-writer's coordinate system, and well-behaved data is
         // unaffected (clamping is a no-op for any bbox already inside
         // the standard region).
+        //
+        // Clamp BOTH ends of each axis into the range independently:
+        // raising the lower bound alone (e.g.
+        // `minX = Math.max(minX, 0)`) would invert the bbox when
+        // every median sample falls outside the range on the upper
+        // side (e.g. all x > HANZI_PRESCALED_SIZE leaves minX > maxX
+        // and `longerSide` negative). A degenerate clamped bbox
+        // (zero-area) is then caught by the fallback below.
+        const clampX = (v: number): number =>
+          Math.max(0, Math.min(v, HANZI_PRESCALED_SIZE));
+        const clampY = (v: number): number =>
+          Math.max(HANZI_Y_MIN, Math.min(v, HANZI_Y_MAX));
         if (any) {
-          minX = Math.max(minX, 0);
-          maxX = Math.min(maxX, HANZI_PRESCALED_SIZE);
-          minY = Math.max(minY, HANZI_Y_MIN);
-          maxY = Math.min(maxY, HANZI_Y_MAX);
+          minX = clampX(minX);
+          maxX = clampX(maxX);
+          minY = clampY(minY);
+          maxY = clampY(maxY);
         }
-        // Fall back to the full canvas when a character has no medians (a
-        // theoretical edge case for character data without sampled paths).
-        const normalizeTarget: NormalizeTarget = any
-          ? {
-              centerX: (minX + maxX) / 2,
-              centerY: (minY + maxY) / 2,
-              longerSide: Math.max(maxX - minX, maxY - minY),
-            }
-          : DEFAULT_NORMALIZE_TARGET;
+        const longerAfterClamp = any
+          ? Math.max(maxX - minX, maxY - minY)
+          : 0;
+        // Fall back to the full canvas when a character has no medians
+        // at all (a theoretical edge case for character data without
+        // sampled paths), or when clamping collapsed the bbox to a
+        // single point (every median sample sat outside the standard
+        // region on the same side — even more theoretical, but the
+        // fallback keeps downstream math finite).
+        const normalizeTarget: NormalizeTarget =
+          any && longerAfterClamp > 0
+            ? {
+                centerX: (minX + maxX) / 2,
+                centerY: (minY + maxY) / 2,
+                longerSide: longerAfterClamp,
+              }
+            : DEFAULT_NORMALIZE_TARGET;
         resolve({ dataStrokeCount: data.strokes.length, normalizeTarget });
       },
       (err) =>
