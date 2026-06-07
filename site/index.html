@@ -1278,7 +1278,7 @@ char.create("一").mount(target, {
     <section id="restore-section">
       <h2 id="restore">restore</h2>
       <p>
-        Because <code>result.points</code> stays in the 1024-scale internal coordinate system, a saved <code>CharResult</code> can be redrawn anywhere later via <code>char.restore</code>. No <code>Char</code> instance, no matcher, no quiz lifecycle. Just data going back into pixels.
+        Because <code>CharResult.perStroke[].points</code> stays in the 1024-scale internal coordinate system, a saved <code>CharResult</code> can be redrawn anywhere later via <code>char.restore</code>. No <code>Char</code> instance, no matcher, no quiz lifecycle. Just data going back into pixels.
       </p>
 
       <div class="sizing-example">
