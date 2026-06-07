@@ -851,13 +851,6 @@ function renderAnnotation(
 }
 
 /**
- * Synthesize a {@link BlockSpec} from a {@link BlockResult} so the
- * pure layout helper (`layoutPage`) can compute spans / segments
- * without needing the original spec. Only the fields layoutPage reads
- * (`kind`, `expected`, `span`) need to be present, so the synthesized
- * Cell is just enough to drive layout.
- */
-/**
  * Slice the block-level annotations so that each output annotation
  * targets a single cell inside the given segment and carries the
  * exact chars that cell owned in the original `renderAnnotation`
@@ -925,6 +918,13 @@ function sliceAnnotationsForSegment(
   return out;
 }
 
+/**
+ * Synthesize a {@link BlockSpec} from a {@link BlockResult} so the
+ * pure layout helper (`layoutPage`) can compute spans / segments
+ * without needing the original spec. Only the fields layoutPage reads
+ * (`kind`, `expected`, `span`) need to be present, so the synthesized
+ * Cell is just enough to drive layout.
+ */
 function blockResultToSpec(blockResult: BlockResult): BlockSpec {
   const cells: Cell[] = blockResult.cells.map((c) => {
     if (c.kind === "guided") {
