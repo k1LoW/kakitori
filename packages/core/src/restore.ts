@@ -901,6 +901,16 @@ function sliceAnnotationsForSegment(
       const charStart = boundary(localInAnno);
       const charEnd = boundary(localInAnno + 1);
       const cellChars = annoChars.slice(charStart, charEnd);
+      // Skip per-cell slices that the original distribution left empty
+      // (this happens when an annotation has fewer chars than cells,
+      // e.g. 5 chars over 6 cells leaves at least one cell with 0).
+      // renderAnnotation would silently skip these later anyway, but
+      // emitting them still costs a sizeRatio/cellRange validation
+      // pass plus a renderAnnotation call per empty slice on the
+      // segment's block.restore.
+      if (cellChars.length === 0) {
+        continue;
+      }
       const localCellInSeg = cellIdx - segCellFrom;
       const sliced: BlockAnnotationResult = {
         cellRange: [localCellInSeg, localCellInSeg],
