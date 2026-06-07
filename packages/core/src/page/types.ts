@@ -231,13 +231,12 @@ export interface PageResult {
  * layout is not stored on `PageResult` (so the same result can be
  * rendered at different shapes); the caller passes it here.
  *
- * Annotations are not rendered in v1. Unlike `block.restore` (which
- * does render annotations whose layout fields are present),
- * `page.restore` drops annotations from each block when slicing the
- * block's cells into per-column segments: faithful rendering would
- * need segment-aware annotation slicing so a `cellRange` spanning the
- * wrap point is split across the column break, which is out of scope
- * here.
+ * Annotations are rendered alongside each block's cells whenever a
+ * `BlockAnnotationResult` carries the `cellRange` / `placement` /
+ * `sizeRatio` layout fields. If a block's `cellRange` straddles a
+ * column wrap, the annotation is split per-cell across the segments
+ * the cells land in, so each cell keeps the chars it originally
+ * carried in the live block.
  */
 export interface PageRestoreOptions {
   /** Page column count (vertical-rl) or row count (horizontal-tb). Required. */
@@ -254,6 +253,24 @@ export interface PageRestoreOptions {
   cellBorderWidth?: number;
   /** Cell border color. Defaults to `"#ddd"`, matching `page.create`. */
   cellBorderColor?: string;
+  /**
+   * When `false`, no annotation strip is reserved or rendered on
+   * any block, even if some blocks carry annotations. Defaults to
+   * `true`, matching `page.create`: the strip is reserved on every
+   * column regardless of whether any block carries furigana, so a
+   * `PageResult` round-trips through `page.create` and
+   * `page.restore` at the same geometry.
+   */
+  showAnnotationStrip?: boolean;
+  /**
+   * Override the page-wide annotation strip thickness. When unset,
+   * the thickness is `Math.max(largest block annotation thickness,
+   * DEFAULT_ANNOTATION_RATIO * cellSize)`, unconditionally
+   * applying the default floor (matching `page.create`). Must be
+   * at least as large as the largest required block thickness;
+   * otherwise the call throws.
+   */
+  annotationStripThickness?: number;
   // Visual options forwarded to char.restore for every char slot.
   drawingWidth?: number;
   drawingColor?: string;

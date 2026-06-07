@@ -125,6 +125,52 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("carries annotation cellRange / placement / sizeRatio onto onPageComplete's BlockAnnotationResult", async () => {
+    // Regression: page.ts's local `buildBlockResult` builds each
+    // BlockAnnotationResult by hand instead of delegating to block.ts's
+    // `annotationResult`, so it used to ship only `{ chars }` without
+    // the layout fields. `page.restore` then filtered every annotation
+    // out as legacy and rendered no strip at all. Confirm the layout
+    // fields now flow through.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onPageComplete = vi.fn();
+    const handle = page.create(parent, {
+      columns: 1,
+      cellsPerColumn: 4,
+      cellSize: 80,
+      blocks: [
+        {
+          spec: {
+            cells: [
+              { kind: "free", expected: "学", mode: "show" },
+              { kind: "free", expected: "校", mode: "show" },
+            ],
+            annotations: [
+              {
+                cellRange: [0, 1],
+                expected: "がっこう",
+                mode: "show",
+                sizeRatio: 0.45,
+              },
+            ],
+          },
+        },
+      ],
+      onPageComplete,
+    });
+    await flushMicrotasks();
+    expect(onPageComplete).toHaveBeenCalledTimes(1);
+    const result = onPageComplete.mock.calls[0][0];
+    const anno = result.blocks[0].annotations[0];
+    expect(anno.cellRange).toEqual([0, 1]);
+    expect(anno.sizeRatio).toBe(0.45);
+    // placement was omitted on the spec; the result should not invent it.
+    expect(anno.placement).toBeUndefined();
+    handle.destroy();
+    parent.remove();
+  });
+
   it("re-emits show-mode results on reset()", async () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

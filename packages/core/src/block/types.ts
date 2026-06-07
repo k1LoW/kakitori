@@ -205,6 +205,22 @@ export interface BlockRestoreOptions {
   cellBorderWidth?: number;
   /** Cell border color. Defaults to `"#ddd"`, matching `block.create`. */
   cellBorderColor?: string;
+  /**
+   * When `false`, no annotation strip is rendered and no strip space
+   * is reserved, even if the result carries annotations with layout
+   * fields. Defaults to `true` (= reserve strip space iff the result
+   * has a renderable annotation).
+   */
+  showAnnotationStrip?: boolean;
+  /**
+   * Override the annotation strip thickness instead of deriving it
+   * from the result's annotations. Used by `page.restore` to keep
+   * the strip width consistent across segments (otherwise a block
+   * whose annotations all wrapped to the next column would shrink
+   * relative to its siblings). When unset, the thickness is derived
+   * from the largest annotation's `sizeRatio`.
+   */
+  annotationStripThickness?: number;
   // Visual options forwarded to char.restore for every char slot.
   drawingWidth?: number;
   drawingColor?: string;

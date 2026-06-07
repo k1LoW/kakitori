@@ -8,7 +8,7 @@ import type {
   CharResult,
   CharStrokeResult,
 } from "./charOptions.js";
-import type { BlockResult } from "./block/types.js";
+import type { BlockCellResult, BlockResult } from "./block/types.js";
 import type { PageResult } from "./page/types.js";
 
 const mockCharData = {
@@ -761,6 +761,11 @@ describe("page.restore", () => {
       columns: 2,
       cellsPerColumn: 4,
       cellSize: 50,
+      // This test focuses on the column flow, not the annotation
+      // strip. Turn the strip off so pageWidth stays at columns x
+      // cellSize and the per-segment x-coordinates remain easy to
+      // reason about.
+      showAnnotationStrip: false,
     });
 
     const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
@@ -817,7 +822,14 @@ describe("page.restore", () => {
       blocks: [wideFree, followUp],
     };
 
-    page.restore(host, result, { columns: 2, cellsPerColumn: 4, cellSize: 50 });
+    // Strip turned off so the column-flow assertions stay easy to
+    // reason about (lineThickness == cellSize).
+    page.restore(host, result, {
+      columns: 2,
+      cellsPerColumn: 4,
+      cellSize: 50,
+      showAnnotationStrip: false,
+    });
 
     const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
     const segments = wrapper.querySelectorAll<HTMLElement>(":scope > div");
@@ -836,5 +848,352 @@ describe("page.restore", () => {
     expect(() => page.restore(host, empty, { columns: 2, cellsPerColumn: 0, cellSize: 50 })).toThrow(
       /cellsPerColumn must be a positive integer/,
     );
+  });
+
+  it("reserves a page-wide annotation strip when any block carries an annotation", () => {
+    // Block 0 has a furigana annotation across both cells; block 1
+    // has none. Both columns must reserve the same strip thickness
+    // (the page-wide max), so the page width = columns *
+    // (cellSize + strip). Each segment's blockRestore is fed the
+    // page-wide strip so the cells inside line up across columns.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              chars: ["が", "っ", "こ", "う"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("一"), cellWithStroke("二")],
+          annotations: [],
+        },
+      ],
+    };
+    page.restore(host, result, { columns: 2, cellsPerColumn: 2, cellSize: 100 });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    // Strip thickness = DEFAULT_ANNOTATION_RATIO (0.4) * 100 = 40.
+    // lineThickness = 100 + 40 = 140. pageWidth = 2 * 140 = 280.
+    expect(wrapper.style.width).toBe("280px");
+    expect(wrapper.style.height).toBe("200px");
+    // 2 cells per block × 2 blocks + 4 annotation chars from block 0 = 8 svg.
+    expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(8);
+  });
+
+  it("slices a block's annotation per cell when its cellRange straddles a column wrap", () => {
+    // Block has 4 cells with an annotation [c0, c1, c2, c3] across
+    // all of them. cellsPerColumn=2 forces the block to wrap: cells
+    // 0..1 in column 0, cells 2..3 in column 1. Each cell must keep
+    // the chars it originally owned (c0 / c1 / c2 / c3), so each
+    // column ends up with two 1-cell sliced annotations.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [
+            cellWithStroke("一"),
+            cellWithStroke("二"),
+            cellWithStroke("三"),
+            cellWithStroke("四"),
+          ],
+          annotations: [
+            {
+              cellRange: [0, 3],
+              chars: ["a", "b", "c", "d"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    page.restore(host, result, { columns: 2, cellsPerColumn: 2, cellSize: 100 });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    // 4 cell SVGs + 4 annotation char SVGs = 8 SVGs total. If the
+    // slice were dropping any annotation cells, count would be < 8.
+    expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(8);
+    // Two segments, each in a different column.
+    const segments = wrapper.querySelectorAll<HTMLElement>(":scope > div");
+    expect(segments).toHaveLength(2);
+  });
+
+  it("disables the annotation strip when showAnnotationStrip is false", () => {
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              chars: ["が", "っ", "こ", "う"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    page.restore(host, result, {
+      columns: 1,
+      cellsPerColumn: 2,
+      cellSize: 100,
+      showAnnotationStrip: false,
+    });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    // No strip space reserved => lineThickness == cellSize.
+    expect(wrapper.style.width).toBe("100px");
+    // Cells render; annotations skipped entirely.
+    expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(2);
+  });
+
+  it("reserves the default annotation strip even when no block carries an annotation", () => {
+    // Mirrors `page.create`'s behaviour: with `showAnnotationStrip`
+    // and `annotationStripThickness` both unset, the page reserves
+    // a `DEFAULT_ANNOTATION_RATIO * cellSize` strip per column
+    // regardless of whether any block actually populates it. This
+    // keeps the geometry of a `PageResult` round-tripped through
+    // `page.create -> page.restore` identical even when no block
+    // happens to carry furigana.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("一"), cellWithStroke("二")],
+          annotations: [],
+        },
+      ],
+    };
+    page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    // DEFAULT_ANNOTATION_RATIO = 0.4 => strip = 40 px, lineThickness = 140.
+    expect(wrapper.style.width).toBe("140px");
+    expect(wrapper.style.height).toBe("200px");
+  });
+
+  it("throws on a non-finite or non-positive sizeRatio in any block annotation", () => {
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              // Non-finite sizeRatio: caught at the page-level
+              // pre-pass before the value flows into the
+              // `pageRequiredStrip` / `lineThickness` math.
+              sizeRatio: Number.NaN,
+              chars: ["が"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 }),
+    ).toThrow(
+      /blocks\[0\]\.annotations\[0\]\.sizeRatio must be a finite positive number/,
+    );
+  });
+
+  it("throws on an out-of-range cellRange in any block annotation", () => {
+    // The page-level slicing pass rebases every annotation's
+    // cellRange to a 1-cell segment-local range before block.restore
+    // sees it, so the underlying renderAnnotation cellRange check
+    // would never fire against the original index. Validate here.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              // 5 is past the last cell index (1) of a 2-cell block.
+              cellRange: [0, 5],
+              chars: ["が"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 }),
+    ).toThrow(
+      /blocks\[0\]\.annotations\[0\]\.cellRange \[0, 5\] is out of range for 2 cell\(s\)/,
+    );
+  });
+
+  it("does not constrain padding against annotation strip when a segment has no renderable annotations", () => {
+    // Regression: `page.restore` forces every segment's blockRestore
+    // to reserve the page-wide annotation strip even when that segment
+    // has no annotation overlap. block.restore's padding-vs-strip
+    // validation must therefore gate on whether any annotation is
+    // actually rendered, not on `annotationThickness > 0` alone:
+    // otherwise the unrelated block 2 here would throw on padding=30
+    // (>= 40/2) even though it never runs `charRestore` at
+    // size=annotationThickness.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              // 0.4 * 100 = 40 strip thickness. padding 30 is > 20
+              // (= 40/2), so the per-annotation char.restore for
+              // block 1 must throw, but block 2 must not.
+              chars: ["が", "っ"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+        {
+          complete: true,
+          matched: true,
+          // No annotations on this block: padding=30 must not throw
+          // here even though the segment reserves a 40-px strip.
+          cells: [cellWithStroke("大"), cellWithStroke("小")],
+          annotations: [],
+        },
+      ],
+    };
+    // Block 1 has annotations, so its padding=30 against
+    // annotationThickness=40 still throws as before.
+    expect(() =>
+      page.restore(host, result, {
+        columns: 1,
+        cellsPerColumn: 4,
+        cellSize: 100,
+        padding: 30,
+      }),
+    ).toThrow(/padding \(30\) must be less than annotationThickness\/2/);
+    // Drop block 1 -> only block 2 (no annotations) remains. padding=30
+    // forwards into each segment's blockRestore with annotationStripThickness
+    // = 40 (the page-wide default floor), but the constraint should be
+    // skipped because no annotation lands in any segment.
+    const annotationFree: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("大"), cellWithStroke("小")],
+          annotations: [],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, annotationFree, {
+        columns: 1,
+        cellsPerColumn: 2,
+        cellSize: 100,
+        padding: 30,
+      }),
+    ).not.toThrow();
+  });
+
+  it("throws when annotationStripThickness is smaller than the largest block annotation", () => {
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              sizeRatio: 0.6,
+              chars: ["が"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, result, {
+        columns: 1,
+        cellsPerColumn: 2,
+        cellSize: 100,
+        // 30 < required 60 (0.6 * 100). page.create rejects this; restore mirrors.
+        annotationStripThickness: 30,
+      }),
+    ).toThrow(/annotationStripThickness=30 is smaller/);
   });
 });

@@ -238,10 +238,14 @@ function setupBlockRestoreDemo(root: HTMLElement): void {
   });
 }
 
-const PAGE_DEMO_CELL_SIZE = 80;
-const PAGE_DEMO_PREVIEW_CELL_SIZE = 40;
-const PAGE_DEMO_BLOCKS: ReadonlyArray<{ id: string; chars: ReadonlyArray<string> }> = [
-  { id: "block-1", chars: ["山", "川"] },
+const PAGE_DEMO_CELL_SIZE = 120;
+const PAGE_DEMO_PREVIEW_CELL_SIZE = 100;
+const PAGE_DEMO_BLOCKS: ReadonlyArray<{
+  id: string;
+  chars: ReadonlyArray<string>;
+  furigana?: string;
+}> = [
+  { id: "block-1", chars: ["山", "川"], furigana: "やまかわ" },
   { id: "block-2", chars: ["大", "小"] },
   { id: "block-3", chars: ["天", "地", "人"] },
 ];
@@ -268,8 +272,7 @@ function buildSourcePage(
       charDataLoader: cachedCharDataLoader,
       configLoader: cachedConfigLoader,
     },
-    showAnnotationStrip: false,
-    blocks: PAGE_DEMO_BLOCKS.map(({ id, chars }) => ({
+    blocks: PAGE_DEMO_BLOCKS.map(({ id, chars, furigana }) => ({
       id,
       spec: {
         cells: chars.map((ch) => ({
@@ -281,6 +284,17 @@ function buildSourcePage(
             showCharacter: false,
           },
         })),
+        ...(furigana
+          ? {
+              annotations: [
+                {
+                  cellRange: [0, chars.length - 1] as [number, number],
+                  expected: furigana,
+                  mode: "write" as const,
+                },
+              ],
+            }
+          : {}),
       },
     })),
     onPageComplete: (result) => onSettled(result),
