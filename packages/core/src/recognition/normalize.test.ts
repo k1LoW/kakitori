@@ -28,9 +28,9 @@ describe("normalizeCharacterSegment", () => {
     expect(out).toEqual([[{ x: CENTER_X, y: CENTER_Y, t: 5 }]]);
   });
 
-  it("centers the centroid and scales the longer side to HANZI_PRESCALED_SIZE", () => {
-    // Square bbox 100x100. Centroid is at (50, 50) (mean of these 4 corners).
-    // Longer side is 100, so scale = HANZI_PRESCALED_SIZE / 100.
+  it("centers the bbox and scales the longer side to HANZI_PRESCALED_SIZE", () => {
+    // Square bbox 100x100. bbox centre is at (50, 50). Longer side is
+    // 100, so scale = HANZI_PRESCALED_SIZE / 100.
     const strokes: TimedPoint[][] = [
       [
         { x: 0, y: 0, t: 0 },
@@ -41,7 +41,7 @@ describe("normalizeCharacterSegment", () => {
     ];
     const out = normalizeCharacterSegment(strokes);
     const halfX = HANZI_PRESCALED_SIZE / 2;
-    // (0, 0) is top-left in input → centroid translation (-50, -50) and y-flip
+    // (0, 0) is top-left in input → bbox-centre translation (-50, -50) and y-flip
     // place it at (CENTER_X - halfX, HANZI_Y_MAX) (low x, top of Y-up canvas).
     expect(out[0][0].x).toBeCloseTo(CENTER_X - halfX);
     expect(out[0][0].y).toBeCloseTo(HANZI_Y_MAX);
@@ -62,7 +62,7 @@ describe("normalizeCharacterSegment", () => {
       ],
     ];
     const out = normalizeCharacterSegment(strokes);
-    // Both points share x=50 → centroid x is 50 → both end at canvas center x.
+    // Both points share x=50 → bbox-centre x is 50 → both end at canvas centre x.
     expect(out[0][0].x).toBeCloseTo(CENTER_X);
     expect(out[0][1].x).toBeCloseTo(CENTER_X);
     // y span fills HANZI_PRESCALED_SIZE: top of the input (y=0, in Y-down) lands
@@ -84,8 +84,8 @@ describe("normalizeCharacterSegment", () => {
     expect(out[0][1].t).toBe(250);
   });
 
-  it("normalizes across multiple strokes consistently (centroid is the joint mean)", () => {
-    // Two strokes whose joint bbox is 100x100, joint centroid at (50, 50).
+  it("normalizes across multiple strokes consistently (joint bbox spans every stroke)", () => {
+    // Two strokes whose joint bbox is 100x100, joint bbox centre at (50, 50).
     const strokes: TimedPoint[][] = [
       [
         { x: 0, y: 0, t: 0 },
@@ -122,6 +122,39 @@ describe("normalizeCharacterSegment", () => {
     expect(outA[0][0].y).toBeCloseTo(outB[0][0].y);
     expect(outA[0][1].x).toBeCloseTo(outB[0][1].x);
     expect(outA[0][1].y).toBeCloseTo(outB[0][1].y);
+  });
+
+  it("uses bbox centre (not sample centroid) so dense ends do not pull the centring", () => {
+    // 1 sample at the top of the bbox, 9 samples clustered at the
+    // bottom. Sample centroid is heavily biased toward the bottom; bbox
+    // centre is the geometric midpoint. The current implementation
+    // pivots on bbox centre, so the top sample lands exactly at the
+    // top of the standard Y range and the bottom samples land at the
+    // bottom — symmetric around CENTER_Y. A centroid-based pivot would
+    // instead push the top sample past HANZI_Y_MAX.
+    const strokes: TimedPoint[][] = [
+      [
+        { x: 50, y: 0, t: 0 },
+        { x: 50, y: 100, t: 1 },
+        { x: 50, y: 100.1, t: 2 },
+        { x: 50, y: 100.2, t: 3 },
+        { x: 50, y: 100.3, t: 4 },
+        { x: 50, y: 100.4, t: 5 },
+        { x: 50, y: 100.5, t: 6 },
+        { x: 50, y: 100.6, t: 7 },
+        { x: 50, y: 100.7, t: 8 },
+        { x: 50, y: 100.8, t: 9 },
+      ],
+    ];
+    const out = normalizeCharacterSegment(strokes);
+    // Top of input bbox → exactly HANZI_Y_MAX. With centroid the same
+    // top sample would be pulled well above HANZI_Y_MAX (clipped at
+    // restore time).
+    expect(out[0][0].y).toBeCloseTo(HANZI_Y_MAX);
+    // Bottom of input bbox → exactly HANZI_Y_MIN (close to it; small
+    // float tolerance because the cluster spans 100..100.8).
+    const last = out[0][out[0].length - 1];
+    expect(last.y).toBeCloseTo(HANZI_Y_MIN, 0);
   });
 
   it("scale invariance: input scaled 2x produces the same normalized output", () => {
