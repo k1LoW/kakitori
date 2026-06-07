@@ -570,6 +570,75 @@ describe("block.restore", () => {
     });
   });
 
+  it("renders annotation strip when BlockAnnotationResult carries layout", () => {
+    // Two-cell block with a furigana annotation across both cells.
+    // Annotation contributes the strip thickness and renders its chars
+    // across sub-strips on the right (vertical-rl default placement).
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "guided",
+          chars: [
+            charResult("学", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+        {
+          kind: "guided",
+          chars: [
+            charResult("校", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+      annotations: [
+        {
+          cellRange: [0, 1],
+          chars: ["が", "っ", "こ", "う"].map((c) =>
+            charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ),
+        },
+      ],
+    };
+    block.restore(host, result, { cellSize: 100 });
+
+    const wrapper = getBlockWrapper();
+    // vertical-rl: wrapper width = cellSize + annotationThickness
+    // (annotationThickness = DEFAULT_ANNOTATION_RATIO * cellSize = 40).
+    expect(wrapper.style.width).toBe("140px");
+    // height = 2 cells * 100.
+    expect(wrapper.style.height).toBe("200px");
+    // 2 cell SVGs + 4 annotation char SVGs = 6 restore SVGs total.
+    expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(6);
+  });
+
+  it("throws on annotation placement that doesn't match the writing mode", () => {
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "guided",
+          chars: [
+            charResult("学", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+      annotations: [
+        {
+          cellRange: [0, 0],
+          placement: "bottom",
+          chars: [
+            charResult("が", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+    };
+    expect(() => block.restore(host, result, { cellSize: 80 })).toThrow(
+      /placement must be/,
+    );
+  });
+
   it("throws when an explicit BlockCellResult.span is not a positive integer", () => {
     const malformed: BlockResult = {
       complete: true,

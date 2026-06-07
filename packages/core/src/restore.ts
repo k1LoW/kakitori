@@ -14,12 +14,14 @@ import type {
 } from "./charOptions.js";
 import type { TimedPoint } from "./types.js";
 import type {
+  BlockAnnotationResult,
   BlockCellResult,
   BlockResult,
   BlockRestoreOptions,
   BlockSpec,
   Cell,
 } from "./block/types.js";
+import type { WritingMode } from "./block/block.js";
 import type { PageResult, PageRestoreOptions } from "./page/types.js";
 import { layoutPage } from "./page/layout.js";
 
@@ -40,6 +42,9 @@ const DEFAULT_CELL_BORDER_COLOR = "#ddd";
 // `block/block.ts`'s `DEFAULT_GRID_DASH_ARRAY`; restoration paths use
 // this when the caller does not override the dashArray.
 const BLOCK_GRID_DASH_ARRAY = "3,3";
+// Annotation strip thickness fraction. Mirrors
+// `block/block.ts`'s `DEFAULT_ANNOTATION_RATIO`.
+const DEFAULT_ANNOTATION_RATIO = 0.4;
 
 /** Loose validation matching the one used in `Char.mount` / `char.render`. */
 function validateSizeAndPadding(
@@ -343,9 +348,14 @@ function cellSpan(cell: BlockCellResult, cellIndex: number): number {
  * own sub-slot via {@link charRestore}; blank cells render only the
  * cell chrome.
  *
- * Annotations (ふりがな) are not rendered in v1: `BlockAnnotationResult`
- * does not carry the layout (`cellRange` / `placement` / `sizeRatio`)
- * needed to position them.
+ * When `result.annotations` is non-empty, an annotation strip is
+ * reserved on the appropriate side (default `"right"` for
+ * vertical-rl, `"top"` for horizontal-tb — same constraint
+ * `block.create` enforces), sized off the largest `sizeRatio` across
+ * annotations. Each annotation's characters are rendered into the
+ * strip across the cellRange via `char.restore`. Annotations whose
+ * `BlockAnnotationResult.cellRange` is missing are silently skipped
+ * (older results predate the schema extension).
  */
 export function blockRestore(
   target: string | HTMLElement,
@@ -384,6 +394,30 @@ export function blockRestore(
   const spans = cells.map((c, i) => cellSpan(c, i));
   const cellsExtent = spans.reduce((acc, s) => acc + s * cellSize, 0);
 
+  // Reserve the annotation strip on the perpendicular axis when the
+  // result carries any annotations. Mirrors `block.create`'s sizing
+  // rule: strip thickness = max(sizeRatio * cellSize) across
+  // annotations, defaulting to `DEFAULT_ANNOTATION_RATIO` when no
+  // sizeRatio is set. Annotations missing `cellRange` are skipped at
+  // render time but still count toward thickness if they provide a
+  // sizeRatio (kept symmetric so the wrapper sizes don't shift when a
+  // single annotation is omitted).
+  const annotations = result.annotations ?? [];
+  const annotationThickness =
+    annotations.length === 0
+      ? 0
+      : Math.max(
+          ...annotations.map(
+            (a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
+          ),
+        );
+  // Default placement matches block.create: "right" for vertical-rl,
+  // "top" for horizontal-tb. Other placements aren't supported (the
+  // live block rejects them too), so the only cell offset needed is
+  // a downward shift in horizontal-tb to make room for the top strip.
+  const cellOffsetY =
+    writingMode === "horizontal-tb" ? annotationThickness : 0;
+
   const wrapper = document.createElement("div");
   wrapper.classList.add(BLOCK_RESTORE_CLASS);
   wrapper.style.position = "relative";
@@ -391,20 +425,24 @@ export function blockRestore(
   wrapper.style.lineHeight = "0";
   if (writingMode === "horizontal-tb") {
     wrapper.style.width = `${cellsExtent}px`;
-    wrapper.style.height = `${cellSize}px`;
+    wrapper.style.height = `${cellSize + annotationThickness}px`;
   } else {
-    wrapper.style.width = `${cellSize}px`;
+    wrapper.style.width = `${cellSize + annotationThickness}px`;
     wrapper.style.height = `${cellsExtent}px`;
   }
 
   let runningOffset = 0;
+  // Cell rects are recorded here so the annotation-strip code below can
+  // line up each annotation across the matching cellRange.
+  const cellRects: Array<{ x: number; y: number; w: number; h: number }> = [];
   for (let i = 0; i < cells.length; i++) {
     const cell = cells[i];
     const span = spans[i];
     const cellX = writingMode === "horizontal-tb" ? runningOffset : 0;
-    const cellY = writingMode === "horizontal-tb" ? 0 : runningOffset;
+    const cellY = (writingMode === "horizontal-tb" ? 0 : runningOffset) + cellOffsetY;
     const cellWidth = writingMode === "horizontal-tb" ? span * cellSize : cellSize;
     const cellHeight = writingMode === "horizontal-tb" ? cellSize : span * cellSize;
+    cellRects.push({ x: cellX, y: cellY, w: cellWidth, h: cellHeight });
 
     // Outer border policy mirrors `block.create`: guided / free cells
     // get one wrapper border around the whole span, while blank cells
@@ -487,11 +525,190 @@ export function blockRestore(
     runningOffset += span * cellSize;
   }
 
+  // Annotation strips ride on top of the cell layout. Each annotation
+  // spans `cellRange[from..to]` on the cell axis and sits perpendicular
+  // (right for vertical-rl, top for horizontal-tb).
+  if (annotationThickness > 0) {
+    for (let i = 0; i < annotations.length; i++) {
+      renderAnnotation(
+        wrapper,
+        annotations[i],
+        i,
+        cellRects,
+        cellSize,
+        annotationThickness,
+        writingMode,
+        cellBorderWidth,
+        cellBorderColor,
+        resolvedShowGrid,
+        options,
+        padding,
+      );
+    }
+  }
+
   // Replace any prior block.restore wrapper in this target.
   el
     .querySelectorAll(`:scope > .${BLOCK_RESTORE_CLASS}`)
     .forEach((node) => node.remove());
   el.appendChild(wrapper);
+}
+
+/**
+ * Render one annotation strip into the block wrapper. Splits the strip
+ * into one sub-strip per cell in the `cellRange` (matching
+ * `block.create`'s `mountAnnotation` layout), distributes the
+ * annotation's chars evenly across those sub-strips, and renders each
+ * char via {@link charRestore} at the strip's perpendicular size.
+ *
+ * Annotations without a `cellRange` (older results predating the
+ * schema extension) are skipped silently. Placements other than
+ * `"right"` for vertical-rl / `"top"` for horizontal-tb throw,
+ * matching `block.create`'s validation.
+ */
+function renderAnnotation(
+  wrapper: HTMLElement,
+  annotation: BlockAnnotationResult,
+  annotationIndex: number,
+  cellRects: ReadonlyArray<{ x: number; y: number; w: number; h: number }>,
+  cellSize: number,
+  annotationThickness: number,
+  writingMode: WritingMode,
+  cellBorderWidth: number,
+  cellBorderColor: string,
+  resolvedShowGrid: RestoreOptions["showGrid"],
+  options: BlockRestoreOptions,
+  padding: number,
+): void {
+  const range = annotation.cellRange;
+  if (!range) {
+    return;
+  }
+  const [from, to] = range;
+  if (
+    !Number.isInteger(from) ||
+    !Number.isInteger(to) ||
+    from < 0 ||
+    to >= cellRects.length ||
+    from > to
+  ) {
+    throw new Error(
+      `block.restore(): annotations[${annotationIndex}].cellRange [${from}, ${to}] is out of range for ${cellRects.length} cell(s).`,
+    );
+  }
+  const expectedPlacement = writingMode === "vertical-rl" ? "right" : "top";
+  if (annotation.placement !== undefined && annotation.placement !== expectedPlacement) {
+    throw new Error(
+      `block.restore(): annotations[${annotationIndex}].placement must be ${JSON.stringify(expectedPlacement)} for writingMode ${JSON.stringify(writingMode)} (got ${JSON.stringify(annotation.placement)}).`,
+    );
+  }
+
+  const cellCount = to - from + 1;
+  // Sub-strip layout matches block.ts mountAnnotation: one sub-strip
+  // per covered cell, sized cellSize along the cell axis and
+  // annotationThickness on the perpendicular axis.
+  const subStripRects: Array<{ x: number; y: number; w: number; h: number }> = [];
+  for (let k = 0; k < cellCount; k++) {
+    if (writingMode === "vertical-rl") {
+      subStripRects.push({
+        x: cellSize,
+        y: cellRects[from].y + k * cellSize,
+        w: annotationThickness,
+        h: cellSize,
+      });
+    } else {
+      subStripRects.push({
+        x: cellRects[from].x + k * cellSize,
+        y: 0,
+        w: cellSize,
+        h: annotationThickness,
+      });
+    }
+  }
+
+  // Distribute the annotation's chars across the sub-strips using the
+  // same rounding rule as `renderShowAcrossSubStrips` so a 4-char
+  // annotation spread over 2 sub-strips lands 2 per strip.
+  const chars = annotation.chars;
+  // FreeCell normalizes each character's captured strokes
+  // (`normalizeCharacterSegment` in recognition/normalize.ts) so the
+  // stored `CharStrokeResult.points` are aspect-preserved and centred
+  // in the standard internal-coord region. Rendering them in a square
+  // slot (`charSize × charSize`) is the correct match; any non-square
+  // slot here would re-introduce an aspect distortion the normalize
+  // pass deliberately removed.
+  const charSize = annotationThickness;
+  let prevEnd = 0;
+  for (let k = 0; k < cellCount; k++) {
+    const isLast = k === cellCount - 1;
+    const targetEnd = isLast
+      ? chars.length
+      : Math.round(((k + 1) * chars.length) / cellCount);
+    const end = Math.min(chars.length, Math.max(prevEnd, targetEnd));
+    const charsInStrip = chars.slice(prevEnd, end);
+    prevEnd = end;
+    if (charsInStrip.length === 0) {
+      continue;
+    }
+    const stripRect = subStripRects[k];
+    const isVertical = writingMode === "vertical-rl";
+    const stripAxisLength = isVertical ? stripRect.h : stripRect.w;
+    const slotLength = stripAxisLength / charsInStrip.length;
+
+    // Slot frame fills the full sub-strip sub-region (annotationThickness
+    // × slotLength) so the bordered grid matches `block.create`'s visual
+    // layout. The char SVG inside is square (charSize × charSize) and
+    // centred within the frame: normalize.ts pins the user's bbox centre
+    // to the median bbox centre with longer-side scaling, so the
+    // captured points always fit the standard hanzi region and no
+    // overflow padding is needed in the slot.
+    for (let i = 0; i < charsInStrip.length; i++) {
+      const slotFrame = document.createElement("div");
+      slotFrame.style.position = "absolute";
+      slotFrame.style.boxSizing = "border-box";
+      const frameWidth = isVertical ? annotationThickness : slotLength;
+      const frameHeight = isVertical ? slotLength : annotationThickness;
+      if (isVertical) {
+        slotFrame.style.left = `${stripRect.x}px`;
+        slotFrame.style.top = `${stripRect.y + i * slotLength}px`;
+      } else {
+        slotFrame.style.left = `${stripRect.x + i * slotLength}px`;
+        slotFrame.style.top = `${stripRect.y}px`;
+      }
+      slotFrame.style.width = `${frameWidth}px`;
+      slotFrame.style.height = `${frameHeight}px`;
+      if (cellBorderWidth > 0) {
+        slotFrame.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+        slotFrame.style.overflow = "hidden";
+      }
+
+      const charBox = document.createElement("div");
+      charBox.style.position = "absolute";
+      charBox.style.width = `${charSize}px`;
+      charBox.style.height = `${charSize}px`;
+      charBox.style.left = `${(frameWidth - charSize) / 2}px`;
+      charBox.style.top = `${(frameHeight - charSize) / 2}px`;
+      slotFrame.appendChild(charBox);
+      wrapper.appendChild(slotFrame);
+
+      charRestore(charBox, charsInStrip[i], {
+        size: charSize,
+        padding,
+        drawingWidth: options.drawingWidth,
+        drawingColor: options.drawingColor,
+        // The slot frame already paints the grid via its border;
+        // suppress the per-char cross-grid so we don't double up.
+        showGrid: false,
+        showCharacter: options.showCharacter,
+        showOutline: options.showOutline,
+        strokeColor: options.strokeColor,
+        outlineColor: options.outlineColor,
+        okColor: options.okColor,
+        ngColor: options.ngColor,
+        charDataLoader: options.charDataLoader,
+      });
+    }
+  }
 }
 
 /**
