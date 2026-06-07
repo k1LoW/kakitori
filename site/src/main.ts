@@ -5,6 +5,7 @@ import { setupChar } from "./char.js";
 import { setupBlock } from "./block.js";
 import { setupPage } from "./page.js";
 import { setupSizing } from "./sizing.js";
+import { setupRestoreDemo } from "./restore.js";
 
 async function highlightCodeBlocks() {
   const blocks = Array.from(
@@ -64,4 +65,9 @@ if (pageSection) {
 const sizingSection = document.getElementById("sizing-section");
 if (sizingSection) {
   setupSizing(sizingSection);
+}
+
+const restoreSection = document.getElementById("restore-section");
+if (restoreSection) {
+  setupRestoreDemo(restoreSection);
 }

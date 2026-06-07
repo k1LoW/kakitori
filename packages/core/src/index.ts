@@ -25,6 +25,7 @@ export type {
   ConfigLoaderFn,
   CharDataLoaderFn,
   RenderOptions,
+  RestoreOptions,
   GridOptions,
 } from "./charOptions.js";
 export type { Pt } from "./hanziWriterInternals.js";

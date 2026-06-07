@@ -6,6 +6,7 @@ import type {
   MountOptions,
 } from "../charOptions.js";
 import type { CharStrokeData } from "../types.js";
+import { blockRestore } from "../restore.js";
 import { createFreeCell, type FreeCellHandle, type FreeCellLogger } from "./freeCell.js";
 import type {
   BlankCell,
@@ -243,6 +244,7 @@ export const block = {
     const container = resolveTarget(target);
     return createBlock(container, opts);
   },
+  restore: blockRestore,
 };
 
 function resolveTarget(target: HTMLElement | string): HTMLElement {
@@ -365,6 +367,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Anchor at the top of the surrounding line-box so the wrapper does
+  // not pick up the parent's font descender as trailing whitespace
+  // below the last cell row. Without this, an inline-block wrapper
+  // aligned to the baseline (default) inherits whatever line-height
+  // the host page set and visibly grows beyond `cellsExtent` on the
+  // cell axis.
+  wrapper.style.verticalAlign = "top";
   // Layout dimensions: along the cell axis we span `cellsExtent` and along
   // the perpendicular axis we span `cellSize + annotationThickness`.
   if (writingMode === "horizontal-tb") {
@@ -1200,17 +1209,57 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     }
     if (state.cell.kind === "free") {
       const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
-      return { kind: "free", chars };
+      const out: BlockCellResult = { kind: "free", chars };
+      // Compute the effective layout span the same way `layoutPage` /
+      // `freeCell` did: explicit `cell.span` wins; otherwise the
+      // longest expected-candidate length. Record it on the result
+      // only when it exceeds `chars.length`, since `block.restore`
+      // already derives that as the default. Without this, a free
+      // cell with `expected: ["がっこう", "学校"]` matched to "学校"
+      // would lose the extra two slots the live block reserved.
+      const candidates = Array.isArray(state.cell.expected)
+        ? state.cell.expected
+        : [state.cell.expected];
+      const longestCandidate = candidates.reduce(
+        (m, c) => Math.max(m, Array.from(c).length),
+        0,
+      );
+      const effectiveSpan = state.cell.span ?? longestCandidate;
+      if (effectiveSpan > chars.length) {
+        out.span = effectiveSpan;
+      }
+      return out;
     }
     // blank
-    return { kind: "blank", chars: state.syntheticChars ?? [] };
+    const out: BlockCellResult = {
+      kind: "blank",
+      chars: state.syntheticChars ?? [],
+    };
+    if (state.cell.span != null) {
+      out.span = state.cell.span;
+    }
+    return out;
   }
 
   function annotationResult(
     state: PerAnnotationState,
   ): BlockAnnotationResult {
     const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
-    return { chars };
+    // Carry the spec layout fields through so `block.restore` /
+    // `page.restore` can reconstruct the annotation strip without
+    // needing access to the original spec. The live `Block` runtime
+    // ignores these (it reads them from the spec directly).
+    const out: BlockAnnotationResult = {
+      chars,
+      cellRange: [...state.annotation.cellRange] as [number, number],
+    };
+    if (state.annotation.placement !== undefined) {
+      out.placement = state.annotation.placement;
+    }
+    if (state.annotation.sizeRatio !== undefined) {
+      out.sizeRatio = state.annotation.sizeRatio;
+    }
+    return out;
   }
 
   function buildBlockResult(): BlockResult {

@@ -11,6 +11,7 @@ import {
 } from "../block/index.js";
 import { createFreeCell, type FreeCellHandle } from "../block/freeCell.js";
 import type { CharResult } from "../charOptions.js";
+import { pageRestore } from "../restore.js";
 import { layoutPage, type BlockSegment } from "./layout.js";
 import type {
   Page,
@@ -37,6 +38,7 @@ export const page = {
     const container = resolveTarget(target);
     return createPage(container, opts);
   },
+  restore: pageRestore,
 };
 
 function resolveTarget(target: HTMLElement | string): HTMLElement {
@@ -218,6 +220,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Anchor at the line-box top so the host page's font descender does
+  // not add trailing whitespace below the last cell row (matches
+  // `block.create`).
+  wrapper.style.verticalAlign = "top";
   wrapper.style.width = `${pageWidth}px`;
   wrapper.style.height = `${pageHeight}px`;
   parent.appendChild(wrapper);

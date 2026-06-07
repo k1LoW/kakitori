@@ -5,6 +5,7 @@ import type {
   ConfigLoaderFn,
   MountOptions,
 } from "../charOptions.js";
+import type { WritingMode } from "./block.js";
 /** Single string or list of acceptable answers for a free cell or annotation. */
 export type Expected = string | string[];
 
@@ -87,6 +88,27 @@ export interface BlockCellResult {
    * candidate), blank=0.
    */
   chars: CharResult[];
+  /**
+   * Display-slot span this cell occupied in the original block
+   * layout, in `cellSize` units. Populated whenever the layout span
+   * differs from what `block.restore` / `page.restore` would
+   * otherwise derive from `chars` alone:
+   *
+   * - **blank cells** with an explicit `span > 1` (default is 1).
+   * - **free cells** whose layout span exceeds the matched
+   *   candidate's `chars.length`. The layout span is either the
+   *   spec's explicit `span` or, when omitted, the length of the
+   *   longest expected candidate (e.g. `expected: ["がっこう",
+   *   "学校"]` reserves 4 slots even when the user matches the
+   *   2-character "学校").
+   *
+   * Omitted whenever `chars.length` already matches the layout, so
+   * the field stays meaningful rather than redundant.
+   * `block.restore` / `page.restore` honour it to preserve the
+   * original layout; the live `Block` runtime ignores the field
+   * (it reads the span straight from the spec).
+   */
+  span?: number;
 }
 
 /** Result of a furigana annotation. One `CharResult` per character in the candidate. */
@@ -97,6 +119,29 @@ export interface BlockAnnotationResult {
    * stay `complete: false` placeholders.
    */
   chars: CharResult[];
+  /**
+   * Closed range of cell indices in the parent block's `cells` array
+   * that this annotation covers. Copied verbatim from the spec
+   * (`FuriganaAnnotation.cellRange`) so `block.restore` /
+   * `page.restore` can position the annotation strip across the same
+   * cells the live block does. The live `Block` runtime ignores this
+   * field — it reads the cellRange straight from the spec.
+   */
+  cellRange?: [number, number];
+  /**
+   * Side of the cell axis the annotation sits on. Copied from the
+   * spec; defaults follow the same rules `block.create` does
+   * (`"right"` for vertical-rl, `"top"` for horizontal-tb) when the
+   * spec omits it. Restore uses this to pick which axis the strip
+   * attaches to.
+   */
+  placement?: "top" | "bottom" | "left" | "right";
+  /**
+   * Annotation thickness as a fraction of `cellSize`. Copied from the
+   * spec; restore uses it (and the largest `sizeRatio` across all
+   * annotations) to size the strip space reserved next to the cells.
+   */
+  sizeRatio?: number;
 }
 
 /**
@@ -136,4 +181,39 @@ export interface BlockLoaders {
   charDataLoader?: CharDataLoaderFn;
   /** Pass `null` to disable auto-loading of strokeEndings / strokeGroups. */
   configLoader?: ConfigLoaderFn | null;
+}
+
+/**
+ * Options for `block.restore`, the static result renderer for a
+ * {@link BlockResult}. Mirrors `block.create`'s layout vocabulary
+ * (`cellSize`, `writingMode`) plus the per-char visual knobs forwarded
+ * to {@link RestoreOptions}. Annotations are rendered as a strip
+ * alongside the cells when their {@link BlockAnnotationResult} carries
+ * the `cellRange` / `placement` / `sizeRatio` layout fields; legacy
+ * results saved before those fields existed are silently skipped (the
+ * strip space they would have occupied is not reserved either, so
+ * cells lay out as if no annotation were present).
+ */
+export interface BlockRestoreOptions {
+  /** Per-cell side length in display pixels. Required. */
+  cellSize: number;
+  /** Layout direction. Defaults to `"vertical-rl"`. */
+  writingMode?: WritingMode;
+  /** Per-cell padding inside the cell box. Defaults to 0. */
+  padding?: number;
+  /** Cell border width in display pixels. Defaults to 1. */
+  cellBorderWidth?: number;
+  /** Cell border color. Defaults to `"#ddd"`, matching `block.create`. */
+  cellBorderColor?: string;
+  // Visual options forwarded to char.restore for every char slot.
+  drawingWidth?: number;
+  drawingColor?: string;
+  showGrid?: import("../charOptions.js").RestoreOptions["showGrid"];
+  showCharacter?: boolean;
+  showOutline?: boolean;
+  strokeColor?: string;
+  outlineColor?: string;
+  okColor?: string;
+  ngColor?: string;
+  charDataLoader?: CharDataLoaderFn;
 }

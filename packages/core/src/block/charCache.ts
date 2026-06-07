@@ -5,6 +5,11 @@ import {
   DEFAULT_NORMALIZE_TARGET,
   type NormalizeTarget,
 } from "../recognition/normalize.js";
+import {
+  HANZI_PRESCALED_SIZE,
+  HANZI_Y_MAX,
+  HANZI_Y_MIN,
+} from "../constants.js";
 import type { BlockLoaders } from "./types.js";
 
 /**
@@ -194,15 +199,56 @@ function loadCharMeta(
             any = true;
           }
         }
-        // Fall back to the full canvas when a character has no medians (a
-        // theoretical edge case for character data without sampled paths).
-        const normalizeTarget: NormalizeTarget = any
-          ? {
-              centerX: (minX + maxX) / 2,
-              centerY: (minY + maxY) / 2,
-              longerSide: Math.max(maxX - minX, maxY - minY),
-            }
-          : DEFAULT_NORMALIZE_TARGET;
+        // Clamp the median bbox to the standard hanzi region before
+        // deriving the target. Some characters in
+        // `@k1low/hanzi-writer-data-jp` ship medians with stray samples
+        // that fall far outside `[0, HANZI_PRESCALED_SIZE]` /
+        // `[HANZI_Y_MIN, HANZI_Y_MAX]` (e.g. ま has a median point at
+        // y=-790, ~666 units above the standard top). Without clamping,
+        // those outliers blow up `longerSide` (ま: 1602 vs. ~900 for
+        // every well-behaved hiragana) and `normalize` then scales the
+        // user's bbox to fill the entire canvas, leaving zero margin
+        // when the saved CharResult is rendered through `restore` (the
+        // top stroke ends up touching the cell border). Clamping keeps
+        // the target faithful to where the character actually lives in
+        // hanzi-writer's coordinate system, and well-behaved data is
+        // unaffected (clamping is a no-op for any bbox already inside
+        // the standard region).
+        //
+        // Clamp BOTH ends of each axis into the range independently:
+        // raising the lower bound alone (e.g.
+        // `minX = Math.max(minX, 0)`) would invert the bbox when
+        // every median sample falls outside the range on the upper
+        // side (e.g. all x > HANZI_PRESCALED_SIZE leaves minX > maxX
+        // and `longerSide` negative). A degenerate clamped bbox
+        // (zero-area) is then caught by the fallback below.
+        const clampX = (v: number): number =>
+          Math.max(0, Math.min(v, HANZI_PRESCALED_SIZE));
+        const clampY = (v: number): number =>
+          Math.max(HANZI_Y_MIN, Math.min(v, HANZI_Y_MAX));
+        if (any) {
+          minX = clampX(minX);
+          maxX = clampX(maxX);
+          minY = clampY(minY);
+          maxY = clampY(maxY);
+        }
+        const longerAfterClamp = any
+          ? Math.max(maxX - minX, maxY - minY)
+          : 0;
+        // Fall back to the full canvas when a character has no medians
+        // at all (a theoretical edge case for character data without
+        // sampled paths), or when clamping collapsed the bbox to a
+        // single point (every median sample sat outside the standard
+        // region on the same side — even more theoretical, but the
+        // fallback keeps downstream math finite).
+        const normalizeTarget: NormalizeTarget =
+          any && longerAfterClamp > 0
+            ? {
+                centerX: (minX + maxX) / 2,
+                centerY: (minY + maxY) / 2,
+                longerSide: longerAfterClamp,
+              }
+            : DEFAULT_NORMALIZE_TARGET;
         resolve({ dataStrokeCount: data.strokes.length, normalizeTarget });
       },
       (err) =>

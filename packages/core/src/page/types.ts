@@ -222,3 +222,47 @@ export interface PageResult {
    */
   blocks: BlockResult[];
 }
+
+/**
+ * Options for `page.restore`, the static result renderer for a
+ * {@link PageResult}. Mirrors `page.create`'s layout vocabulary
+ * (`columns` / `cellsPerColumn` / `cellSize` / `writingMode`) plus the
+ * per-char visual knobs forwarded to {@link RestoreOptions}. The page
+ * layout is not stored on `PageResult` (so the same result can be
+ * rendered at different shapes); the caller passes it here.
+ *
+ * Annotations are not rendered in v1. Unlike `block.restore` (which
+ * does render annotations whose layout fields are present),
+ * `page.restore` drops annotations from each block when slicing the
+ * block's cells into per-column segments: faithful rendering would
+ * need segment-aware annotation slicing so a `cellRange` spanning the
+ * wrap point is split across the column break, which is out of scope
+ * here.
+ */
+export interface PageRestoreOptions {
+  /** Page column count (vertical-rl) or row count (horizontal-tb). Required. */
+  columns: number;
+  /** Cells per column (vertical-rl) or per row (horizontal-tb). Required. */
+  cellsPerColumn: number;
+  /** Per-cell side length in display pixels. Required. */
+  cellSize: number;
+  /** Layout direction. Defaults to `"vertical-rl"`. */
+  writingMode?: WritingMode;
+  /** Per-cell padding inside the cell box. Defaults to 0. */
+  padding?: number;
+  /** Cell border width in display pixels. Defaults to 1. */
+  cellBorderWidth?: number;
+  /** Cell border color. Defaults to `"#ddd"`, matching `page.create`. */
+  cellBorderColor?: string;
+  // Visual options forwarded to char.restore for every char slot.
+  drawingWidth?: number;
+  drawingColor?: string;
+  showGrid?: import("../charOptions.js").RestoreOptions["showGrid"];
+  showCharacter?: boolean;
+  showOutline?: boolean;
+  strokeColor?: string;
+  outlineColor?: string;
+  okColor?: string;
+  ngColor?: string;
+  charDataLoader?: import("../charOptions.js").CharDataLoaderFn;
+}

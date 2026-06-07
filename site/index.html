@@ -1272,6 +1272,113 @@ char.create("一").mount(target, {
       </div>
     </section>
 
+    <!-- ============================================================ -->
+    <!-- restore                                                       -->
+    <!-- ============================================================ -->
+    <section id="restore-section">
+      <h2 id="restore">restore</h2>
+      <p>
+        Because <code>CharResult.perStroke[].points</code> stays in the 1024-scale internal coordinate system, a saved <code>CharResult</code> can be redrawn anywhere later via <code>char.restore</code>. No <code>Char</code> instance, no matcher, no quiz lifecycle. Just data going back into pixels.
+      </p>
+
+      <div class="sizing-example">
+        <h3>Write once, restore at any size</h3>
+        <p>
+          Trace the outline on the left. Once all strokes are written, the three preview cells on the right are populated by <code>char.restore</code> at three different display sizes from the resulting <code>CharResult</code>. Press <strong>Restart</strong> to write again.
+        </p>
+        <div class="sizing-inspector-row">
+          <div class="sizing-cell">
+            <div id="restore-source-writer" class="sizing-writer"></div>
+            <div class="sizing-caption">source cell (size = 240)</div>
+            <div class="sizing-control">
+              <button id="restore-source-reset-btn" type="button">Restart</button>
+            </div>
+          </div>
+          <div class="sizing-inspector">
+            <h4>restored previews</h4>
+            <div class="sizing-row">
+              <div class="sizing-cell">
+                <div id="restore-preview-80" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 80</div>
+              </div>
+              <div class="sizing-cell">
+                <div id="restore-preview-160" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 160</div>
+              </div>
+              <div class="sizing-cell">
+                <div id="restore-preview-240" class="sizing-writer"></div>
+                <div class="sizing-caption">size = 240</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <pre data-lang="ts">// `result` was captured from a prior writing session
+// (e.g. via onComplete / Char.result()). char.restore renders it back
+// without needing a Char instance or any matcher state.
+char.restore(target, result, { size: 160 });</pre>
+      </div>
+
+      <div class="sizing-example">
+        <h3>block.restore — multi-cell block with furigana annotation</h3>
+        <p>
+          Trace 山 / 川 in the source block on the left, plus the furigana やまかわ in the annotation strip. Once every cell and the annotation settle, the right shows the <code>BlockResult</code> restored at two smaller <code>cellSize</code> values via <code>block.restore</code>.
+        </p>
+        <div class="sizing-inspector-row">
+          <div class="sizing-cell">
+            <div id="restore-block-source" class="sizing-writer"></div>
+            <div class="sizing-caption">source block (cellSize = 120)</div>
+            <div class="sizing-control">
+              <button id="restore-block-reset-btn" type="button">Restart</button>
+            </div>
+          </div>
+          <div class="sizing-inspector">
+            <h4>restored previews</h4>
+            <div class="sizing-row">
+              <div class="sizing-cell">
+                <div id="restore-block-preview-60" class="sizing-writer"></div>
+                <div class="sizing-caption">cellSize = 60</div>
+              </div>
+              <div class="sizing-cell">
+                <div id="restore-block-preview-100" class="sizing-writer"></div>
+                <div class="sizing-caption">cellSize = 100</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <pre data-lang="ts">block.restore(target, blockResult, {
+  cellSize: 60,
+});</pre>
+      </div>
+
+      <div class="sizing-example">
+        <h3>page.restore — 3 blocks on a page, restore at a smaller layout</h3>
+        <p>
+          The source page on the left has 3 blocks (山川 / 大小 / 天地人) laid out in vertical-rl across 3 columns. The 2 + 2 + 3 cell counts overflow each column, so block 2 lands in column 1 and block 3 in column 2. Trace every block, and the right shows the <code>PageResult</code> restored at a smaller <code>cellSize</code> via <code>page.restore</code>.
+        </p>
+        <div class="sizing-inspector-row">
+          <div class="sizing-cell">
+            <div id="restore-page-source" class="sizing-writer"></div>
+            <div class="sizing-caption">source page (cellSize = 80)</div>
+            <div class="sizing-control">
+              <button id="restore-page-reset-btn" type="button">Restart</button>
+            </div>
+          </div>
+          <div class="sizing-inspector">
+            <h4>restored preview</h4>
+            <div class="sizing-cell">
+              <div id="restore-page-preview" class="sizing-writer"></div>
+              <div class="sizing-caption">cellSize = 40</div>
+            </div>
+          </div>
+        </div>
+        <pre data-lang="ts">page.restore(target, pageResult, {
+  columns: 3,
+  cellsPerColumn: 3,
+  cellSize: 40,
+});</pre>
+      </div>
+    </section>
+
     <footer class="site-footer">
       <p>
         MIT licensed. Source at

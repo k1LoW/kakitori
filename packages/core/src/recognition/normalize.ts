@@ -35,14 +35,30 @@ export const DEFAULT_NORMALIZE_TARGET: NormalizeTarget = {
 
 /**
  * Normalize a single character's drawn strokes so they overlap the matcher's
- * expected character region. The user's **centroid** (mean of all sampled
- * points across every stroke in the segment) is moved onto `target.center`,
- * and the points are uniformly scaled so the bounding box's longer side
- * equals `target.longerSide`; aspect ratio is preserved. The y axis is
- * flipped so source-Y-down (browser / SVG) becomes target-Y-up (hanzi-writer
- * internal). Centroid is used (rather than the bbox center) because it stays
- * robust against extreme outlier samples that would otherwise yank the bbox
- * off-axis.
+ * expected character region. The user's **bounding-box centre** is moved
+ * onto `target.center`, and the points are uniformly scaled so the bounding
+ * box's longer side equals `target.longerSide`; aspect ratio is preserved.
+ * The y axis is flipped so source-Y-down (browser / SVG) becomes target-Y-up
+ * (hanzi-writer internal).
+ *
+ * Using the bbox centre (rather than the sample centroid) keeps the
+ * normalized output strictly inside the target's `centerX ± longerSide/2`
+ * / `centerY ± longerSide/2` square, which in turn keeps it inside the
+ * standard hanzi region (`[0, HANZI_PRESCALED_SIZE]` / `[HANZI_Y_MIN,
+ * HANZI_Y_MAX]`) for any target derived from a median bbox. That means a
+ * `CharResult.perStroke[].points` produced from a free cell renders
+ * identically to one produced from a guided cell — and downstream
+ * consumers (`block.restore`, `page.restore`) can lay out the chars
+ * inside their `cellSize`-sized slots without worrying about samples
+ * landing outside the rendered area. A centroid-based reference would
+ * push descender-heavy chars (e.g. "ま" with its bottom curl carrying
+ * many samples) past the standard bounds and clip them at restore time.
+ *
+ * Outlier robustness is delegated to segmentation: the matcher runs
+ * `segmentByStrokeCounts` first, so if the user's input contained a
+ * stroke-count mismatch (the only realistic source of "true outliers"
+ * at this layer) the whole attempt is rejected upstream of normalize.
+ * Anything that does reach normalize is a clean per-character segment.
  *
  * For accurate matching, callers should pass a target derived from the
  * character's median bounding box (see `block/charCache.ts`). When the
@@ -66,8 +82,6 @@ export function normalizeCharacterSegment(
   let maxX = -Infinity;
   let minY = Infinity;
   let maxY = -Infinity;
-  let sumX = 0;
-  let sumY = 0;
   let count = 0;
   for (const stroke of strokes) {
     for (const p of stroke) {
@@ -83,8 +97,6 @@ export function normalizeCharacterSegment(
       if (p.y > maxY) {
         maxY = p.y;
       }
-      sumX += p.x;
-      sumY += p.y;
       count++;
     }
   }
@@ -93,8 +105,8 @@ export function normalizeCharacterSegment(
     return strokes.map(() => []);
   }
 
-  const centroidX = sumX / count;
-  const centroidY = sumY / count;
+  const bboxCenterX = (minX + maxX) / 2;
+  const bboxCenterY = (minY + maxY) / 2;
   const bboxW = maxX - minX;
   const bboxH = maxY - minY;
   const longer = Math.max(bboxW, bboxH);
@@ -112,12 +124,12 @@ export function normalizeCharacterSegment(
   const scale = target.longerSide / longer;
   return strokes.map((stroke) =>
     stroke.map((p) => ({
-      x: target.centerX + (p.x - centroidX) * scale,
+      x: target.centerX + (p.x - bboxCenterX) * scale,
       // Flip Y so that source-Y-down (browser / SVG) becomes target-Y-up
-      // (hanzi-writer internal). Together with the centroid translation,
-      // a stroke drawn at the top of the input box ends up with high y
-      // in the output.
-      y: target.centerY - (p.y - centroidY) * scale,
+      // (hanzi-writer internal). Together with the bbox-centre
+      // translation, a stroke drawn at the top of the input box ends up
+      // with high y in the output.
+      y: target.centerY - (p.y - bboxCenterY) * scale,
       t: p.t,
     })),
   );
