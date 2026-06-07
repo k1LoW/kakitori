@@ -10,6 +10,10 @@ import type {
   CharResult,
   ConfigLoaderFn,
 } from "@k1low/kakitori";
+import { block, type Block } from "@k1low/kakitori/block";
+import type { BlockResult } from "@k1low/kakitori/block";
+import { page, type Page } from "@k1low/kakitori/page";
+import type { PageResult } from "@k1low/kakitori/page";
 
 // Self-contained loader caches (mirrors sizing.ts) so a Save → preview
 // cycle does not retrigger an unpkg fetch for the same character.
@@ -88,7 +92,7 @@ function buildSourceChar(
   return c;
 }
 
-export function setupRestoreDemo(root: HTMLElement): void {
+function setupCharRestoreDemo(root: HTMLElement): void {
   const sourceWriter = root.querySelector<HTMLElement>("#restore-source-writer");
   const resetBtn = root.querySelector<HTMLButtonElement>(
     "#restore-source-reset-btn",
@@ -137,4 +141,192 @@ export function setupRestoreDemo(root: HTMLElement): void {
     });
     source = buildSourceChar(sourceWriter, paintPreviews);
   });
+}
+
+const BLOCK_DEMO_CELL_SIZE = 120;
+const BLOCK_DEMO_PREVIEW_SIZES = [60, 100] as const;
+const BLOCK_DEMO_CHARS = ["山", "川"] as const;
+const BLOCK_DEMO_FURIGANA = "やまかわ";
+
+function buildSourceBlock(
+  target: HTMLElement,
+  onSettled: (result: BlockResult) => void,
+): Block {
+  return block.create(target, {
+    spec: {
+      cells: BLOCK_DEMO_CHARS.map((ch) => ({
+        kind: "guided" as const,
+        char: ch,
+        mode: "write" as const,
+        overrides: {
+          // Same "trace the outline + commit on first attempt" UX as
+          // the char demo above: per-char correction means no
+          // per-stroke rejection, maxRetries:0 commits the first
+          // attempt regardless of OK/NG, showOutline gives a trace
+          // hint, retainStrokes keeps the user's ink visible after
+          // commit.
+          showOutline: true,
+          showCharacter: false,
+        },
+      })),
+      annotations: [
+        {
+          cellRange: [0, BLOCK_DEMO_CHARS.length - 1],
+          expected: BLOCK_DEMO_FURIGANA,
+          mode: "write",
+        },
+      ],
+    },
+    cellSize: BLOCK_DEMO_CELL_SIZE,
+    writingMode: "vertical-rl",
+    correction: "per-char",
+    maxRetries: 0,
+    retainStrokes: true,
+    showAcceptedStroke: false,
+    drawingWidth: DRAWING_WIDTH,
+    loaders: {
+      charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
+    },
+    onBlockComplete: (result) => onSettled(result),
+  });
+}
+
+function setupBlockRestoreDemo(root: HTMLElement): void {
+  const sourceEl = root.querySelector<HTMLElement>("#restore-block-source");
+  const resetBtn = root.querySelector<HTMLButtonElement>(
+    "#restore-block-reset-btn",
+  );
+  if (!sourceEl || !resetBtn) {
+    return;
+  }
+  const previewTargets = BLOCK_DEMO_PREVIEW_SIZES.map((size) =>
+    root.querySelector<HTMLElement>(`#restore-block-preview-${size}`),
+  );
+  if (previewTargets.some((t) => t === null)) {
+    return;
+  }
+
+  function paintPreviews(result: BlockResult): void {
+    BLOCK_DEMO_PREVIEW_SIZES.forEach((cellSize, i) => {
+      const target = previewTargets[i];
+      if (!target) {
+        return;
+      }
+      block.restore(target, result, {
+        cellSize,
+        writingMode: "vertical-rl",
+        drawingWidth: DRAWING_WIDTH,
+        showOutline: true,
+        charDataLoader: cachedCharDataLoader,
+      });
+    });
+  }
+
+  let source: Block = buildSourceBlock(sourceEl, paintPreviews);
+
+  resetBtn.addEventListener("click", () => {
+    try {
+      source.destroy();
+    } catch (err) {
+      console.error("[restore] block destroy() failed:", err);
+    }
+    previewTargets.forEach((t) => {
+      if (t) {
+        t.replaceChildren();
+      }
+    });
+    source = buildSourceBlock(sourceEl, paintPreviews);
+  });
+}
+
+const PAGE_DEMO_CELL_SIZE = 80;
+const PAGE_DEMO_PREVIEW_CELL_SIZE = 40;
+const PAGE_DEMO_BLOCKS: ReadonlyArray<{ id: string; chars: ReadonlyArray<string> }> = [
+  { id: "block-1", chars: ["山", "川"] },
+  { id: "block-2", chars: ["大", "小"] },
+  { id: "block-3", chars: ["天", "地", "人"] },
+];
+// 3 blocks of 2 + 2 + 3 slots overflow each column at cellsPerColumn=3,
+// so block 2 lands in column 1 and block 3 in column 2 — the layout
+// flow that page.restore needs to reproduce faithfully.
+const PAGE_DEMO_COLUMNS = 3;
+const PAGE_DEMO_CELLS_PER_COLUMN = 3;
+
+function buildSourcePage(
+  target: HTMLElement,
+  onSettled: (result: PageResult) => void,
+): Page {
+  return page.create(target, {
+    columns: PAGE_DEMO_COLUMNS,
+    cellsPerColumn: PAGE_DEMO_CELLS_PER_COLUMN,
+    cellSize: PAGE_DEMO_CELL_SIZE,
+    writingMode: "vertical-rl",
+    correction: "per-char",
+    maxRetries: 0,
+    retainStrokes: true,
+    showAcceptedStroke: false,
+    drawingWidth: DRAWING_WIDTH,
+    loaders: {
+      charDataLoader: cachedCharDataLoader,
+      configLoader: cachedConfigLoader,
+    },
+    showAnnotationStrip: false,
+    blocks: PAGE_DEMO_BLOCKS.map(({ id, chars }) => ({
+      id,
+      spec: {
+        cells: chars.map((ch) => ({
+          kind: "guided" as const,
+          char: ch,
+          mode: "write" as const,
+          overrides: {
+            showOutline: true,
+            showCharacter: false,
+          },
+        })),
+      },
+    })),
+    onPageComplete: (result) => onSettled(result),
+  });
+}
+
+function setupPageRestoreDemo(root: HTMLElement): void {
+  const sourceEl = root.querySelector<HTMLElement>("#restore-page-source");
+  const previewEl = root.querySelector<HTMLElement>("#restore-page-preview");
+  const resetBtn = root.querySelector<HTMLButtonElement>(
+    "#restore-page-reset-btn",
+  );
+  if (!sourceEl || !previewEl || !resetBtn) {
+    return;
+  }
+
+  function paintPreview(result: PageResult): void {
+    page.restore(previewEl!, result, {
+      columns: PAGE_DEMO_COLUMNS,
+      cellsPerColumn: PAGE_DEMO_CELLS_PER_COLUMN,
+      cellSize: PAGE_DEMO_PREVIEW_CELL_SIZE,
+      writingMode: "vertical-rl",
+      drawingWidth: DRAWING_WIDTH,
+      showOutline: true,
+      charDataLoader: cachedCharDataLoader,
+    });
+  }
+
+  let source: Page = buildSourcePage(sourceEl, paintPreview);
+
+  resetBtn.addEventListener("click", () => {
+    try {
+      source.destroy();
+    } catch (err) {
+      console.error("[restore] page destroy() failed:", err);
+    }
+    previewEl.replaceChildren();
+    source = buildSourcePage(sourceEl, paintPreview);
+  });
+}
+
+export function setupRestoreDemo(root: HTMLElement): void {
+  setupCharRestoreDemo(root);
+  setupBlockRestoreDemo(root);
+  setupPageRestoreDemo(root);
 }
