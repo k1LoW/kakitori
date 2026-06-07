@@ -403,10 +403,19 @@ export function blockRestore(
   // legacy results that pre-date the cellRange / placement / sizeRatio
   // fields lay out as if no annotation strip were present at all
   // (instead of reserving a dead strip the renderer can't fill).
-  const renderableAnnotations = (result.annotations ?? []).filter(
-    (a) => a.cellRange !== undefined,
-  );
-  renderableAnnotations.forEach((a, i) => {
+  // Pair each renderable annotation with its index in the original
+  // `result.annotations` array so error messages and per-annotation
+  // bookkeeping point at the field the caller actually wrote, not the
+  // post-filter offset (a legacy annotation missing `cellRange` ahead
+  // of a malformed one would otherwise shift every subsequent index
+  // by one).
+  const renderableAnnotations: Array<{
+    annotation: BlockAnnotationResult;
+    originalIndex: number;
+  }> = (result.annotations ?? [])
+    .map((annotation, originalIndex) => ({ annotation, originalIndex }))
+    .filter(({ annotation }) => annotation.cellRange !== undefined);
+  renderableAnnotations.forEach(({ annotation, originalIndex }) => {
     // Mirror `block.create`'s validation: a zero or non-finite sizeRatio
     // collapses the strip to a degenerate width/height and breaks the
     // layout math. Restore can be fed a result loaded from JSON (possibly
@@ -414,11 +423,11 @@ export function blockRestore(
     // same way `block.create` does up-front instead of letting it
     // propagate into `Math.max` / placement calculations.
     if (
-      a.sizeRatio !== undefined &&
-      (!Number.isFinite(a.sizeRatio) || a.sizeRatio <= 0)
+      annotation.sizeRatio !== undefined &&
+      (!Number.isFinite(annotation.sizeRatio) || annotation.sizeRatio <= 0)
     ) {
       throw new Error(
-        `block.restore(): annotations[${i}].sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
+        `block.restore(): annotations[${originalIndex}].sizeRatio must be a finite positive number (got ${annotation.sizeRatio}).`,
       );
     }
   });
@@ -427,9 +436,25 @@ export function blockRestore(
       ? 0
       : Math.max(
           ...renderableAnnotations.map(
-            (a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
+            ({ annotation }) =>
+              (annotation.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
           ),
         );
+  // Padding is also forwarded into per-annotation `charRestore` calls
+  // where `size === annotationThickness` (typically smaller than
+  // `cellSize`), so a padding that's valid for cellSize can still
+  // exceed annotationThickness/2 and fail inside char.restore mid-
+  // render. Validate it up front against the strip size too whenever
+  // a strip is reserved.
+  if (
+    annotationThickness > 0 &&
+    padding > 0 &&
+    padding >= annotationThickness / 2
+  ) {
+    throw new Error(
+      `block.restore(): padding (${padding}) must be less than annotationThickness/2 (${annotationThickness / 2}).`,
+    );
+  }
   // Default placement matches block.create: "right" for vertical-rl,
   // "top" for horizontal-tb. Other placements aren't supported (the
   // live block rejects them too), so the only cell offset needed is
@@ -582,11 +607,11 @@ export function blockRestore(
   // spans `cellRange[from..to]` on the cell axis and sits perpendicular
   // (right for vertical-rl, top for horizontal-tb).
   if (annotationThickness > 0) {
-    for (let i = 0; i < renderableAnnotations.length; i++) {
+    for (const { annotation, originalIndex } of renderableAnnotations) {
       renderAnnotation(
         wrapper,
-        renderableAnnotations[i],
-        i,
+        annotation,
+        originalIndex,
         cellRects,
         cellSize,
         annotationThickness,
