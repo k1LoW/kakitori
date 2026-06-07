@@ -535,6 +535,41 @@ describe("block.restore", () => {
     expect(svgs[0].querySelectorAll("polyline")).toHaveLength(0);
   });
 
+  it("renders the cross-grid in block-context defaults (border color, 3,3 dash) when showGrid is left default", () => {
+    // block.create translates `showGrid: true` into a GridOptions
+    // matching the cell border style with dashArray "3,3". block.restore
+    // should mirror that, instead of forwarding a bare `true` to
+    // charRestore (which would fall through to drawCrossGrid's char-context
+    // defaults — color "#ccc", dashArray "10,10", width 2).
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        {
+          kind: "guided",
+          chars: [
+            charResult("一", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+      annotations: [],
+    };
+    block.restore(host, result, {
+      cellSize: 50,
+      cellBorderColor: "#abcdef",
+      cellBorderWidth: 2,
+    });
+
+    const wrapper = getBlockWrapper();
+    const lines = wrapper.querySelectorAll("svg.kakitori-restore-svg line");
+    expect(lines.length).toBeGreaterThanOrEqual(2);
+    lines.forEach((line) => {
+      expect(line.getAttribute("stroke")).toBe("#abcdef");
+      expect(line.getAttribute("stroke-width")).toBe("2");
+      expect(line.getAttribute("stroke-dasharray")).toBe("3,3");
+    });
+  });
+
   it("throws when an explicit BlockCellResult.span is not a positive integer", () => {
     const malformed: BlockResult = {
       complete: true,

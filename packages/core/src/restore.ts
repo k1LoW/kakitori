@@ -35,6 +35,11 @@ const DEFAULT_CELL_BORDER_WIDTH = 1;
 // Match `block.create`'s default so restored chrome looks the same as
 // the live page without the caller needing to thread a color through.
 const DEFAULT_CELL_BORDER_COLOR = "#ddd";
+// Block / page contexts paint a tighter cross-grid than `char.render` /
+// `Char.mount` so the lines stay visible in smaller cells. Matches
+// `block/block.ts`'s `DEFAULT_GRID_DASH_ARRAY`; restoration paths use
+// this when the caller does not override the dashArray.
+const BLOCK_GRID_DASH_ARRAY = "3,3";
 
 /** Loose validation matching the one used in `Char.mount` / `char.render`. */
 function validateSizeAndPadding(
@@ -268,6 +273,38 @@ export function charRestore(
   }
 }
 
+/**
+ * Translate `BlockRestoreOptions.showGrid` into the
+ * {@link RestoreOptions.showGrid} value that each per-cell
+ * `charRestore` call should receive. Mirrors `block.create`'s grid
+ * resolution (see `block/block.ts` `mountGuidedCell`): a bare
+ * `true` / `undefined` becomes a `GridOptions` object pinned to the
+ * cell border color / width plus the block-context dash array, so
+ * restored cells look like live ones instead of falling through to
+ * `drawCrossGrid`'s `char`-context defaults (`#ccc` / `"10,10"` /
+ * width 2).
+ */
+function resolveBlockGrid(
+  userShowGrid: BlockRestoreOptions["showGrid"],
+  cellBorderColor: string,
+  cellBorderWidth: number,
+): RestoreOptions["showGrid"] {
+  if (userShowGrid === false) {
+    return false;
+  }
+  if (userShowGrid === undefined || userShowGrid === true) {
+    return {
+      color: cellBorderColor,
+      width: cellBorderWidth,
+      dashArray: BLOCK_GRID_DASH_ARRAY,
+    };
+  }
+  return {
+    ...userShowGrid,
+    dashArray: userShowGrid.dashArray ?? BLOCK_GRID_DASH_ARRAY,
+  };
+}
+
 /** Slot width along the cell axis, in cellSize units. */
 function cellSpan(cell: BlockCellResult, cellIndex: number): number {
   // Honour any explicit `span` carried over from the spec; without it
@@ -333,6 +370,15 @@ export function blockRestore(
 
   const cellBorderWidth = options.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH;
   const cellBorderColor = options.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
+  // Translate the block-level showGrid into a per-cell GridOptions so
+  // restored grids match `block.create`'s visuals (border-coloured,
+  // border-width, "3,3" dash) instead of charRestore's `char`-context
+  // defaults.
+  const resolvedShowGrid = resolveBlockGrid(
+    options.showGrid,
+    cellBorderColor,
+    cellBorderWidth,
+  );
 
   const cells = result.cells;
   const spans = cells.map((c, i) => cellSpan(c, i));
@@ -423,7 +469,7 @@ export function blockRestore(
         padding,
         drawingWidth: options.drawingWidth,
         drawingColor: options.drawingColor,
-        showGrid: options.showGrid,
+        showGrid: resolvedShowGrid,
         // Empty placeholder slots never have a real character to show
         // (synthetic empty CharResult), so suppress showCharacter /
         // showOutline regardless of the caller's preference to avoid
