@@ -431,7 +431,7 @@ export function blockRestore(
       );
     }
   });
-  const annotationThickness =
+  const requiredAnnotationThickness =
     renderableAnnotations.length === 0
       ? 0
       : Math.max(
@@ -440,6 +440,32 @@ export function blockRestore(
               (annotation.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
           ),
         );
+  // `showAnnotationStrip: false` mirrors `block.create` and turns the
+  // strip off entirely. `annotationStripThickness` lets the caller
+  // (in practice, `page.restore`) override the derived thickness so
+  // every block on the same page reserves the same strip width even
+  // if some segments don't carry any annotations themselves.
+  let annotationThickness: number;
+  if (options.showAnnotationStrip === false) {
+    annotationThickness = 0;
+  } else if (options.annotationStripThickness !== undefined) {
+    if (
+      !Number.isFinite(options.annotationStripThickness) ||
+      options.annotationStripThickness < 0
+    ) {
+      throw new Error(
+        `block.restore(): annotationStripThickness must be a finite non-negative number (got ${options.annotationStripThickness}).`,
+      );
+    }
+    if (options.annotationStripThickness < requiredAnnotationThickness) {
+      throw new Error(
+        `block.restore(): annotationStripThickness=${options.annotationStripThickness} is smaller than the largest annotation thickness in this result (${requiredAnnotationThickness}).`,
+      );
+    }
+    annotationThickness = options.annotationStripThickness;
+  } else {
+    annotationThickness = requiredAnnotationThickness;
+  }
   // Padding is also forwarded into per-annotation `charRestore` calls
   // where `size === annotationThickness` (typically smaller than
   // `cellSize`), so a padding that's valid for cellSize can still
@@ -829,6 +855,74 @@ function renderAnnotation(
  * (`kind`, `expected`, `span`) need to be present, so the synthesized
  * Cell is just enough to drive layout.
  */
+/**
+ * Slice the block-level annotations so that each output annotation
+ * targets a single cell inside the given segment and carries the
+ * exact chars that cell owned in the original `renderAnnotation`
+ * distribution (rounded `k * chars / cellCount` boundaries).
+ *
+ * Per-cell slicing is required because `renderAnnotation` would
+ * otherwise re-distribute the sliced chars over the segment's local
+ * cell count. The two distributions only match for uniform splits.
+ * Example: 3 cells, 5 chars => per-cell counts (2, 1, 2). Slicing
+ * to cells 1..2 leaves 3 chars over 2 cells => new distribution
+ * (2, 1) instead of (1, 2). Splitting into 1-cell annotations
+ * sidesteps the round-trip mismatch entirely (a 1-cell annotation
+ * with M chars trivially places M chars in its one slot).
+ *
+ * Annotations missing `cellRange` are dropped (matches
+ * `block.restore`'s renderable-annotation filter). Per-cell slices
+ * preserve `placement` / `sizeRatio` so the page-level strip
+ * thickness stays consistent across segments.
+ */
+function sliceAnnotationsForSegment(
+  annotations: ReadonlyArray<BlockAnnotationResult>,
+  segCellFrom: number,
+  segCellTo: number,
+): BlockAnnotationResult[] {
+  const out: BlockAnnotationResult[] = [];
+  for (const anno of annotations) {
+    if (!anno.cellRange) {
+      continue;
+    }
+    const [annoFrom, annoTo] = anno.cellRange;
+    const overlapStart = Math.max(annoFrom, segCellFrom);
+    const overlapEnd = Math.min(annoTo, segCellTo);
+    if (overlapStart > overlapEnd) {
+      continue;
+    }
+    const annoChars = anno.chars;
+    const annoCellCount = annoTo - annoFrom + 1;
+    // Mirror `renderAnnotation`'s boundary math so the per-cell
+    // char arrays here line up with how the live block laid them
+    // out. The last boundary is clamped to `chars.length` to match
+    // the `isLast` branch in `renderAnnotation`.
+    const boundary = (k: number): number =>
+      k >= annoCellCount
+        ? annoChars.length
+        : Math.round((k * annoChars.length) / annoCellCount);
+    for (let cellIdx = overlapStart; cellIdx <= overlapEnd; cellIdx++) {
+      const localInAnno = cellIdx - annoFrom;
+      const charStart = boundary(localInAnno);
+      const charEnd = boundary(localInAnno + 1);
+      const cellChars = annoChars.slice(charStart, charEnd);
+      const localCellInSeg = cellIdx - segCellFrom;
+      const sliced: BlockAnnotationResult = {
+        cellRange: [localCellInSeg, localCellInSeg],
+        chars: cellChars,
+      };
+      if (anno.placement !== undefined) {
+        sliced.placement = anno.placement;
+      }
+      if (anno.sizeRatio !== undefined) {
+        sliced.sizeRatio = anno.sizeRatio;
+      }
+      out.push(sliced);
+    }
+  }
+  return out;
+}
+
 function blockResultToSpec(blockResult: BlockResult): BlockSpec {
   const cells: Cell[] = blockResult.cells.map((c) => {
     if (c.kind === "guided") {
@@ -878,13 +972,11 @@ function blockResultToSpec(blockResult: BlockResult): BlockSpec {
  * Layout vocabulary mirrors `page.create`: `columns` / `cellsPerColumn`
  * / `cellSize` / `writingMode` (default `"vertical-rl"`). Blocks flow
  * in declaration order, splitting at column boundaries via the same
- * `layoutPage` pass used by `page.create`. Annotations are dropped
- * from each block when slicing its cells into per-column segments:
- * `BlockAnnotationResult` does carry layout (`cellRange` / `placement`
- * / `sizeRatio`) and `block.restore` honours it, but rendering an
- * annotation whose `cellRange` straddles a column wrap would require
- * segment-aware slicing of the annotation strip, which is out of
- * scope for v1.
+ * `layoutPage` pass used by `page.create`. Annotations carrying
+ * layout fields are rendered alongside the cells they target, and
+ * when a `cellRange` straddles a column wrap the annotation is
+ * sliced per-cell across the segments so each cell keeps the chars
+ * it originally carried in the live block.
  */
 export function pageRestore(
   target: string | HTMLElement,
@@ -915,10 +1007,55 @@ export function pageRestore(
     );
   }
 
-  // v1 restore skips the annotation strip entirely; lineThickness ==
-  // cellSize lets us share the segmentOrigin math without threading
-  // annotationStripThickness through.
-  const lineThickness = cellSize;
+  // Pick the page-wide annotation strip thickness up front so every
+  // segment reserves the same width even when some segments carry
+  // no annotation overlap. Mirrors `page.create`'s rule: the strip
+  // sizes to the largest block annotation, floored at
+  // `DEFAULT_ANNOTATION_RATIO * cellSize` whenever any block has a
+  // renderable annotation, so the strip stays visually consistent
+  // across columns. Validation throws the same shape as page.create.
+  const blockRequiredStrips = result.blocks.map((b) => {
+    const annotations = (b.annotations ?? []).filter(
+      (a) => a.cellRange !== undefined,
+    );
+    return annotations.length === 0
+      ? 0
+      : Math.max(
+          ...annotations.map(
+            (a) => (a.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
+          ),
+        );
+  });
+  const pageRequiredStrip = Math.max(0, ...blockRequiredStrips);
+  const showAnnotationStrip = options.showAnnotationStrip ?? true;
+  let annotationStripThickness: number;
+  if (showAnnotationStrip === false) {
+    annotationStripThickness = 0;
+  } else if (options.annotationStripThickness !== undefined) {
+    if (
+      !Number.isFinite(options.annotationStripThickness) ||
+      options.annotationStripThickness < 0
+    ) {
+      throw new Error(
+        `page.restore(): annotationStripThickness must be a finite non-negative number (got ${options.annotationStripThickness}).`,
+      );
+    }
+    annotationStripThickness = options.annotationStripThickness;
+  } else {
+    annotationStripThickness =
+      pageRequiredStrip > 0
+        ? Math.max(pageRequiredStrip, DEFAULT_ANNOTATION_RATIO * cellSize)
+        : 0;
+  }
+  if (
+    showAnnotationStrip !== false &&
+    annotationStripThickness < pageRequiredStrip
+  ) {
+    throw new Error(
+      `page.restore(): annotationStripThickness=${annotationStripThickness} is smaller than the largest block annotation thickness (${pageRequiredStrip}).`,
+    );
+  }
+  const lineThickness = cellSize + annotationStripThickness;
   const pageWidth =
     writingMode === "vertical-rl" ? columns * lineThickness : cellsPerColumn * cellSize;
   const pageHeight =
@@ -947,10 +1084,28 @@ export function pageRestore(
       continue;
     }
     const slicedCells = block.cells.slice(seg.cellFrom, seg.cellTo + 1);
+    // Slice annotations per cell so each segment carries the chars
+    // its cells originally owned, even when the block's cellRange
+    // straddles a column wrap. Re-running the original distribution
+    // (`renderAnnotation`'s rounded boundaries) on the sliced chars
+    // would re-shuffle the per-cell layout: see the comment block
+    // in `sliceAnnotationsForSegment` for the math. When the
+    // page-wide strip is disabled (`showAnnotationStrip: false`),
+    // drop annotations entirely instead of letting them propagate
+    // into blockRestore's `annotationStripThickness=0` validation
+    // path (which would throw on a non-zero required thickness).
+    const slicedAnnotations =
+      showAnnotationStrip === false
+        ? []
+        : sliceAnnotationsForSegment(
+            block.annotations ?? [],
+            seg.cellFrom,
+            seg.cellTo,
+          );
     const sliced: BlockResult = {
       ...block,
       cells: slicedCells,
-      annotations: [],
+      annotations: slicedAnnotations,
     };
 
     let originX: number;
@@ -975,6 +1130,13 @@ export function pageRestore(
       padding: options.padding,
       cellBorderWidth: options.cellBorderWidth,
       cellBorderColor: options.cellBorderColor,
+      // Force the strip thickness to the page-wide value so every
+      // segment reserves the same width even if its sliced
+      // annotations are empty or smaller than the page max. Without
+      // this, a segment with no overlap would compute its own
+      // thickness as 0 and the cell would shift toward the strip
+      // edge of the column.
+      annotationStripThickness,
       drawingWidth: options.drawingWidth,
       drawingColor: options.drawingColor,
       showGrid: options.showGrid,
