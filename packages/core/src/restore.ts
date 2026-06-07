@@ -440,11 +440,13 @@ export function blockRestore(
               (annotation.sizeRatio ?? DEFAULT_ANNOTATION_RATIO) * cellSize,
           ),
         );
-  // `showAnnotationStrip: false` mirrors `block.create` and turns the
-  // strip off entirely. `annotationStripThickness` lets the caller
-  // (in practice, `page.restore`) override the derived thickness so
-  // every block on the same page reserves the same strip width even
-  // if some segments don't carry any annotations themselves.
+  // `showAnnotationStrip: false` turns the strip off entirely
+  // (restore-only convenience; `block.create` has no equivalent
+  // toggle, only the page-level `PageCreateOptions.showAnnotationStrip`
+  // does). `annotationStripThickness` lets the caller (in practice,
+  // `page.restore`) override the derived thickness so every block on
+  // the same page reserves the same strip width even if some
+  // segments don't carry any annotations themselves.
   let annotationThickness: number;
   if (options.showAnnotationStrip === false) {
     annotationThickness = 0;
@@ -1007,13 +1009,38 @@ export function pageRestore(
     );
   }
 
+  // Validate per-annotation `sizeRatio` up front, mirroring
+  // `block.restore`'s entrance validation. Without this, a JSON-loaded
+  // `PageResult` with a non-finite or non-positive `sizeRatio`
+  // would silently produce NaN / negative values in the
+  // `pageRequiredStrip` math below, flow through into
+  // `annotationStripThickness` / `lineThickness` / the wrapper's
+  // inline `width` / `height` style, and only get rejected at
+  // `block.restore()` later, with the wrong call site in the
+  // error shape.
+  result.blocks.forEach((b, blockIndex) => {
+    (b.annotations ?? []).forEach((a, annotationIndex) => {
+      if (a.cellRange === undefined) {
+        return;
+      }
+      if (
+        a.sizeRatio !== undefined &&
+        (!Number.isFinite(a.sizeRatio) || a.sizeRatio <= 0)
+      ) {
+        throw new Error(
+          `page.restore(): blocks[${blockIndex}].annotations[${annotationIndex}].sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
+        );
+      }
+    });
+  });
   // Pick the page-wide annotation strip thickness up front so every
   // segment reserves the same width even when some segments carry
   // no annotation overlap. Mirrors `page.create`'s rule: the strip
   // sizes to the largest block annotation, floored at
-  // `DEFAULT_ANNOTATION_RATIO * cellSize` whenever any block has a
-  // renderable annotation, so the strip stays visually consistent
-  // across columns. Validation throws the same shape as page.create.
+  // `DEFAULT_ANNOTATION_RATIO * cellSize` so the strip stays
+  // visually consistent across columns and a `PageResult` produced
+  // by `page.create` round-trips through `page.restore` at the same
+  // geometry whether or not its blocks happen to carry annotations.
   const blockRequiredStrips = result.blocks.map((b) => {
     const annotations = (b.annotations ?? []).filter(
       (a) => a.cellRange !== undefined,
@@ -1042,10 +1069,10 @@ export function pageRestore(
     }
     annotationStripThickness = options.annotationStripThickness;
   } else {
-    annotationStripThickness =
-      pageRequiredStrip > 0
-        ? Math.max(pageRequiredStrip, DEFAULT_ANNOTATION_RATIO * cellSize)
-        : 0;
+    annotationStripThickness = Math.max(
+      pageRequiredStrip,
+      DEFAULT_ANNOTATION_RATIO * cellSize,
+    );
   }
   if (
     showAnnotationStrip !== false &&

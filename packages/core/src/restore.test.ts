@@ -761,6 +761,11 @@ describe("page.restore", () => {
       columns: 2,
       cellsPerColumn: 4,
       cellSize: 50,
+      // This test focuses on the column flow, not the annotation
+      // strip. Turn the strip off so pageWidth stays at columns x
+      // cellSize and the per-segment x-coordinates remain easy to
+      // reason about.
+      showAnnotationStrip: false,
     });
 
     const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
@@ -817,7 +822,14 @@ describe("page.restore", () => {
       blocks: [wideFree, followUp],
     };
 
-    page.restore(host, result, { columns: 2, cellsPerColumn: 4, cellSize: 50 });
+    // Strip turned off so the column-flow assertions stay easy to
+    // reason about (lineThickness == cellSize).
+    page.restore(host, result, {
+      columns: 2,
+      cellsPerColumn: 4,
+      cellSize: 50,
+      showAnnotationStrip: false,
+    });
 
     const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
     const segments = wrapper.querySelectorAll<HTMLElement>(":scope > div");
@@ -965,6 +977,73 @@ describe("page.restore", () => {
     expect(wrapper.style.width).toBe("100px");
     // Cells render; annotations skipped entirely.
     expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(2);
+  });
+
+  it("reserves the default annotation strip even when no block carries an annotation", () => {
+    // Mirrors `page.create`'s behaviour: with `showAnnotationStrip`
+    // and `annotationStripThickness` both unset, the page reserves
+    // a `DEFAULT_ANNOTATION_RATIO * cellSize` strip per column
+    // regardless of whether any block actually populates it. This
+    // keeps the geometry of a `PageResult` round-tripped through
+    // `page.create -> page.restore` identical even when no block
+    // happens to carry furigana.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("一"), cellWithStroke("二")],
+          annotations: [],
+        },
+      ],
+    };
+    page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 });
+
+    const wrapper = host.querySelector<HTMLElement>(".kakitori-page-restore")!;
+    // DEFAULT_ANNOTATION_RATIO = 0.4 => strip = 40 px, lineThickness = 140.
+    expect(wrapper.style.width).toBe("140px");
+    expect(wrapper.style.height).toBe("200px");
+  });
+
+  it("throws on a non-finite or non-positive sizeRatio in any block annotation", () => {
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              // Non-finite sizeRatio: caught at the page-level
+              // pre-pass before the value flows into the
+              // `pageRequiredStrip` / `lineThickness` math.
+              sizeRatio: Number.NaN,
+              chars: ["が"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 }),
+    ).toThrow(
+      /blocks\[0\]\.annotations\[0\]\.sizeRatio must be a finite positive number/,
+    );
   });
 
   it("throws when annotationStripThickness is smaller than the largest block annotation", () => {
