@@ -56,6 +56,16 @@ interface AnnotationHandleState {
   annotationIndex: number;
   handle: FreeCellHandle;
   /**
+   * The original spec annotation, kept so {@link buildBlockResult} can
+   * carry `cellRange` / `placement` / `sizeRatio` through onto each
+   * `BlockAnnotationResult`. Without this, `page.restore` cannot
+   * reconstruct the strip layout because the layout fields were
+   * dropped at result-build time and the parent block instance lives
+   * inside the page coordinator (block.ts's own `annotationResult`
+   * never runs for page-handled annotations).
+   */
+  annotation: FuriganaAnnotation;
+  /**
    * Synthetic CharResult[] for show-mode annotations. Live (write-mode)
    * annotations get their snapshot from `handle.results()` instead.
    */
@@ -458,6 +468,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           // No interactive handle for show mode; we still need an entry so
           // result aggregation knows to expect this annotation.
           handle: noopHandle(),
+          annotation,
           syntheticChars: synthetic,
           committed: false,
         };
@@ -484,6 +495,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       const slotState: AnnotationHandleState = {
         annotationIndex,
         handle: noopHandle(),
+        annotation,
         committed: false,
       };
       // Page-level annotations (spanning multiple segment blocks) are
@@ -575,7 +587,24 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       return { kind, chars: [] };
     });
     const annotations: BlockAnnotationResult[] = state.annotationHandles.map(
-      (slot) => ({ chars: annotationChars(slot) }),
+      (slot) => {
+        // Carry the spec annotation's layout fields through so a
+        // page-handled annotation round-trips into `page.restore` /
+        // `block.restore` at the same layout it had on the live page.
+        // block.ts's own `annotationResult` doesn't run for these
+        // (the page coordinator owns them, not the inner block).
+        const out: BlockAnnotationResult = {
+          chars: annotationChars(slot),
+          cellRange: [...slot.annotation.cellRange] as [number, number],
+        };
+        if (slot.annotation.placement !== undefined) {
+          out.placement = slot.annotation.placement;
+        }
+        if (slot.annotation.sizeRatio !== undefined) {
+          out.sizeRatio = slot.annotation.sizeRatio;
+        }
+        return out;
+      },
     );
     const allChars: CharResult[] = [];
     for (const c of cells) {
