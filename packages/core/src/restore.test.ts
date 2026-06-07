@@ -1082,6 +1082,85 @@ describe("page.restore", () => {
     );
   });
 
+  it("does not constrain padding against annotation strip when a segment has no renderable annotations", () => {
+    // Regression: `page.restore` forces every segment's blockRestore
+    // to reserve the page-wide annotation strip even when that segment
+    // has no annotation overlap. block.restore's padding-vs-strip
+    // validation must therefore gate on whether any annotation is
+    // actually rendered, not on `annotationThickness > 0` alone:
+    // otherwise the unrelated block 2 here would throw on padding=30
+    // (>= 40/2) even though it never runs `charRestore` at
+    // size=annotationThickness.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              cellRange: [0, 1],
+              // 0.4 * 100 = 40 strip thickness. padding 30 is > 20
+              // (= 40/2), so the per-annotation char.restore for
+              // block 1 must throw, but block 2 must not.
+              chars: ["が", "っ"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+        {
+          complete: true,
+          matched: true,
+          // No annotations on this block: padding=30 must not throw
+          // here even though the segment reserves a 40-px strip.
+          cells: [cellWithStroke("大"), cellWithStroke("小")],
+          annotations: [],
+        },
+      ],
+    };
+    // Block 1 has annotations, so its padding=30 against
+    // annotationThickness=40 still throws as before.
+    expect(() =>
+      page.restore(host, result, {
+        columns: 1,
+        cellsPerColumn: 4,
+        cellSize: 100,
+        padding: 30,
+      }),
+    ).toThrow(/padding \(30\) must be less than annotationThickness\/2/);
+    // Drop block 1 -> only block 2 (no annotations) remains. padding=30
+    // forwards into each segment's blockRestore with annotationStripThickness
+    // = 40 (the page-wide default floor), but the constraint should be
+    // skipped because no annotation lands in any segment.
+    const annotationFree: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("大"), cellWithStroke("小")],
+          annotations: [],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, annotationFree, {
+        columns: 1,
+        cellsPerColumn: 2,
+        cellSize: 100,
+        padding: 30,
+      }),
+    ).not.toThrow();
+  });
+
   it("throws when annotationStripThickness is smaller than the largest block annotation", () => {
     const cellWithStroke = (c: string): BlockCellResult => ({
       kind: "guided",

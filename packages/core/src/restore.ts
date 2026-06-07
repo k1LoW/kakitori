@@ -473,8 +473,15 @@ export function blockRestore(
   // `cellSize`), so a padding that's valid for cellSize can still
   // exceed annotationThickness/2 and fail inside char.restore mid-
   // render. Validate it up front against the strip size too whenever
-  // a strip is reserved.
+  // an annotation is actually rendered. Gate on
+  // `renderableAnnotations.length > 0` (not just `annotationThickness
+  // > 0`): `page.restore` forces every segment to reserve the
+  // page-wide strip even when no annotation lands in this segment,
+  // and only empty strip frames are painted in that case — no
+  // charRestore call ever sees `size === annotationThickness`, so
+  // the padding constraint doesn't apply.
   if (
+    renderableAnnotations.length > 0 &&
     annotationThickness > 0 &&
     padding > 0 &&
     padding >= annotationThickness / 2
