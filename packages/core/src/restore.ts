@@ -1009,15 +1009,18 @@ export function pageRestore(
     );
   }
 
-  // Validate per-annotation `sizeRatio` up front, mirroring
-  // `block.restore`'s entrance validation. Without this, a JSON-loaded
-  // `PageResult` with a non-finite or non-positive `sizeRatio`
-  // would silently produce NaN / negative values in the
-  // `pageRequiredStrip` math below, flow through into
-  // `annotationStripThickness` / `lineThickness` / the wrapper's
-  // inline `width` / `height` style, and only get rejected at
-  // `block.restore()` later, with the wrong call site in the
-  // error shape.
+  // Validate each renderable annotation's `sizeRatio` and
+  // `cellRange` up front. `sizeRatio` mirrors `block.restore`'s
+  // entrance check (otherwise a non-finite or non-positive value
+  // silently produces NaN / negative `pageRequiredStrip`,
+  // `annotationStripThickness`, `lineThickness`, and ends up in
+  // the wrapper's inline `width` / `height` style). `cellRange`
+  // must be checked here too because `sliceAnnotationsForSegment`
+  // below rebases every overlapping annotation to a 1-cell
+  // segment-local range; once that rebasing has happened,
+  // `block.restore`'s own cellRange check (in `renderAnnotation`)
+  // can never see an originally out-of-range or non-integer value
+  // and would silently mis-render instead of throwing.
   result.blocks.forEach((b, blockIndex) => {
     (b.annotations ?? []).forEach((a, annotationIndex) => {
       if (a.cellRange === undefined) {
@@ -1029,6 +1032,19 @@ export function pageRestore(
       ) {
         throw new Error(
           `page.restore(): blocks[${blockIndex}].annotations[${annotationIndex}].sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
+        );
+      }
+      const [from, to] = a.cellRange;
+      const blockCellCount = b.cells.length;
+      if (
+        !Number.isInteger(from) ||
+        !Number.isInteger(to) ||
+        from < 0 ||
+        to >= blockCellCount ||
+        from > to
+      ) {
+        throw new Error(
+          `page.restore(): blocks[${blockIndex}].annotations[${annotationIndex}].cellRange [${from}, ${to}] is out of range for ${blockCellCount} cell(s).`,
         );
       }
     });

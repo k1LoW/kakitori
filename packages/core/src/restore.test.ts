@@ -1046,6 +1046,42 @@ describe("page.restore", () => {
     );
   });
 
+  it("throws on an out-of-range cellRange in any block annotation", () => {
+    // The page-level slicing pass rebases every annotation's
+    // cellRange to a 1-cell segment-local range before block.restore
+    // sees it, so the underlying renderAnnotation cellRange check
+    // would never fire against the original index. Validate here.
+    const cellWithStroke = (c: string): BlockCellResult => ({
+      kind: "guided",
+      chars: [charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])])],
+    });
+    const result: PageResult = {
+      complete: true,
+      matched: true,
+      blocks: [
+        {
+          complete: true,
+          matched: true,
+          cells: [cellWithStroke("学"), cellWithStroke("校")],
+          annotations: [
+            {
+              // 5 is past the last cell index (1) of a 2-cell block.
+              cellRange: [0, 5],
+              chars: ["が"].map((c) =>
+                charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+              ),
+            },
+          ],
+        },
+      ],
+    };
+    expect(() =>
+      page.restore(host, result, { columns: 1, cellsPerColumn: 2, cellSize: 100 }),
+    ).toThrow(
+      /blocks\[0\]\.annotations\[0\]\.cellRange \[0, 5\] is out of range for 2 cell\(s\)/,
+    );
+  });
+
   it("throws when annotationStripThickness is smaller than the largest block annotation", () => {
     const cellWithStroke = (c: string): BlockCellResult => ({
       kind: "guided",

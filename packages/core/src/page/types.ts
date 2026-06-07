@@ -256,18 +256,19 @@ export interface PageRestoreOptions {
   /**
    * When `false`, no annotation strip is reserved or rendered on
    * any block, even if some blocks carry annotations. Defaults to
-   * `true` (= reserve a strip iff any block on the page carries a
-   * renderable annotation).
+   * `true`, matching `page.create`: the strip is reserved on every
+   * column regardless of whether any block carries furigana, so a
+   * `PageResult` round-trips through `page.create` and
+   * `page.restore` at the same geometry.
    */
   showAnnotationStrip?: boolean;
   /**
    * Override the page-wide annotation strip thickness. When unset,
-   * the thickness is derived from the largest annotation's
-   * `sizeRatio` across every block on the page, with
-   * `DEFAULT_ANNOTATION_RATIO * cellSize` as the floor when at
-   * least one block carries an annotation. Must be at least as
-   * large as the largest required block thickness; otherwise the
-   * call throws.
+   * the thickness is `Math.max(largest block annotation thickness,
+   * DEFAULT_ANNOTATION_RATIO * cellSize)`, unconditionally
+   * applying the default floor (matching `page.create`). Must be
+   * at least as large as the largest required block thickness;
+   * otherwise the call throws.
    */
   annotationStripThickness?: number;
   // Visual options forwarded to char.restore for every char slot.
