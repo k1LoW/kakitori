@@ -178,7 +178,6 @@ function buildSourceBlock(
       ],
     },
     cellSize: BLOCK_DEMO_CELL_SIZE,
-    writingMode: "vertical-rl",
     correction: "per-char",
     maxRetries: 0,
     retainStrokes: true,
@@ -215,7 +214,6 @@ function setupBlockRestoreDemo(root: HTMLElement): void {
       }
       block.restore(target, result, {
         cellSize,
-        writingMode: "vertical-rl",
         drawingWidth: DRAWING_WIDTH,
         showOutline: true,
         charDataLoader: cachedCharDataLoader,
@@ -261,7 +259,6 @@ function buildSourcePage(
     columns: PAGE_DEMO_COLUMNS,
     cellsPerColumn: PAGE_DEMO_CELLS_PER_COLUMN,
     cellSize: PAGE_DEMO_CELL_SIZE,
-    writingMode: "vertical-rl",
     correction: "per-char",
     maxRetries: 0,
     retainStrokes: true,
@@ -305,7 +302,6 @@ function setupPageRestoreDemo(root: HTMLElement): void {
       columns: PAGE_DEMO_COLUMNS,
       cellsPerColumn: PAGE_DEMO_CELLS_PER_COLUMN,
       cellSize: PAGE_DEMO_PREVIEW_CELL_SIZE,
-      writingMode: "vertical-rl",
       drawingWidth: DRAWING_WIDTH,
       showOutline: true,
       charDataLoader: cachedCharDataLoader,
