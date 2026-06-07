@@ -639,6 +639,38 @@ describe("block.restore", () => {
     );
   });
 
+  it("throws when an annotation covers a cell with span > 1", () => {
+    // Two cells: a blank with span=2 followed by a guided. An
+    // annotation covering both would silently misrender because the
+    // sub-strip layout assumes 1 cellSize per cell. block.create
+    // rejects this configuration at build time; block.restore must
+    // mirror that rejection for JSON-loaded results too.
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        { kind: "blank", chars: [], span: 2 },
+        {
+          kind: "guided",
+          chars: [
+            charResult("校", [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ],
+        },
+      ],
+      annotations: [
+        {
+          cellRange: [0, 1],
+          chars: ["が", "っ", "こ", "う"].map((c) =>
+            charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ),
+        },
+      ],
+    };
+    expect(() => block.restore(host, result, { cellSize: 80 })).toThrow(
+      /annotated cells must have span 1/,
+    );
+  });
+
   it("throws when an explicit BlockCellResult.span is not a positive integer", () => {
     const malformed: BlockResult = {
       complete: true,

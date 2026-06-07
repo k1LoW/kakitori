@@ -627,6 +627,7 @@ export function blockRestore(
         annotation,
         originalIndex,
         cellRects,
+        spans,
         cellSize,
         annotationThickness,
         writingMode,
@@ -660,6 +661,7 @@ function renderAnnotation(
   annotation: BlockAnnotationResult,
   annotationIndex: number,
   cellRects: ReadonlyArray<{ x: number; y: number; w: number; h: number }>,
+  spans: ReadonlyArray<number>,
   cellSize: number,
   annotationThickness: number,
   writingMode: WritingMode,
@@ -687,6 +689,21 @@ function renderAnnotation(
     throw new Error(
       `block.restore(): annotations[${annotationIndex}].placement must be ${JSON.stringify(expectedPlacement)} for writingMode ${JSON.stringify(writingMode)} (got ${JSON.stringify(annotation.placement)}).`,
     );
+  }
+  // Each cell in the cellRange must be span 1. The sub-strip layout
+  // below builds exactly one `cellSize`-thick rectangle per covered
+  // cell, so a span>1 cell would leave its trailing slots uncovered
+  // (and the sub-strip dividers misaligned with the cells/empty
+  // strip frames above). Block.create rejects this configuration at
+  // build time for the same reason; mirror that validation here
+  // because restore can be fed JSON-loaded results that bypass
+  // block.create's checks.
+  for (let k = from; k <= to; k++) {
+    if (spans[k] > 1) {
+      throw new Error(
+        `block.restore(): annotations[${annotationIndex}].cellRange covers cells[${k}] with span=${spans[k]}; annotated cells must have span 1.`,
+      );
+    }
   }
 
   const cellCount = to - from + 1;
