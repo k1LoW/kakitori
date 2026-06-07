@@ -406,6 +406,22 @@ export function blockRestore(
   const renderableAnnotations = (result.annotations ?? []).filter(
     (a) => a.cellRange !== undefined,
   );
+  renderableAnnotations.forEach((a, i) => {
+    // Mirror `block.create`'s validation: a zero or non-finite sizeRatio
+    // collapses the strip to a degenerate width/height and breaks the
+    // layout math. Restore can be fed a result loaded from JSON (possibly
+    // hand-edited or produced by a different version), so reject the
+    // same way `block.create` does up-front instead of letting it
+    // propagate into `Math.max` / placement calculations.
+    if (
+      a.sizeRatio !== undefined &&
+      (!Number.isFinite(a.sizeRatio) || a.sizeRatio <= 0)
+    ) {
+      throw new Error(
+        `block.restore(): annotations[${i}].sizeRatio must be a finite positive number (got ${a.sizeRatio}).`,
+      );
+    }
+  });
   const annotationThickness =
     renderableAnnotations.length === 0
       ? 0
@@ -528,6 +544,40 @@ export function blockRestore(
     runningOffset += span * cellSize;
   }
 
+  // Reserve an empty annotation strip frame next to every cell-slot
+  // (one per cellSize chunk in the cell's span) so block-stacking on a
+  // page stays visually uniform whether or not an annotation lands on
+  // that slot. Mirrors `block.create`'s `drawEmptyAnnotationStripFrame`
+  // so a restored block looks identical to the live render even for
+  // cells outside any annotation's cellRange. The per-char overlay
+  // inside `renderAnnotation` is borderless and paints content on top
+  // of these frames.
+  if (annotationThickness > 0 && cellBorderWidth > 0) {
+    for (let i = 0; i < cellRects.length; i++) {
+      const rect = cellRects[i];
+      const span = spans[i];
+      for (let k = 0; k < span; k++) {
+        const frame = document.createElement("div");
+        frame.style.position = "absolute";
+        frame.style.boxSizing = "border-box";
+        frame.style.pointerEvents = "none";
+        if (writingMode === "vertical-rl") {
+          frame.style.left = `${rect.x + cellSize}px`;
+          frame.style.top = `${rect.y + k * cellSize}px`;
+          frame.style.width = `${annotationThickness}px`;
+          frame.style.height = `${cellSize}px`;
+        } else {
+          frame.style.left = `${rect.x + k * cellSize}px`;
+          frame.style.top = `${rect.y - annotationThickness}px`;
+          frame.style.width = `${cellSize}px`;
+          frame.style.height = `${annotationThickness}px`;
+        }
+        frame.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+        wrapper.appendChild(frame);
+      }
+    }
+  }
+
   // Annotation strips ride on top of the cell layout. Each annotation
   // spans `cellRange[from..to]` on the cell axis and sits perpendicular
   // (right for vertical-rl, top for horizontal-tb).
@@ -541,9 +591,6 @@ export function blockRestore(
         cellSize,
         annotationThickness,
         writingMode,
-        cellBorderWidth,
-        cellBorderColor,
-        resolvedShowGrid,
         options,
         padding,
       );
@@ -577,9 +624,6 @@ function renderAnnotation(
   cellSize: number,
   annotationThickness: number,
   writingMode: WritingMode,
-  cellBorderWidth: number,
-  cellBorderColor: string,
-  resolvedShowGrid: RestoreOptions["showGrid"],
   options: BlockRestoreOptions,
   padding: number,
 ): void {
@@ -658,17 +702,20 @@ function renderAnnotation(
     const stripAxisLength = isVertical ? stripRect.h : stripRect.w;
     const slotLength = stripAxisLength / charsInStrip.length;
 
-    // Slot frame fills the full sub-strip sub-region (annotationThickness
-    // × slotLength) so the bordered grid matches `block.create`'s visual
-    // layout. The char SVG inside is square (charSize × charSize) and
-    // centred within the frame: normalize.ts pins the user's bbox centre
-    // to the median bbox centre with longer-side scaling, so the
-    // captured points always fit the standard hanzi region and no
-    // overflow padding is needed in the slot.
+    // Per-char overlay frames sub-divide the sub-strip into one slot
+    // per character. They are borderless: the empty annotation strip
+    // frames painted next to every cell-slot upstream provide the outer
+    // border (matching `block.create`, which intentionally leaves
+    // `mountAnnotation`'s overlay elements borderless so the cell-slot
+    // border isn't doubled). The char SVG inside is square (charSize ×
+    // charSize) and centred within the slot: normalize.ts pins the
+    // user's bbox centre to the median bbox centre with longer-side
+    // scaling, so the captured points always fit the standard hanzi
+    // region and no overflow padding is needed in the slot.
     for (let i = 0; i < charsInStrip.length; i++) {
       const slotFrame = document.createElement("div");
       slotFrame.style.position = "absolute";
-      slotFrame.style.boxSizing = "border-box";
+      slotFrame.style.pointerEvents = "none";
       const frameWidth = isVertical ? annotationThickness : slotLength;
       const frameHeight = isVertical ? slotLength : annotationThickness;
       if (isVertical) {
@@ -680,10 +727,6 @@ function renderAnnotation(
       }
       slotFrame.style.width = `${frameWidth}px`;
       slotFrame.style.height = `${frameHeight}px`;
-      if (cellBorderWidth > 0) {
-        slotFrame.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
-        slotFrame.style.overflow = "hidden";
-      }
 
       const charBox = document.createElement("div");
       charBox.style.position = "absolute";
@@ -699,8 +742,8 @@ function renderAnnotation(
         padding,
         drawingWidth: options.drawingWidth,
         drawingColor: options.drawingColor,
-        // The slot frame already paints the grid via its border;
-        // suppress the per-char cross-grid so we don't double up.
+        // Suppress the per-char cross-grid; the cell-slot empty frame
+        // upstream already provides the outer chrome.
         showGrid: false,
         showCharacter: options.showCharacter,
         showOutline: options.showOutline,
