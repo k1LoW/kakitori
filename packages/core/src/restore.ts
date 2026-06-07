@@ -4,7 +4,7 @@ import {
   HANZI_PRESCALED_SIZE,
   HANZI_Y_BASELINE_OFFSET,
 } from "./constants.js";
-import { drawCrossGrid } from "./char.js";
+import { drawCrossGrid } from "./grid.js";
 import { defaultCharDataLoader } from "./dataLoader.js";
 import type {
   CharDataLoaderFn,

@@ -5,7 +5,6 @@ import type {
   CharCheckStrokeOptions,
   CharStrokeResult,
   CharLogger,
-  GridOptions,
   MountOptions,
   RenderOptions,
 } from "./charOptions.js";
@@ -40,10 +39,7 @@ import type {
   QuizStrokeMeta,
 } from "./hanziWriterInternals.js";
 import { charRestore } from "./restore.js";
-
-const DEFAULT_GRID_COLOR = "#ccc";
-const DEFAULT_GRID_DASH = "10,10";
-const DEFAULT_GRID_WIDTH = 2;
+import { drawCrossGrid } from "./grid.js";
 
 // hanzi-writer's stroke matcher thresholds, hard-coded inside its source.
 // We mirror them here to derive a similarity score from
@@ -86,42 +82,6 @@ function computeSimilarity(
   const avgDist = stroke ? stroke.getAverageDistance(points) : Infinity;
   const threshold = HW_AVERAGE_DISTANCE_THRESHOLD * (leniency ?? 1);
   return threshold > 0 ? Math.max(0, Math.min(1, 1 - avgDist / threshold)) : 0;
-}
-
-export function drawCrossGrid(
-  svg: SVGSVGElement,
-  size: number,
-  gridOpts: GridOptions | true,
-): void {
-  const opts = gridOpts === true ? {} : gridOpts;
-  const color = opts.color ?? DEFAULT_GRID_COLOR;
-  const dashArray = opts.dashArray ?? DEFAULT_GRID_DASH;
-  const width = opts.width ?? DEFAULT_GRID_WIDTH;
-  const ns = "http://www.w3.org/2000/svg";
-  const mid = size / 2;
-
-  const vLine = document.createElementNS(ns, "line");
-  vLine.setAttribute("x1", String(mid));
-  vLine.setAttribute("y1", "0");
-  vLine.setAttribute("x2", String(mid));
-  vLine.setAttribute("y2", String(size));
-  vLine.setAttribute("stroke", color);
-  vLine.setAttribute("stroke-width", String(width));
-  vLine.setAttribute("stroke-dasharray", dashArray);
-  vLine.setAttribute("pointer-events", "none");
-
-  const hLine = document.createElementNS(ns, "line");
-  hLine.setAttribute("x1", "0");
-  hLine.setAttribute("y1", String(mid));
-  hLine.setAttribute("x2", String(size));
-  hLine.setAttribute("y2", String(mid));
-  hLine.setAttribute("stroke", color);
-  hLine.setAttribute("stroke-width", String(width));
-  hLine.setAttribute("stroke-dasharray", dashArray);
-  hLine.setAttribute("pointer-events", "none");
-
-  svg.appendChild(vLine);
-  svg.appendChild(hLine);
 }
 
 function validateSizeAndPadding(
