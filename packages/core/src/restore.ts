@@ -741,6 +741,15 @@ function renderAnnotation(
       const slotFrame = document.createElement("div");
       slotFrame.style.position = "absolute";
       slotFrame.style.pointerEvents = "none";
+      // Clip char content to the slot. When many annotation chars are
+      // packed into a short cellRange chunk (slotLength <
+      // annotationThickness), the centred square char SVG
+      // (`charSize === annotationThickness`) would otherwise spill
+      // into neighbouring slots on the long axis. `overflow: hidden`
+      // keeps each char strictly within the intended slot rectangle
+      // without affecting the borderless overlay's role (the cell-
+      // slot base frame upstream still owns the visible chrome).
+      slotFrame.style.overflow = "hidden";
       const frameWidth = isVertical ? annotationThickness : slotLength;
       const frameHeight = isVertical ? slotLength : annotationThickness;
       if (isVertical) {
