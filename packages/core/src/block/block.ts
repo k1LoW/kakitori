@@ -1238,7 +1238,21 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     state: PerAnnotationState,
   ): BlockAnnotationResult {
     const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
-    return { chars };
+    // Carry the spec layout fields through so `block.restore` /
+    // `page.restore` can reconstruct the annotation strip without
+    // needing access to the original spec. The live `Block` runtime
+    // ignores these (it reads them from the spec directly).
+    const out: BlockAnnotationResult = {
+      chars,
+      cellRange: [...state.annotation.cellRange] as [number, number],
+    };
+    if (state.annotation.placement !== undefined) {
+      out.placement = state.annotation.placement;
+    }
+    if (state.annotation.sizeRatio !== undefined) {
+      out.sizeRatio = state.annotation.sizeRatio;
+    }
+    return out;
   }
 
   function buildBlockResult(): BlockResult {

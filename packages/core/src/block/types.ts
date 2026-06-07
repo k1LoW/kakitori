@@ -119,6 +119,29 @@ export interface BlockAnnotationResult {
    * stay `complete: false` placeholders.
    */
   chars: CharResult[];
+  /**
+   * Closed range of cell indices in the parent block's `cells` array
+   * that this annotation covers. Copied verbatim from the spec
+   * (`FuriganaAnnotation.cellRange`) so `block.restore` /
+   * `page.restore` can position the annotation strip across the same
+   * cells the live block does. The live `Block` runtime ignores this
+   * field — it reads the cellRange straight from the spec.
+   */
+  cellRange?: [number, number];
+  /**
+   * Side of the cell axis the annotation sits on. Copied from the
+   * spec; defaults follow the same rules `block.create` does
+   * (`"right"` for vertical-rl, `"top"` for horizontal-tb) when the
+   * spec omits it. Restore uses this to pick which axis the strip
+   * attaches to.
+   */
+  placement?: "top" | "bottom" | "left" | "right";
+  /**
+   * Annotation thickness as a fraction of `cellSize`. Copied from the
+   * spec; restore uses it (and the largest `sizeRatio` across all
+   * annotations) to size the strip space reserved next to the cells.
+   */
+  sizeRatio?: number;
 }
 
 /**
