@@ -101,6 +101,42 @@ describe("Block.results", () => {
     parent.remove();
   });
 
+  it("free cell records span = longest expected candidate length when chars.length is shorter", async () => {
+    // Free cell with multiple expected candidates: "学校" (length 2) and
+    // "がっこう" (length 4). The first candidate drives the placeholder
+    // chars.length (2), but the layout reserves 4 slots (longest).
+    // BlockCellResult.span must carry that 4 through so
+    // block.restore / page.restore can reproduce the original width
+    // instead of shrinking to the placeholder's content.
+    const { b, parent } = buildBlock({
+      cells: [{ kind: "free", expected: ["学校", "がっこう"], mode: "write" }],
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells[0].kind).toBe("free");
+    expect(snap.cells[0].chars).toHaveLength(2);
+    expect(snap.cells[0].span).toBe(4);
+    b.destroy();
+    parent.remove();
+  });
+
+  it("free cell omits span when chars.length already matches the layout", async () => {
+    // expected: "がっこう" — single candidate, longest === first === 4.
+    // Placeholder chars.length === 4 so no extra width to record;
+    // span is omitted to keep the field meaningful rather than
+    // redundant for restore consumers.
+    const { b, parent } = buildBlock({
+      cells: [{ kind: "free", expected: "がっこう", mode: "write" }],
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells[0].kind).toBe("free");
+    expect(snap.cells[0].chars).toHaveLength(4);
+    expect(snap.cells[0].span).toBeUndefined();
+    b.destroy();
+    parent.remove();
+  });
+
   it("write-mode free cell starts as not complete and reports a placeholder per expected character", async () => {
     const { b, parent } = buildBlock({
       cells: [{ kind: "free", expected: "あい", mode: "write" }],

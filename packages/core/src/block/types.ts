@@ -90,12 +90,23 @@ export interface BlockCellResult {
   chars: CharResult[];
   /**
    * Display-slot span this cell occupied in the original block
-   * layout, in `cellSize` units. Populated when the spec explicitly
-   * set `span` (free / blank cells with a width wider than the
-   * matched candidate / default 1); omitted when the spec relied on
-   * the default span. `block.restore` / `page.restore` honour this
-   * to preserve the original layout; the live `Block` runtime
-   * ignores it (it reads the span straight from the spec).
+   * layout, in `cellSize` units. Populated whenever the layout span
+   * differs from what `block.restore` / `page.restore` would
+   * otherwise derive from `chars` alone:
+   *
+   * - **blank cells** with an explicit `span > 1` (default is 1).
+   * - **free cells** whose layout span exceeds the matched
+   *   candidate's `chars.length`. The layout span is either the
+   *   spec's explicit `span` or, when omitted, the length of the
+   *   longest expected candidate (e.g. `expected: ["がっこう",
+   *   "学校"]` reserves 4 slots even when the user matches the
+   *   2-character "学校").
+   *
+   * Omitted whenever `chars.length` already matches the layout, so
+   * the field stays meaningful rather than redundant.
+   * `block.restore` / `page.restore` honour it to preserve the
+   * original layout; the live `Block` runtime ignores the field
+   * (it reads the span straight from the spec).
    */
   span?: number;
 }

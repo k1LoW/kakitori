@@ -1203,11 +1203,23 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     if (state.cell.kind === "free") {
       const chars = state.syntheticChars ?? state.freeHandle?.results() ?? [];
       const out: BlockCellResult = { kind: "free", chars };
-      // Carry the spec's explicit span through so block.restore /
-      // page.restore can reproduce the original cell width even when
-      // it differs from the matched candidate length.
-      if (state.cell.span != null) {
-        out.span = state.cell.span;
+      // Compute the effective layout span the same way `layoutPage` /
+      // `freeCell` did: explicit `cell.span` wins; otherwise the
+      // longest expected-candidate length. Record it on the result
+      // only when it exceeds `chars.length`, since `block.restore`
+      // already derives that as the default. Without this, a free
+      // cell with `expected: ["がっこう", "学校"]` matched to "学校"
+      // would lose the extra two slots the live block reserved.
+      const candidates = Array.isArray(state.cell.expected)
+        ? state.cell.expected
+        : [state.cell.expected];
+      const longestCandidate = candidates.reduce(
+        (m, c) => Math.max(m, Array.from(c).length),
+        0,
+      );
+      const effectiveSpan = state.cell.span ?? longestCandidate;
+      if (effectiveSpan > chars.length) {
+        out.span = effectiveSpan;
       }
       return out;
     }
