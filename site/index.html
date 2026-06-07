@@ -1353,12 +1353,12 @@ char.restore(target, result, { size: 160 });</pre>
       <div class="sizing-example">
         <h3>page.restore — 3 blocks on a page, restore at a smaller layout</h3>
         <p>
-          The source page on the left has 3 blocks (山川 / 大小 / 天地人) laid out in vertical-rl across 3 columns. The 2 + 2 + 3 cell counts overflow each column, so block 2 lands in column 1 and block 3 in column 2. Trace every block, and the right shows the <code>PageResult</code> restored at a smaller <code>cellSize</code> via <code>page.restore</code>.
+          The source page on the left has 3 blocks (山川 / 大小 / 天地人) laid out in vertical-rl across 3 columns. The 2 + 2 + 3 cell counts overflow each column, so block 2 lands in column 1 and block 3 in column 2. Block 1 also carries a furigana annotation (やまかわ). Trace all 11 strokes (山 / 川 / や / ま / か / わ / 大 / 小 / 天 / 地 / 人) and the right shows the <code>PageResult</code> restored at a smaller <code>cellSize</code> via <code>page.restore</code>.
         </p>
         <div class="sizing-inspector-row">
           <div class="sizing-cell">
             <div id="restore-page-source" class="sizing-writer"></div>
-            <div class="sizing-caption">source page (cellSize = 80)</div>
+            <div class="sizing-caption">source page (cellSize = 120)</div>
             <div class="sizing-control">
               <button id="restore-page-reset-btn" type="button">Restart</button>
             </div>
@@ -1367,14 +1367,14 @@ char.restore(target, result, { size: 160 });</pre>
             <h4>restored preview</h4>
             <div class="sizing-cell">
               <div id="restore-page-preview" class="sizing-writer"></div>
-              <div class="sizing-caption">cellSize = 40</div>
+              <div class="sizing-caption">cellSize = 100</div>
             </div>
           </div>
         </div>
         <pre data-lang="ts">page.restore(target, pageResult, {
   columns: 3,
   cellsPerColumn: 3,
-  cellSize: 40,
+  cellSize: 100,
 });</pre>
       </div>
     </section>

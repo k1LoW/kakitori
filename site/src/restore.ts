@@ -238,8 +238,8 @@ function setupBlockRestoreDemo(root: HTMLElement): void {
   });
 }
 
-const PAGE_DEMO_CELL_SIZE = 80;
-const PAGE_DEMO_PREVIEW_CELL_SIZE = 40;
+const PAGE_DEMO_CELL_SIZE = 120;
+const PAGE_DEMO_PREVIEW_CELL_SIZE = 100;
 const PAGE_DEMO_BLOCKS: ReadonlyArray<{
   id: string;
   chars: ReadonlyArray<string>;
