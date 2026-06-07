@@ -284,6 +284,44 @@ describe("char.restore", () => {
     expect(host.querySelectorAll(":scope > svg.kakitori-restore-svg")).toHaveLength(1);
   });
 
+  it("discards stale async loader callbacks when a follow-up call supersedes them", () => {
+    // Stash each loader's resolver so the test can finish the loads
+    // out of order on purpose: the second call's data lands first,
+    // then the first call's data lands second. Without a generation
+    // guard the older callback would re-clear the target and append
+    // its stale SVG, overwriting the newer render.
+    const pending: Array<{ char: string; resolve: (d: typeof mockCharData) => void }> = [];
+    const slowLoader: CharDataLoaderFn = (ch, onLoad) => {
+      pending.push({ char: ch, resolve: onLoad });
+    };
+    const firstResult: CharResult = {
+      character: "一",
+      complete: true,
+      matched: true,
+      perStroke: [],
+      mode: "show",
+    };
+    const secondResult: CharResult = {
+      character: "二",
+      complete: true,
+      matched: true,
+      perStroke: [],
+      mode: "show",
+    };
+
+    char.restore(host, firstResult, { size: 200, charDataLoader: slowLoader });
+    char.restore(host, secondResult, { size: 200, charDataLoader: slowLoader });
+
+    // Resolve newer first.
+    pending[1].resolve(mockCharData);
+    // Then resolve the stale older call.
+    pending[0].resolve(mockCharData);
+
+    // Exactly one SVG remains in the target (no double-render), and
+    // there's no stale ghost SVG from the older callback.
+    expect(host.querySelectorAll(":scope > svg.kakitori-restore-svg")).toHaveLength(1);
+  });
+
   it("throws when size is non-positive", () => {
     const result = charResult("学", []);
     expect(() => char.restore(host, result, { size: 0 })).toThrow(

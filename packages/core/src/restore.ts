@@ -162,6 +162,16 @@ function clearPriorRestoreSvg(target: HTMLElement): void {
 }
 
 /**
+ * Per-target generation counter. `charRestore` claims the next
+ * generation when invoked, captures it in the loader callback, and
+ * checks `targetGeneration.get(el) === captured` before painting. A
+ * fast follow-up call bumps the generation, so the older loader's
+ * callback no-ops instead of overwriting the newer render with stale
+ * SVG content.
+ */
+const targetGeneration = new WeakMap<HTMLElement, number>();
+
+/**
  * Render a saved {@link CharResult} into `target` as a static SVG.
  *
  * Pure renderer: does not create a {@link Char} instance, does not
@@ -208,9 +218,19 @@ export function charRestore(
   const needsCharData =
     (showCharacter || showOutline) && !!result.character;
 
+  // Claim a fresh generation for `el`. A subsequent `char.restore`
+  // call on the same target bumps the counter, so any in-flight
+  // loader callback from this call becomes stale and must no-op
+  // instead of overwriting the newer render with stale SVG.
+  const generation = (targetGeneration.get(el) ?? 0) + 1;
+  targetGeneration.set(el, generation);
+
   const paint = (
     charData: { strokes: string[]; medians: number[][][] } | null,
   ): void => {
+    if (targetGeneration.get(el) !== generation) {
+      return;
+    }
     const { svg, group } = buildCellChrome(size, padding, options.showGrid);
     // Outline first so the filled character (if any) paints on top of
     // it, matching hanzi-writer's layering when both are shown.
