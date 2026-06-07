@@ -535,6 +535,38 @@ describe("block.restore", () => {
     expect(svgs[0].querySelectorAll("polyline")).toHaveLength(0);
   });
 
+  it("throws when an explicit BlockCellResult.span is not a positive integer", () => {
+    const malformed: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [{ kind: "blank", chars: [], span: 0 }],
+      annotations: [],
+    };
+    expect(() => block.restore(host, malformed, { cellSize: 50 })).toThrow(
+      /span must be a positive integer/,
+    );
+
+    const fractional: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [{ kind: "blank", chars: [], span: 1.5 }],
+      annotations: [],
+    };
+    expect(() => block.restore(host, fractional, { cellSize: 50 })).toThrow(
+      /span must be a positive integer/,
+    );
+
+    const negative: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [{ kind: "free", chars: [charResult("一", [strokeWithPoints(true, [[0,0,0],[10,10,50]])])], span: -1 }],
+      annotations: [],
+    };
+    expect(() => block.restore(host, negative, { cellSize: 50 })).toThrow(
+      /span must be a positive integer/,
+    );
+  });
+
   it("throws on invalid cellSize or writingMode", () => {
     const empty: BlockResult = {
       complete: true,

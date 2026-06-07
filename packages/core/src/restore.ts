@@ -269,11 +269,19 @@ export function charRestore(
 }
 
 /** Slot width along the cell axis, in cellSize units. */
-function cellSpan(cell: BlockCellResult): number {
+function cellSpan(cell: BlockCellResult, cellIndex: number): number {
   // Honour any explicit `span` carried over from the spec; without it
   // free cells fall back to their content width and blank/guided cells
-  // default to one slot.
+  // default to one slot. Validate the explicit value the same way
+  // `layoutPage` does (positive integer): an out-of-range span would
+  // otherwise silently break sizing / positioning of every following
+  // cell.
   if (cell.span != null) {
+    if (!Number.isInteger(cell.span) || cell.span <= 0) {
+      throw new Error(
+        `block.restore(): cells[${cellIndex}].span must be a positive integer (got ${cell.span}).`,
+      );
+    }
     return cell.span;
   }
   if (cell.kind === "free") {
@@ -327,7 +335,7 @@ export function blockRestore(
   const cellBorderColor = options.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
 
   const cells = result.cells;
-  const spans = cells.map(cellSpan);
+  const spans = cells.map((c, i) => cellSpan(c, i));
   const cellsExtent = spans.reduce((acc, s) => acc + s * cellSize, 0);
 
   const wrapper = document.createElement("div");
@@ -369,6 +377,12 @@ export function blockRestore(
     cellWrapper.style.height = `${cellHeight}px`;
     if (useOuterBorder && cellBorderWidth > 0) {
       cellWrapper.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+      // Slots inside are absolutely positioned at `k * cellSize` and
+      // sized `cellSize`, but border-box shrinks the wrapper's content
+      // box by `2 * cellBorderWidth`, so the last slot would otherwise
+      // overhang the bordered box by that much. Clipping keeps the
+      // restored content inside the same rectangle the border outlines.
+      cellWrapper.style.overflow = "hidden";
     }
     wrapper.appendChild(cellWrapper);
 
@@ -395,6 +409,10 @@ export function blockRestore(
       slot.style.height = `${cellSize}px`;
       if (!useOuterBorder && cellBorderWidth > 0) {
         slot.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+        // Same border-box overhang concern as the outer wrapper above:
+        // the inner SVG keeps its full `cellSize` width, so clip it to
+        // the slot's bordered box.
+        slot.style.overflow = "hidden";
       }
       cellWrapper.appendChild(slot);
 
