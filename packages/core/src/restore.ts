@@ -546,12 +546,22 @@ export function blockRestore(
 
       const charForSlot = k < cell.chars.length ? cell.chars[k] : emptyChar;
       const slotIsEmpty = charForSlot === emptyChar;
+      // Free cells live in one continuous writing area in
+      // `block.create` and never draw a cross-grid. Restore renders
+      // each captured char into its own slot (one per `cell.chars`
+      // entry) for layout, but the grid should still match the live
+      // visual: default it off for free cells unless the caller
+      // explicitly opted in via `options.showGrid`.
+      const slotShowGrid =
+        cell.kind === "free" && options.showGrid === undefined
+          ? false
+          : resolvedShowGrid;
       charRestore(slot, charForSlot, {
         size: cellSize,
         padding,
         drawingWidth: options.drawingWidth,
         drawingColor: options.drawingColor,
-        showGrid: resolvedShowGrid,
+        showGrid: slotShowGrid,
         // Empty placeholder slots never have a real character to show
         // (synthetic empty CharResult), so suppress showCharacter /
         // showOutline regardless of the caller's preference to avoid
