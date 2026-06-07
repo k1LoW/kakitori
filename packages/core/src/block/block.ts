@@ -367,6 +367,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Anchor at the top of the surrounding line-box so the wrapper does
+  // not pick up the parent's font descender as trailing whitespace
+  // below the last cell row. Without this, an inline-block wrapper
+  // aligned to the baseline (default) inherits whatever line-height
+  // the host page set and visibly grows beyond `cellsExtent` on the
+  // cell axis.
+  wrapper.style.verticalAlign = "top";
   // Layout dimensions: along the cell axis we span `cellsExtent` and along
   // the perpendicular axis we span `cellSize + annotationThickness`.
   if (writingMode === "horizontal-tb") {

@@ -467,6 +467,10 @@ export function blockRestore(
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Match `block.create`'s wrapper: anchor at the line-box top so the
+  // host page's font descender doesn't add trailing whitespace under
+  // the last cell row.
+  wrapper.style.verticalAlign = "top";
   if (writingMode === "horizontal-tb") {
     wrapper.style.width = `${cellsExtent}px`;
     wrapper.style.height = `${cellSize + annotationThickness}px`;
@@ -913,6 +917,10 @@ export function pageRestore(
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Match `page.create` / `block.create` / `block.restore`: anchor at
+  // the line-box top so the host page's font descender doesn't add
+  // trailing whitespace below the last cell row.
+  wrapper.style.verticalAlign = "top";
   wrapper.style.width = `${pageWidth}px`;
   wrapper.style.height = `${pageHeight}px`;
 

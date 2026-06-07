@@ -220,6 +220,10 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   wrapper.style.position = "relative";
   wrapper.style.display = "inline-block";
   wrapper.style.lineHeight = "0";
+  // Anchor at the line-box top so the host page's font descender does
+  // not add trailing whitespace below the last cell row (matches
+  // `block.create`).
+  wrapper.style.verticalAlign = "top";
   wrapper.style.width = `${pageWidth}px`;
   wrapper.style.height = `${pageHeight}px`;
   parent.appendChild(wrapper);
