@@ -584,6 +584,72 @@ describe("char", () => {
       expect(onMistake.mock.calls.length).toBeGreaterThan(beforeRetry);
     });
 
+    it("retains ink on the final NG attempt when no retry follows (maxRetries: 0)", async () => {
+      // With `maxRetries: 0` and `retainStrokes: true`, an NG outcome
+      // is the final outcome — no auto-retry follows. The wipe
+      // happens at the "retry start" path (intermediate NG branches),
+      // which this run never enters, so the user's drawn ink stays
+      // visible. Callers that want the old "wipe on any NG" behaviour
+      // can call `reset()` / `undo()` from their `onComplete` handler.
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "per-char",
+        retainStrokes: true,
+        maxRetries: 0,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      // Horizontal strokes won't match mockCharData's diagonals → NG.
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(onComplete.mock.calls[0][0].matched).toBe(false);
+      // Ink remains on the canvas after the final NG commit.
+      const polylines = container.querySelectorAll(
+        "svg.kakitori-retained polyline",
+      );
+      expect(polylines.length).toBeGreaterThan(0);
+    });
+
+    it("wipes ink unconditionally on final NG when retainStrokes is off", async () => {
+      // `retainStrokes: false` is the master opt-out: nothing is ever
+      // retained, regardless of charMatched. Confirms the new
+      // simplified condition in the final commit path
+      // (`if (!retainStrokes) clearRetainedStrokes`).
+      const onComplete = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        correction: "per-char",
+        retainStrokes: false,
+        maxRetries: 0,
+        onComplete,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getWriterLayer(container);
+      drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+      drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onComplete).toHaveBeenCalledTimes(1);
+      expect(onComplete.mock.calls[0][0].matched).toBe(false);
+      const polylines = container.querySelectorAll(
+        "svg.kakitori-retained polyline",
+      );
+      expect(polylines.length).toBe(0);
+    });
+
   });
 
   describe("correction: deferred", () => {
