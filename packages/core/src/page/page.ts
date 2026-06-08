@@ -141,6 +141,28 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
       `page.create(): writingMode must be "vertical-rl" or "horizontal-tb" (got ${JSON.stringify(writingMode)}).`,
     );
   }
+  // Reject out-of-spec leniency values up front so the page surfaces a
+  // clear error before any block.create() runs. `block.create` runs
+  // the same guard on each per-segment forward, but catching it at
+  // the page entry point yields a `page.create():`-prefixed message
+  // and avoids the segment that happens to be built first claiming
+  // the failure.
+  if (
+    opts.leniency !== undefined &&
+    (!Number.isFinite(opts.leniency) || opts.leniency <= 0)
+  ) {
+    throw new Error(
+      `page.create(): leniency must be a finite positive number (got ${opts.leniency}).`,
+    );
+  }
+  if (
+    opts.freeCellLeniency !== undefined &&
+    (!Number.isFinite(opts.freeCellLeniency) || opts.freeCellLeniency <= 0)
+  ) {
+    throw new Error(
+      `page.create(): freeCellLeniency must be a finite positive number (got ${opts.freeCellLeniency}).`,
+    );
+  }
   validateAnnotations(opts.blocks, writingMode);
 
   // Resolve the page-wide `correction` once. `"per-page"` injects
