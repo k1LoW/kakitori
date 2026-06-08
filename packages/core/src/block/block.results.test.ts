@@ -114,6 +114,51 @@ describe("Block.results", () => {
     parent.remove();
   });
 
+  it("rejects non-finite or non-positive per-cell overrides.leniency at block.create", async () => {
+    // The per-cell `overrides.leniency` path forwards into `char.create`
+    // via `pickCreateOpts` and bypasses the block/page entry-point
+    // guards, so it needs its own cell-scoped validation. Without it a
+    // `leniency: 0` (or NaN / negative) on a single guided cell would
+    // silently force similarity to 0 downstream instead of surfacing as
+    // an actionable error — exactly the failure mode the block/page-wide
+    // validators were added to prevent.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    expect(() =>
+      block.create(parent, {
+        spec: {
+          cells: [
+            {
+              kind: "guided",
+              char: "学",
+              mode: "write",
+              overrides: { leniency: Number.NaN },
+            },
+          ],
+        },
+        cellSize: 80,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/cells\[0\]\.overrides\.leniency must be a finite positive number/);
+    expect(() =>
+      block.create(parent, {
+        spec: {
+          cells: [
+            {
+              kind: "guided",
+              char: "学",
+              mode: "write",
+              overrides: { leniency: 0 },
+            },
+          ],
+        },
+        cellSize: 80,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/cells\[0\]\.overrides\.leniency must be a finite positive number/);
+    parent.remove();
+  });
+
   it("lets a per-cell overrides.leniency mount with no block-wide value set", async () => {
     // Pins the precedence contract: per-cell `overrides.leniency`
     // is the existing path (via `pickCreateOpts` → `CREATE_KEYS`)

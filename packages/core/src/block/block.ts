@@ -1796,6 +1796,21 @@ function validateBlockSpec(
           `block.create(): cells[${i}].char must be a non-empty string (got ${JSON.stringify(cell.char)}).`,
         );
       }
+      // `overrides.leniency` is forwarded into `char.create()` via
+      // `pickCreateOpts` and bypasses the block/page entry-point guard,
+      // so it gets the same finite-positive check here. Without it a
+      // per-cell `leniency: 0` (or NaN / Infinity / negative) silently
+      // breaks the matcher downstream instead of surfacing a cell-scoped
+      // error, mismatching the block/page-wide validation contract.
+      const overrideLeniency = cell.overrides?.leniency;
+      if (
+        overrideLeniency !== undefined &&
+        (!Number.isFinite(overrideLeniency) || overrideLeniency <= 0)
+      ) {
+        throw new Error(
+          `block.create(): cells[${i}].overrides.leniency must be a finite positive number (got ${overrideLeniency}).`,
+        );
+      }
       return;
     }
     validateExpected(cell.expected, `cells[${i}].expected`);
