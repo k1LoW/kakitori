@@ -1476,7 +1476,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       // {@link onCharRejected} so the block / page coordinator can
       // reverse its "captured" bookkeeping (re-add to pending, reset
       // the triggered flag) and accept the user's next attempt as a
-      // fresh capture.
+      // fresh capture. The wipe happens here, just before re-arming
+      // for the next attempt: a final NG (no retry follows) skips
+      // this branch entirely and leaves the ink visible at commit.
       //
       // Counters and onComplete are held back exactly like the
       // per-char path; the cycle had been torn down at capture-fill
@@ -1548,18 +1550,19 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     // could possibly start.
     stopPerCharCycle(m);
     stopTimingTracking(m);
-    // The drawn polylines were painted unconditionally to give the user
-    // mid-stroke feedback. Now that check is done:
-    //
-    // - If `retainStrokes` is off, wipe every polyline so per-char
-    //   matches the per-stroke default UX (no leftover ink).
-    // - If any stroke was rejected, also wipe — mirroring per-stroke,
-    //   where hanzi-writer's quiz visually consumes mismatched strokes
-    //   so only correct ones ever accumulate. At per-char granularity
-    //   the natural mirror is "all-or-nothing per character": one bad
-    //   stroke means the user has to rewrite the whole char, so
-    //   leaving partial NG ink behind would be misleading.
-    if (!m.options.retainStrokes || !charMatched) {
+    // The drawn polylines were painted unconditionally to give the
+    // user mid-stroke feedback. Now that check is done, only the
+    // master `retainStrokes` switch decides whether to wipe: when
+    // off, wipe every polyline so per-char matches the per-stroke
+    // default UX (no leftover ink). NG outcomes are NOT auto-wiped
+    // here — wiping happens at the "retry start" path (the
+    // `!charMatched && !retriesExhausted` branches above), so a
+    // final NG (no retry follows, e.g. `maxRetries: 0` or all
+    // retries exhausted) leaves the user's last attempt visible.
+    // Callers that want the old "wipe on any NG" behaviour can call
+    // `reset()` / `undo()` from their `onComplete` handler, or set
+    // `retainStrokes: false` to opt out wholesale.
+    if (!m.options.retainStrokes) {
       clearRetainedStrokes(m);
     }
     // Per-char hid the character at startPerCharCycle so the user wrote
