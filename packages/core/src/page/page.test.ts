@@ -171,6 +171,30 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("accepts a page-wide leniency option and forwards it to each block", async () => {
+    // Smoke test for `PageCreateOptions.leniency` plumbing: a
+    // page-wide leniency must not break the mount path for any
+    // block, and the page should still emit `onPageComplete`
+    // normally for a show-mode block (no user input required).
+    // The actual matcher behaviour is covered by hanzi-writer's
+    // own tests.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const onPageComplete = vi.fn();
+    const handle = page.create(parent, {
+      columns: 1,
+      cellsPerColumn: 4,
+      cellSize: 80,
+      leniency: 1.5,
+      blocks: [{ spec: showSpec("学校", "がっこう") }],
+      onPageComplete,
+    });
+    await flushMicrotasks();
+    expect(onPageComplete).toHaveBeenCalledTimes(1);
+    handle.destroy();
+    parent.remove();
+  });
+
   it("re-emits show-mode results on reset()", async () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

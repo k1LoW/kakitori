@@ -169,6 +169,14 @@ export interface BlockCreateOptions {
    */
   freeCellLeniency?: number;
   /**
+   * Stroke-matcher leniency applied to every guided cell in the block.
+   * Forwarded into each cell's underlying `char.create({ leniency })`.
+   * Per-cell `overrides.leniency` (`BlockSpec.cells[i].overrides`) wins
+   * when both are set, so block-wide leniency is the base value and
+   * individual cells can opt up or down.
+   */
+  leniency?: number;
+  /**
    * Fired for every cell or annotation that finishes settling — `chars`
    * is the per-character snapshot for that unit (length matches the
    * corresponding `BlockCellResult.chars` / `BlockAnnotationResult.chars`).
@@ -559,6 +567,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const createOpts: CharCreateOptions = {
       ...(opts.loaders?.charDataLoader ? { charDataLoader: opts.loaders.charDataLoader } : {}),
       ...(opts.loaders?.configLoader !== undefined ? { configLoader: opts.loaders.configLoader } : {}),
+      // Block-wide leniency floor; per-cell `overrides.leniency` wins
+      // when set because `pickCreateOpts(overrides)` is spread after.
+      ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
       ...pickCreateOpts(overrides),
     };
     const c = char.create(cell.char, createOpts);

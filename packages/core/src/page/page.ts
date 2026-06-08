@@ -372,6 +372,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.cellBorderWidth !== undefined ? { cellBorderWidth: opts.cellBorderWidth } : {}),
         ...(opts.cellBorderColor ? { cellBorderColor: opts.cellBorderColor } : {}),
         ...(opts.freeCellLeniency !== undefined ? { freeCellLeniency: opts.freeCellLeniency } : {}),
+        ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
         ...(opts.retainStrokes !== undefined ? { retainStrokes: opts.retainStrokes } : {}),
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),

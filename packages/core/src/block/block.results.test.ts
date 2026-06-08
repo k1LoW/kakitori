@@ -62,6 +62,32 @@ function flushMicrotasks(): Promise<void> {
 }
 
 describe("Block.results", () => {
+  it("accepts a block-wide leniency option without breaking guided-cell setup", async () => {
+    // Smoke test for `BlockCreateOptions.leniency` plumbing: with a
+    // block-wide leniency set, every guided cell should still mount
+    // and surface its placeholder snapshot just like a vanilla block.
+    // (Behavioural effect on stroke matching is verified by
+    // hanzi-writer's own tests; here we just confirm the option flows
+    // through `mountGuidedCell` without crashing or shifting the
+    // shape of the snapshot.)
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: { cells: [{ kind: "guided", char: "学", mode: "write" }] },
+      cellSize: 80,
+      leniency: 1.5,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells).toHaveLength(1);
+    expect(snap.cells[0].kind).toBe("guided");
+    expect(snap.cells[0].chars).toHaveLength(1);
+    expect(snap.cells[0].chars[0].character).toBe("学");
+    b.destroy();
+    parent.remove();
+  });
+
   it("returns vacuous-complete snapshot for an all-show block", async () => {
     const { b, parent } = buildBlock({
       cells: [
