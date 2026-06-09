@@ -71,6 +71,13 @@ export interface PageCreateOptions {
   cellBorderColor?: string;
   freeCellLeniency?: number;
   /**
+   * Page-wide stroke-matcher leniency applied to every guided cell on
+   * the page. Forwarded as `BlockCreateOptions.leniency` to each
+   * block, which threads it down to each cell's underlying
+   * `char.create`. Per-cell `overrides.leniency` still wins.
+   */
+  leniency?: number;
+  /**
    * Page-wide default for {@link MountOptions.retainStrokes}: forwarded
    * to every block's `block.create()`. Per-block / per-cell overrides
    * still win.

@@ -5,6 +5,7 @@ import { setupChar } from "./char.js";
 import { setupBlock } from "./block.js";
 import { setupPage } from "./page.js";
 import { setupSizing } from "./sizing.js";
+import { setupLeniency } from "./leniency.js";
 import { setupRestoreDemo } from "./restore.js";
 
 async function highlightCodeBlocks() {
@@ -65,6 +66,11 @@ if (pageSection) {
 const sizingSection = document.getElementById("sizing-section");
 if (sizingSection) {
   setupSizing(sizingSection);
+}
+
+const leniencySection = document.getElementById("leniency-section");
+if (leniencySection) {
+  setupLeniency(leniencySection);
 }
 
 const restoreSection = document.getElementById("restore-section");

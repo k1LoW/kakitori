@@ -62,6 +62,136 @@ function flushMicrotasks(): Promise<void> {
 }
 
 describe("Block.results", () => {
+  it("accepts a block-wide leniency option and mounts each guided cell normally", async () => {
+    // `BlockCreateOptions.leniency` plumbing: with a block-wide
+    // leniency set, every guided cell should still mount and surface
+    // its placeholder snapshot just like a vanilla block. The
+    // actual matcher-behaviour shift is hanzi-writer's territory;
+    // here we confirm the option flows through `mountGuidedCell`
+    // without crashing or shifting the snapshot shape.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: { cells: [{ kind: "guided", char: "学", mode: "write" }] },
+      cellSize: 80,
+      leniency: 1.5,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells).toHaveLength(1);
+    expect(snap.cells[0].kind).toBe("guided");
+    expect(snap.cells[0].chars).toHaveLength(1);
+    expect(snap.cells[0].chars[0].character).toBe("学");
+    b.destroy();
+    parent.remove();
+  });
+
+  it("rejects non-finite or non-positive block-wide leniency at block.create", async () => {
+    // The validation guard at the block.create entry point proves
+    // `opts.leniency` is actually read by block.create — a regression
+    // that dropped the option silently would not throw here. Mirrors
+    // the codebase's other entry-point validators (cellSize,
+    // sizeRatio, annotationStripThickness).
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    expect(() =>
+      block.create(parent, {
+        spec: { cells: [{ kind: "guided", char: "学", mode: "write" }] },
+        cellSize: 80,
+        leniency: Number.NaN,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/leniency must be a finite positive number/);
+    expect(() =>
+      block.create(parent, {
+        spec: { cells: [{ kind: "guided", char: "学", mode: "write" }] },
+        cellSize: 80,
+        leniency: 0,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/leniency must be a finite positive number/);
+    parent.remove();
+  });
+
+  it("rejects non-finite or non-positive per-cell overrides.leniency at block.create", async () => {
+    // The per-cell `overrides.leniency` path forwards into `char.create`
+    // via `pickCreateOpts` and bypasses the block/page entry-point
+    // guards, so it needs its own cell-scoped validation. Without it a
+    // `leniency: 0` (or NaN / negative) on a single guided cell would
+    // silently force similarity to 0 downstream instead of surfacing as
+    // an actionable error — exactly the failure mode the block/page-wide
+    // validators were added to prevent.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    expect(() =>
+      block.create(parent, {
+        spec: {
+          cells: [
+            {
+              kind: "guided",
+              char: "学",
+              mode: "write",
+              overrides: { leniency: Number.NaN },
+            },
+          ],
+        },
+        cellSize: 80,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/cells\[0\]\.overrides\.leniency must be a finite positive number/);
+    expect(() =>
+      block.create(parent, {
+        spec: {
+          cells: [
+            {
+              kind: "guided",
+              char: "学",
+              mode: "write",
+              overrides: { leniency: 0 },
+            },
+          ],
+        },
+        cellSize: 80,
+        loaders: { charDataLoader: stubLoader, configLoader: null },
+      }),
+    ).toThrow(/cells\[0\]\.overrides\.leniency must be a finite positive number/);
+    parent.remove();
+  });
+
+  it("lets a per-cell overrides.leniency mount with no block-wide value set", async () => {
+    // Pins the precedence contract: per-cell `overrides.leniency`
+    // is the existing path (via `pickCreateOpts` → `CREATE_KEYS`)
+    // and must continue to work whether or not the block-wide
+    // shortcut is supplied. The two channels share `char.create`'s
+    // `leniency` slot, so a misordered spread would either drop the
+    // per-cell value or swap precedence; this asserts the mount
+    // path stays clean in the "only per-cell set" case.
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const b = block.create(parent, {
+      spec: {
+        cells: [
+          {
+            kind: "guided",
+            char: "学",
+            mode: "write",
+            overrides: { leniency: 0.5 },
+          },
+        ],
+      },
+      cellSize: 80,
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+    });
+    await flushMicrotasks();
+    const snap = b.result();
+    expect(snap.cells).toHaveLength(1);
+    expect(snap.cells[0].kind).toBe("guided");
+    expect(snap.cells[0].chars[0].character).toBe("学");
+    b.destroy();
+    parent.remove();
+  });
+
   it("returns vacuous-complete snapshot for an all-show block", async () => {
     const { b, parent } = buildBlock({
       cells: [

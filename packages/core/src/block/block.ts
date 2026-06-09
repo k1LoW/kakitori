@@ -169,6 +169,14 @@ export interface BlockCreateOptions {
    */
   freeCellLeniency?: number;
   /**
+   * Stroke-matcher leniency applied to every guided cell in the block.
+   * Forwarded into each cell's underlying `char.create({ leniency })`.
+   * Per-cell `overrides.leniency` (`BlockSpec.cells[i].overrides`) wins
+   * when both are set, so block-wide leniency is the base value and
+   * individual cells can opt up or down.
+   */
+  leniency?: number;
+  /**
    * Fired for every cell or annotation that finishes settling — `chars`
    * is the per-character snapshot for that unit (length matches the
    * corresponding `BlockCellResult.chars` / `BlockAnnotationResult.chars`).
@@ -318,6 +326,29 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   if (writingMode !== "vertical-rl" && writingMode !== "horizontal-tb") {
     throw new Error(
       `block.create(): writingMode must be "vertical-rl" or "horizontal-tb" (got ${JSON.stringify(writingMode)}).`,
+    );
+  }
+  // Reject out-of-spec leniency values up front, matching the
+  // codebase's other entry-point validators (`cellSize`,
+  // `annotationStripThickness`, `sizeRatio`). A zero / negative /
+  // non-finite multiplier would silently break the matcher
+  // downstream (no stroke ever matches, or every stroke matches)
+  // instead of surfacing as an actionable error. `freeCellLeniency`
+  // gets the same guard for symmetry.
+  if (
+    opts.leniency !== undefined &&
+    (!Number.isFinite(opts.leniency) || opts.leniency <= 0)
+  ) {
+    throw new Error(
+      `block.create(): leniency must be a finite positive number (got ${opts.leniency}).`,
+    );
+  }
+  if (
+    opts.freeCellLeniency !== undefined &&
+    (!Number.isFinite(opts.freeCellLeniency) || opts.freeCellLeniency <= 0)
+  ) {
+    throw new Error(
+      `block.create(): freeCellLeniency must be a finite positive number (got ${opts.freeCellLeniency}).`,
     );
   }
   const annotations = opts.spec.annotations ?? [];
@@ -559,6 +590,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     const createOpts: CharCreateOptions = {
       ...(opts.loaders?.charDataLoader ? { charDataLoader: opts.loaders.charDataLoader } : {}),
       ...(opts.loaders?.configLoader !== undefined ? { configLoader: opts.loaders.configLoader } : {}),
+      // Block-wide default leniency. Per-cell `overrides.leniency`
+      // unconditionally replaces it when set (either direction —
+      // higher to be more permissive or lower to be stricter)
+      // because `pickCreateOpts(overrides)` is spread after.
+      ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
       ...pickCreateOpts(overrides),
     };
     const c = char.create(cell.char, createOpts);
@@ -1758,6 +1794,21 @@ function validateBlockSpec(
       if (typeof cell.char !== "string" || cell.char.length === 0) {
         throw new Error(
           `block.create(): cells[${i}].char must be a non-empty string (got ${JSON.stringify(cell.char)}).`,
+        );
+      }
+      // `overrides.leniency` is forwarded into `char.create()` via
+      // `pickCreateOpts` and bypasses the block/page entry-point guard,
+      // so it gets the same finite-positive check here. Without it a
+      // per-cell `leniency: 0` (or NaN / Infinity / negative) silently
+      // breaks the matcher downstream instead of surfacing a cell-scoped
+      // error, mismatching the block/page-wide validation contract.
+      const overrideLeniency = cell.overrides?.leniency;
+      if (
+        overrideLeniency !== undefined &&
+        (!Number.isFinite(overrideLeniency) || overrideLeniency <= 0)
+      ) {
+        throw new Error(
+          `block.create(): cells[${i}].overrides.leniency must be a finite positive number (got ${overrideLeniency}).`,
         );
       }
       return;
