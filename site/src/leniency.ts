@@ -126,12 +126,26 @@ export function setupLeniency(root: HTMLElement): void {
     // Char data is fetched separately and may still be pending — poll
     // getLogicalStrokeCount the same way char.ts does for its examples
     // so the chips don't paint 0 against a not-yet-parsed character.
+    //
+    // Staleness guard: a fast Restart click or slider release while the
+    // initial fetch is still in flight can stack a second rebuild() that
+    // destroys this `c` before its `ready()` resolves. Compare against
+    // the outer `instance` ref on every entry so the resolved callback
+    // (and each polling tick) bails out instead of poking a destroyed
+    // Char — getLogicalStrokeCount() / start() would otherwise run on
+    // an unmounted instance.
     const readyPromise = c.ready();
     readyPromise.catch((err: unknown) => {
       console.error("[leniency] ready() failed:", err);
     });
     void readyPromise.then(() => {
+      if (instance !== c) {
+        return;
+      }
       const tryRender = (remaining: number) => {
+        if (instance !== c) {
+          return;
+        }
         const count = c.getLogicalStrokeCount();
         if (count > 0) {
           renderChips(count);
