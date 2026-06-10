@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>hanzi-writer leniency 判定ロジック詳細</title>
+<style>
+  :root {
+    --bg: #faf7ed;
+    --fg: #222;
+    --muted: #666;
+    --border: #ddd;
+    --accent: #0366d6;
+    --ok: #2a8b3c;
+    --ng: #c4321a;
+    --warn: #b07a00;
+    --soft: #fff;
+    --soft-2: #f5f1e6;
+    --code-bg: #24292e;
+    --code-fg: #e1e4e8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans CJK JP", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    line-height: 1.7;
+    padding: 2.5rem 1.5rem 5rem;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 2.2rem; line-height: 1.25; margin: 0 0 0.5rem; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 1.6rem;
+    margin: 3rem 0 0.75rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 2px solid var(--border);
+    line-height: 1.3;
+  }
+  h3 { font-size: 1.2rem; margin: 1.75rem 0 0.5rem; color: #333; }
+  h4 { font-size: 1rem; margin: 1.25rem 0 0.4rem; }
+  p { margin: 0.5rem 0 0.9rem; }
+  .lede { color: var(--muted); font-size: 1.05rem; margin-bottom: 1.5rem; }
+  a { color: var(--accent); }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    background: #efe9d8;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 0.9em;
+  }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 0.9rem 1.1rem;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    margin: 0.75rem 0 1rem;
+  }
+  pre code { background: transparent; padding: 0; color: inherit; font-size: inherit; }
+
+  table {
+    border-collapse: collapse;
+    margin: 0.5rem 0 1.5rem;
+    width: 100%;
+    font-size: 0.93rem;
+    background: var(--soft);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.55rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th { background: var(--soft-2); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .num { font-family: ui-monospace, monospace; text-align: right; }
+  .check-pass { color: var(--ok); font-weight: 600; }
+  .check-fail { color: var(--ng); font-weight: 600; }
+
+  .check {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 1.25rem;
+    align-items: start;
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+    margin: 1rem 0 1.75rem;
+  }
+  .check .figure {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.5rem;
+    text-align: center;
+  }
+  .check .figure svg { width: 100%; height: auto; display: block; }
+  .check .figure figcaption { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; }
+  .check .formula {
+    font-family: ui-monospace, monospace;
+    font-size: 0.92rem;
+    background: #fff;
+    border-left: 3px solid var(--accent);
+    padding: 0.6rem 0.8rem;
+    margin: 0.5rem 0;
+    border-radius: 0 4px 4px 0;
+  }
+  .check .role { font-size: 0.88rem; color: var(--muted); }
+  .check .role b { color: var(--fg); }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-family: ui-monospace, monospace;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: #e8eef7;
+    color: #1c4978;
+    border: 1px solid #cfd9e8;
+    vertical-align: middle;
+  }
+  .badge.affected { background: #fff3d6; color: #9a6d00; border-color: #efd58a; }
+  .badge.unaffected { background: #e3eee0; color: #2a6135; border-color: #c2d8c4; }
+
+  .callout {
+    background: #fff7e0;
+    border-left: 4px solid var(--warn);
+    padding: 0.7rem 1rem;
+    margin: 1rem 0;
+    border-radius: 0 4px 4px 0;
+    font-size: 0.92rem;
+  }
+  .callout strong { color: var(--warn); }
+
+  .mermaid {
+    background: var(--soft);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin: 0.75rem 0 1.5rem;
+    text-align: center;
+  }
+
+  @media (max-width: 760px) {
+    .check { grid-template-columns: 1fr; }
+    .check .figure { max-width: 320px; margin: 0 auto; }
+  }
+
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--border);
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+  hr { border: none; border-top: 1px solid var(--border); margin: 2rem 0; }
+</style>
+</head>
+<body>
+
+<h1>hanzi-writer の leniency 判定ロジック</h1>
+<p class="lede">
+  対象バージョン hanzi-writer 3.7.3。<code>options.leniency</code> がストロークマッチャーの内部 5 チェックにどう作用するかをソース (<code>dist/index.esm.js</code>) ベースに整理した文書。kakitori (<code>@k1low/kakitori</code>) はこの値をそのまま forward しているだけなので、挙動の理解はそのまま kakitori の <code>char.create({ leniency })</code> / <code>block.create({ leniency })</code> / <code>page.create({ leniency })</code> にも当てはまる。
+</p>
+
+<h2>TL;DR</h2>
+<table>
+  <thead>
+    <tr><th>項目</th><th>内容</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>役割</td><td>5 個ある判定閾値のうち <b>4 個</b>を倍率でスケールする「マッチャーの寛容度」。デフォルト <code>1.0</code>。</td></tr>
+    <tr><td>大きいほど</td><td>各閾値が緩む / 受理しやすい (ただし方向チェックには無影響)。</td></tr>
+    <tr><td>小さいほど</td><td>厳しい。<code>0</code> 以下や非有限値はマッチャーを silent に壊すので kakitori 側で reject。</td></tr>
+    <tr><td>適用箇所</td><td>平均距離・始終点距離・形状 (Fréchet)・長さ比 の 4 チェック。方向 (cosine) のみ非依存。</td></tr>
+    <tr><td>追加効果</td><td>後続ストロークの方が一致度が高いとき、自動で leniency を <code>× 0.3〜0.6</code> 引き締めて再チェック。</td></tr>
+  </tbody>
+</table>
+
+<h2>座標系 (1024 内部座標で判定、表示 size 非依存)</h2>
+<p>
+  マッチャーは描画 size に依存しない。<b>すべての距離 / 形状チェックは hanzi-writer の内部 1024 座標系</b>で行われる。
+  median は元データ (animCJK / hanzi-writer-data-jp) が最初から 1024 系で持っており、ユーザーが描いた点は描画直後に <code>Positioner.convertExternalPoint</code> で 1024 系に逆射影されてから matcher に渡る。
+</p>
+<div class="check">
+  <div>
+    <p>
+      <code>CHARACTER_BOUNDS = [{x:0, y:-124}, {x:1024, y:900}]</code> で character region は <b>1024 &times; 1024</b> (y は -124 .. 900 と非対称、ベースライン y=0 を含む)。
+      <code>Positioner</code> はこれを表示矩形にフィットさせる scale を計算する。
+    </p>
+    <div class="formula">
+      scale = min(displayWidth / 1024, displayHeight / 1024)<br>
+      <br>
+      convertExternalPoint(p):<br>
+      &nbsp;&nbsp;x = (p.x - xOffset) / scale<br>
+      &nbsp;&nbsp;y = (height - yOffset - p.y) / scale  &nbsp; // Y up に反転
+    </div>
+    <p class="role">
+      <b>display 80px で描いた点も display 280px で描いた点も、同じ (512, 512) 付近に投影される。</b>
+      その後の <code>getAverageDistance</code> 等が見るのはすべて 1024 系の値なので、閾値 (350, 250, 0.4, 0.35) はキャラクタ全体に対する <b>相対値</b>として常に同じ意味になる。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 320 220" aria-label="display→internal 投影概念図">
+      <!-- small display cell -->
+      <rect x="20" y="40" width="80" height="80" fill="#fff" stroke="#999"/>
+      <text x="20" y="32" font-size="10" fill="#666">size = 80</text>
+      <circle cx="60" cy="80" r="3" fill="#0366d6"/>
+      <!-- big display cell -->
+      <rect x="130" y="20" width="120" height="120" fill="#fff" stroke="#999"/>
+      <text x="130" y="14" font-size="10" fill="#666">size = 280</text>
+      <circle cx="190" cy="80" r="3" fill="#0366d6"/>
+      <!-- internal -->
+      <rect x="260" y="50" width="50" height="50" fill="#fff7e0" stroke="#b07a00"/>
+      <text x="258" y="42" font-size="10" fill="#b07a00">internal 1024</text>
+      <circle cx="285" cy="75" r="3" fill="#c4321a"/>
+      <text x="287" y="73" font-size="9" fill="#c4321a">(512, 512)</text>
+      <!-- arrows -->
+      <line x1="100" y1="80" x2="258" y2="73" stroke="#888" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr-c)"/>
+      <line x1="250" y1="80" x2="258" y2="76" stroke="#888" stroke-width="1" stroke-dasharray="3,2" marker-end="url(#arr-c)"/>
+      <text x="160" y="170" font-size="10" fill="#444" text-anchor="middle">どちらの size から書いても</text>
+      <text x="160" y="185" font-size="10" fill="#444" text-anchor="middle">同じ 1024 系座標に投影されて matcher に渡る</text>
+      <defs>
+        <marker id="arr-c" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+      </defs>
+    </svg>
+    <figcaption>表示 size が違っても matcher が見るのは同じ 1024 系の点。</figcaption>
+  </figure>
+</div>
+<table>
+  <thead><tr><th>閾値</th><th>値</th><th>単位</th><th>size 依存</th></tr></thead>
+  <tbody>
+    <tr><td><code>averageDistanceThreshold</code></td><td class="num">350</td><td>1024 系の絶対距離 (= 1024 の約 34%)</td><td>なし</td></tr>
+    <tr><td><code>START_AND_END_DIST_THRESHOLD</code></td><td class="num">250</td><td>1024 系の絶対距離 (= 1024 の約 24%)</td><td>なし</td></tr>
+    <tr><td><code>FRECHET_THRESHOLD</code></td><td class="num">0.4</td><td><code>normalizeCurve</code> で [0,1] に正規化された後の値</td><td>なし (normalize で除去)</td></tr>
+    <tr><td><code>MIN_LEN_THRESHOLD</code></td><td class="num">0.35</td><td>比率 (user length / median length)</td><td>なし (比率)</td></tr>
+    <tr><td><code>COSINE_SIMILARITY_THRESHOLD</code></td><td class="num">0</td><td>ベクトル方向 (ノルム不変)</td><td>なし</td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>関連。</strong> <code>CharResult.perStroke[].points</code> も同じ 1024 系で返るので、保存した結果を <code>char.restore</code> でどの size に展開しても、当時の描画を比例だけで再現できる。site の sizing 章で説明している不変条件と同じ。
+</div>
+
+<h2>マッチャーの全体フロー</h2>
+<p>
+  ユーザーが 1 ストローク引き終わると <code>strokeMatches(userStroke, character, strokeNum, options)</code> が呼ばれる。内部の <code>getMatchData()</code> が下の AND ゲートを評価して、現ストロークについて <code>isMatch</code> を決める。
+</p>
+<div class="mermaid">
+flowchart TD
+  Start([User stroke 終了]) --> StripDup[stripDuplicates<br/>連続重複点を除去]
+  StripDup --> LenCheck{points.length<br/>&ge; 2 ?}
+  LenCheck -- No --> Reject1([isMatch = false])
+  LenCheck -- Yes --> Match[getMatchData<br/>現ストロークに対し AND 5 チェック]
+  Match --> Backward{isMatch?<br/>かつ checkBackwards}
+  Backward -- isMatch=true --> Conflict[後続ストローク群を走査]
+  Backward -- isMatch=false かつ checkBackwards --> Rev[points を逆順で再判定]
+  Rev --> RevRes{逆順 isMatch?}
+  RevRes -- Yes --> RejectBack([isMatch=false<br/>meta.isStrokeBackwards=true])
+  RevRes -- No --> Reject2([isMatch = false])
+  Conflict --> ConflictCheck{closer match<br/>found?}
+  ConflictCheck -- No --> Accept([isMatch = true])
+  ConflictCheck -- Yes --> Tight[leniency &times; 0.3〜0.6<br/>で再チェック]
+  Tight --> AcceptOrReject([isMatch を最終決定])
+</div>
+
+<h2>5 つの AND チェック</h2>
+<p>
+  以下のすべてが <code>true</code> のときだけ <code>isMatch = true</code>。各チェックに対する leniency の効き方を <span class="badge affected">leniency 影響あり</span> / <span class="badge unaffected">非依存</span> で示す。
+</p>
+
+<!-- ============ Check 1: Average distance ============ -->
+<h3>1. 平均距離 (average distance) <span class="badge affected">leniency 影響あり</span></h3>
+<div class="check">
+  <div>
+    <p>
+      ユーザーが描いた点の集合の<b>各点</b>について、対象ストローク median の最近傍点までの距離を取り、その平均を <code>avgDist</code> とする。これがしきい値以下なら通過。
+    </p>
+    <div class="formula">
+      avgDist ≤ averageDistanceThreshold × distMod × leniency<br>
+      averageDistanceThreshold = 350 (デフォルト)<br>
+      distMod = (isOutlineVisible || strokeNum &gt; 0) ? 0.5 : 1
+    </div>
+    <p class="role">
+      <b>distMod</b> は「2 ストローク目以降」または「outline 表示中」のときに 0.5 (= より厳しい) になる。最初の 1 ストロークだけ、outline 無しなら緩いという非対称な設計。<br>
+      <b>leniency</b> は最終的な許容距離を線形に伸縮させる。<code>leniency = 2.0</code> なら 2 倍まで距離があっても通る。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 300 200" aria-label="平均距離の概念図">
+      <!-- reference stroke (curved) -->
+      <path d="M 30 160 Q 110 30 270 100" fill="none" stroke="#888" stroke-width="3" stroke-dasharray="6,4"/>
+      <text x="280" y="115" font-size="10" fill="#666">median</text>
+      <!-- user stroke (slightly offset) -->
+      <path d="M 40 170 Q 130 60 260 120" fill="none" stroke="#0366d6" stroke-width="3"/>
+      <text x="265" y="135" font-size="10" fill="#0366d6">user</text>
+      <!-- distance dashes -->
+      <line x1="60" y1="140" x2="68" y2="124" stroke="#c4321a" stroke-width="1" stroke-dasharray="2,2"/>
+      <line x1="120" y1="80" x2="128" y2="64" stroke="#c4321a" stroke-width="1" stroke-dasharray="2,2"/>
+      <line x1="180" y1="65" x2="190" y2="82" stroke="#c4321a" stroke-width="1" stroke-dasharray="2,2"/>
+      <line x1="220" y1="80" x2="230" y2="98" stroke="#c4321a" stroke-width="1" stroke-dasharray="2,2"/>
+      <text x="150" y="195" text-anchor="middle" font-size="11" fill="#444">各 user 点 → 最近傍 median 点 の距離の平均</text>
+    </svg>
+    <figcaption>赤の点線が距離サンプル。平均が threshold 以下なら通過。</figcaption>
+  </figure>
+</div>
+
+<!-- ============ Check 2: Start/end ============ -->
+<h3>2. 始点 / 終点の距離 (start &amp; end distance) <span class="badge affected">leniency 影響あり</span></h3>
+<div class="check">
+  <div>
+    <p>
+      ユーザーストロークの<b>始点と終点</b>が、それぞれ対象 median の始点・終点に十分近いか。書き順だけでなく書き始めの位置も合わせさせるためのチェック。
+    </p>
+    <div class="formula">
+      startingDist ≤ START_AND_END_DIST_THRESHOLD × leniency &amp;&amp;<br>
+      endingDist   ≤ START_AND_END_DIST_THRESHOLD × leniency<br>
+      START_AND_END_DIST_THRESHOLD = 250
+    </div>
+    <p class="role">
+      <b>leniency</b> がそのまま許容距離倍率。<code>0.5</code> なら 125、<code>2.0</code> なら 500 まで OK。<br>
+      平均距離は通っても始終点がズレていれば落ちる ("中央で形は合うが書き始めが違う" を弾く)。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 300 200" aria-label="始点終点の概念図">
+      <!-- reference stroke -->
+      <path d="M 30 160 Q 110 30 270 100" fill="none" stroke="#888" stroke-width="3" stroke-dasharray="6,4"/>
+      <circle cx="30" cy="160" r="6" fill="#888"/>
+      <circle cx="270" cy="100" r="6" fill="#888"/>
+      <text x="20" y="180" font-size="10" fill="#666">median 始</text>
+      <text x="245" y="92" font-size="10" fill="#666">median 終</text>
+      <!-- user stroke -->
+      <path d="M 60 170 Q 130 60 250 130" fill="none" stroke="#0366d6" stroke-width="3"/>
+      <circle cx="60" cy="170" r="6" fill="#0366d6"/>
+      <circle cx="250" cy="130" r="6" fill="#0366d6"/>
+      <!-- distance arrows -->
+      <line x1="30" y1="160" x2="60" y2="170" stroke="#c4321a" stroke-width="1.5"/>
+      <line x1="270" y1="100" x2="250" y2="130" stroke="#c4321a" stroke-width="1.5"/>
+      <text x="50" y="155" font-size="10" fill="#c4321a">startingDist</text>
+      <text x="220" y="118" font-size="10" fill="#c4321a">endingDist</text>
+    </svg>
+    <figcaption>始端 / 終端の 2 距離をそれぞれ独立に判定。</figcaption>
+  </figure>
+</div>
+
+<!-- ============ Check 3: Direction ============ -->
+<h3>3. 方向 (direction / cosine similarity) <span class="badge unaffected">leniency 非依存</span></h3>
+<div class="check">
+  <div>
+    <p>
+      ユーザーが描いた各エッジベクトル (連続する点の差分) について、median 側の全エッジベクトルとの cosine similarity の最大値を取り、それらの平均が <code>0</code> を超えるか。
+    </p>
+    <div class="formula">
+      avgSimilarity = average(<br>
+      &nbsp;&nbsp;userEdges.map(e =&gt; max(strokeEdges.map(s =&gt; cos(s, e))))<br>
+      )<br>
+      pass &iff; avgSimilarity &gt; 0
+    </div>
+    <p class="role">
+      <b>leniency 非依存</b>。閾値が <code>0</code> の固定値で、cosine が負 (= 90°超ズレ) でない限り通る非常に緩い判定。<br>
+      ただし「右下に向かう median を、ユーザーが左上に書いた」のような <b>逆向き</b>はここで検出される (次節の backward 再チェックに繋がる)。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 300 200" aria-label="方向ベクトル概念図">
+      <!-- baseline -->
+      <line x1="40" y1="160" x2="260" y2="60" stroke="#888" stroke-width="2" stroke-dasharray="6,4"/>
+      <text x="100" y="155" font-size="10" fill="#666">median direction</text>
+      <!-- median vectors -->
+      <g stroke="#888" stroke-width="1.5" marker-end="url(#arr-gray)">
+        <line x1="40" y1="160" x2="100" y2="135"/>
+        <line x1="100" y1="135" x2="160" y2="110"/>
+        <line x1="160" y1="110" x2="220" y2="85"/>
+      </g>
+      <!-- user vectors -->
+      <g stroke="#0366d6" stroke-width="1.5" marker-end="url(#arr-blue)">
+        <line x1="60" y1="170" x2="110" y2="145"/>
+        <line x1="110" y1="145" x2="170" y2="118"/>
+        <line x1="170" y1="118" x2="230" y2="95"/>
+      </g>
+      <text x="230" y="110" font-size="10" fill="#0366d6">user</text>
+      <defs>
+        <marker id="arr-gray" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#888"/></marker>
+        <marker id="arr-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#0366d6"/></marker>
+      </defs>
+    </svg>
+    <figcaption>各エッジベクトルの平均 cosine 類似度 &gt; 0 で通過。閾値が緩く、逆走り防止の役割が主。</figcaption>
+  </figure>
+</div>
+
+<!-- ============ Check 4: Shape (Fréchet) ============ -->
+<h3>4. 形状 (Fréchet 距離) <span class="badge affected">leniency 影響あり</span></h3>
+<div class="check">
+  <div>
+    <p>
+      median とユーザーストロークそれぞれを正規化 (<code>normalizeCurve</code>) し、median を 5 段階の角度で回転 ( <code>±π/16, ±π/32, 0</code> ) させたうえで離散 Fréchet 距離を計算。最小値が閾値以下なら通過。
+    </p>
+    <div class="formula">
+      minDist = min over &theta; &isin; {0, &plusmn;&pi;/32, &plusmn;&pi;/16}<br>
+      &nbsp;&nbsp;&nbsp;&nbsp;frechetDist(norm(user), rotate(norm(median), &theta;))<br>
+      pass &iff; minDist ≤ FRECHET_THRESHOLD × leniency<br>
+      FRECHET_THRESHOLD = 0.4
+    </div>
+    <p class="role">
+      <b>「形が似ているか」</b>のチェック。Fréchet 距離は曲線の「最大隔たり」を見るので、平均距離は OK でも一部だけ大きく逸脱した曲線を弾ける。<br>
+      微小回転を許容するのは「縦線をやや傾けて書いた」程度を吸収するため。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 300 200" aria-label="Fréchet 距離概念図">
+      <path d="M 40 100 C 90 40, 180 160, 260 100" fill="none" stroke="#888" stroke-width="3" stroke-dasharray="6,4"/>
+      <path d="M 40 110 C 100 60, 180 150, 260 95" fill="none" stroke="#0366d6" stroke-width="3"/>
+      <!-- worst link -->
+      <line x1="120" y1="73" x2="120" y2="100" stroke="#c4321a" stroke-width="2"/>
+      <text x="125" y="85" font-size="10" fill="#c4321a">maxLink</text>
+      <text x="40" y="180" font-size="10" fill="#666">「2 つの曲線を最大どれだけ離れて辿る必要があるか」</text>
+    </svg>
+    <figcaption>Fréchet は <i>最大乖離</i>。平均では拾えない局所的なズレを検出。</figcaption>
+  </figure>
+</div>
+
+<!-- ============ Check 5: Length ============ -->
+<h3>5. 長さ比 (length ratio) <span class="badge affected">leniency 影響あり</span></h3>
+<div class="check">
+  <div>
+    <p>
+      ユーザー線分長と median 線分長の比 (両方に +25 のバイアスをかける) が <code>0.35</code> 以上か。短すぎるストロークを弾く。
+    </p>
+    <div class="formula">
+      pass &iff; leniency &times; (length(user) + 25) / (length(stroke) + 25) &ge; 0.35<br>
+      MIN_LEN_THRESHOLD = 0.35
+    </div>
+    <p class="role">
+      バイアス <code>+25</code> は分母分子両方に乗るので、本来の median が非常に短い (点に近い) ときの計算が破綻しないよう緩衝する。<br>
+      <b>leniency</b> が大きいほど「短いストロークでも通る」。<code>leniency = 3.0</code> なら理論上は median の 1/8 強の長さでも通る。
+    </p>
+  </div>
+  <figure class="figure">
+    <svg viewBox="0 0 300 200" aria-label="長さ比概念図">
+      <!-- median bar -->
+      <rect x="30" y="60" width="230" height="22" fill="#ccc" stroke="#999"/>
+      <text x="30" y="55" font-size="10" fill="#666">median length</text>
+      <!-- user bar (shorter) -->
+      <rect x="30" y="110" width="120" height="22" fill="#bdd5f5" stroke="#0366d6"/>
+      <text x="30" y="105" font-size="10" fill="#0366d6">user length</text>
+      <!-- ratio formula -->
+      <text x="30" y="165" font-size="11" fill="#222">user / median &asymp; 120 / 230 &asymp; 0.52</text>
+      <text x="30" y="180" font-size="11" fill="#222">leniency=1.0 ⇒ 0.52 &ge; 0.35 → <tspan fill="#2a8b3c" font-weight="bold">pass</tspan></text>
+    </svg>
+    <figcaption>線分長の比を見る単純チェック。"ちょっと書いて止めた" を落とす。</figcaption>
+  </figure>
+</div>
+
+<h2>Backward (逆向き) 検出</h2>
+<p>
+  <code>getMatchData</code> が現ストロークで <code>isMatch = false</code> を返した場合、<code>checkBackwards: true</code> なら <b>user points を逆順</b>にして再度 <code>getMatchData</code> を呼ぶ。逆順だと一致する場合、<code>isMatch</code> はあくまで <b>false のまま</b>だが <code>meta.isStrokeBackwards = true</code> をセットして返す。
+</p>
+<p>
+  これにより、上位 <code>Quiz</code> 層 (kakitori でいう <code>char.mount</code> のコールバック) は「向きが逆だっただけ」をユーザーに知らせたり、オプションの <code>acceptBackwardsStrokes: true</code> なら正解扱いに格上げしたりできる。
+</p>
+<div class="callout">
+  <strong>kakitori との関係。</strong> hanzi-writer の <code>acceptBackwardsStrokes</code> は kakitori でも option として通っていて、デフォルト <code>false</code>。leniency を上げただけでは逆書きは通らない。
+</div>
+
+<h2>後続ストロークとの衝突解決</h2>
+<p>
+  現ストローク <code>strokeNum</code> で AND 5 チェックを通っても、まだ書いていない後続ストローク <code>strokeNum+1 .. n-1</code> をすべてスキャンし、それぞれ <code>checkBackwards: false</code> で <code>getMatchData</code> を回す。もし<b>後続のどれかがより低い平均距離でマッチする</b>と判明したら、ユーザーが順番を間違えた疑いがあるとみて、leniency を引き締めて現ストロークだけを再判定する。
+</p>
+<div class="formula" style="margin: 0.75rem 0;">
+  closestMatchDist = min(後続ストローク群の avgDist)<br>
+  if closestMatchDist &lt; avgDist:<br>
+  &nbsp;&nbsp;leniencyAdjustment = 0.6 &times; (closestMatchDist + avgDist) / (2 &times; avgDist)<br>
+  &nbsp;&nbsp;# leniencyAdjustment は実質 [0.3, 0.6]<br>
+  &nbsp;&nbsp;再チェック: getMatchData(user, strokes[strokeNum], { leniency: leniency &times; leniencyAdjustment })
+</div>
+<table>
+  <thead>
+    <tr><th>状況</th><th>closestMatchDist / avgDist</th><th>leniencyAdjustment</th><th>意味</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>後続が同程度</td><td>1.0</td><td class="num">0.60</td><td>軽い引き締め</td></tr>
+    <tr><td>後続がやや有利</td><td>0.5</td><td class="num">0.45</td><td>中程度</td></tr>
+    <tr><td>後続がはるかに有利</td><td>0 に近づく</td><td class="num">→ 0.30</td><td>最大引き締め</td></tr>
+  </tbody>
+</table>
+<p>
+  つまり「あなたが今書いたのは、後で出てくる別ストロークの方がもっと似ている」というケースで、自動的に <code>leniency × 0.3〜0.6</code> 相当の厳しさで現ストロークを再評価する。元の <code>leniency</code> が 3.0 でも、衝突時の実効値は <code>0.9〜1.8</code> まで下がる。
+</p>
+
+<h2>leniency の値ごとの閾値スケール</h2>
+<p>影響を受ける 4 チェックそれぞれの実効閾値が leniency に応じてどう動くか。</p>
+<table>
+  <thead>
+    <tr>
+      <th>leniency</th>
+      <th>平均距離<br/><small>(distMod=1 のとき)</small></th>
+      <th>始終点</th>
+      <th>Fréchet</th>
+      <th>長さ比 (左辺)</th>
+      <th>方向</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="num">0.1</td><td class="num">35</td><td class="num">25</td><td class="num">0.04</td><td class="num">&times; 0.1</td><td>変化なし</td></tr>
+    <tr><td class="num">0.5</td><td class="num">175</td><td class="num">125</td><td class="num">0.20</td><td class="num">&times; 0.5</td><td>変化なし</td></tr>
+    <tr><td class="num"><b>1.0</b> (default)</td><td class="num"><b>350</b></td><td class="num"><b>250</b></td><td class="num"><b>0.40</b></td><td class="num">&times; 1.0</td><td>&gt; 0 固定</td></tr>
+    <tr><td class="num">2.0</td><td class="num">700</td><td class="num">500</td><td class="num">0.80</td><td class="num">&times; 2.0</td><td>変化なし</td></tr>
+    <tr><td class="num">3.0</td><td class="num">1050</td><td class="num">750</td><td class="num">1.20</td><td class="num">&times; 3.0</td><td>変化なし</td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>注意。</strong> leniency を上げても <b>方向チェック</b>は変わらない。すなわち「逆方向」「直角方向」のような形ズレは leniency でいくら緩めても通らない。<code>leniency = 3.0</code> でも誤書きが完全に素通りしない理由はここ。
+</div>
+
+<h2>関連デフォルト値 (hanzi-writer 3.7.3)</h2>
+<table>
+  <thead><tr><th>オプション</th><th>デフォルト</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td><code>leniency</code></td><td class="num">1</td><td>本文の主役</td></tr>
+    <tr><td><code>averageDistanceThreshold</code></td><td class="num">350</td><td>平均距離チェックのベース閾値</td></tr>
+    <tr><td><code>showHintAfterMisses</code></td><td class="num">3</td><td>ミス N 回でヒント表示</td></tr>
+    <tr><td><code>markStrokeCorrectAfterMisses</code></td><td><code>false</code></td><td>N 回ミスで強制 OK 扱い</td></tr>
+    <tr><td><code>acceptBackwardsStrokes</code></td><td><code>false</code></td><td>逆書きを正解扱い</td></tr>
+  </tbody>
+</table>
+
+<h2>kakitori との対応</h2>
+<p>
+  kakitori 0.15.x は hanzi-writer のオプションを薄くラップしているだけ。<code>leniency</code> はそのまま <code>HanziWriter.create(..., { leniency })</code> に forward される (<code>packages/core/src/char.ts:1948</code>)。
+</p>
+<table>
+  <thead><tr><th>kakitori 側</th><th>hanzi-writer 側</th></tr></thead>
+  <tbody>
+    <tr><td><code>char.create(ch, { leniency })</code></td><td><code>{ leniency }</code> をそのまま forward</td></tr>
+    <tr><td><code>block.create({ leniency })</code> (block-wide)</td><td>block 内の各 guided cell に <code>char.create({ leniency })</code> として配る</td></tr>
+    <tr><td><code>page.create({ leniency })</code> (page-wide)</td><td>page 内の各 block に <code>BlockCreateOptions.leniency</code> として配る</td></tr>
+    <tr><td><code>cells[i].overrides.leniency</code></td><td>当該 guided cell の <code>char.create</code> 時に block/page wide より優先</td></tr>
+    <tr><td><code>computeSimilarity()</code> 内部の <code>HW_AVERAGE_DISTANCE_THRESHOLD = 350</code></td><td>hanzi-writer の <code>averageDistanceThreshold</code> 既定値を <b>mirror</b>。マッチャーの再実行なしに similarity を <code>[0,1]</code> へ正規化するため</td></tr>
+  </tbody>
+</table>
+<p>
+  kakitori が独自に足したガードは:
+</p>
+<ul>
+  <li><code>leniency &le; 0</code> / 非有限値の reject (<code>block.create</code>, <code>page.create</code> 入口、および <code>cells[i].overrides.leniency</code>)。hanzi-writer 側はこれらの値で silent に壊れる ( 全ストローク不一致 / 全部一致 など ) ので、kakitori は actionable なエラーに変換する。</li>
+  <li>blockwide / pagewide の precedence (per-cell overrides &gt; block-wide &gt; page-wide)。</li>
+</ul>
+
+<h2>ソース対応表 (hanzi-writer/dist/index.esm.js)</h2>
+<table>
+  <thead><tr><th>箇所</th><th>関数 / 定数</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td>L536</td><td><code>Stroke.getAverageDistance</code></td><td>各 user 点 → median 最近傍距離の平均</td></tr>
+    <tr><td>L622</td><td><code>COSINE_SIMILARITY_THRESHOLD = 0</code></td><td>方向チェック閾値</td></tr>
+    <tr><td>L624</td><td><code>START_AND_END_DIST_THRESHOLD = 250</code></td><td>始終点距離閾値</td></tr>
+    <tr><td>L626</td><td><code>FRECHET_THRESHOLD = 0.4</code></td><td>形状チェック閾値</td></tr>
+    <tr><td>L628</td><td><code>MIN_LEN_THRESHOLD = 0.35</code></td><td>長さ比閾値</td></tr>
+    <tr><td>L630</td><td><code>strokeMatches</code></td><td>エントリ。AND 5 チェック + backward + 衝突解決</td></tr>
+    <tr><td>L677</td><td><code>leniencyAdjustment = 0.6 &times; (closestMatchDist + avgDist) / (2 &times; avgDist)</code></td><td>後続衝突時の引き締め係数</td></tr>
+    <tr><td>L696</td><td><code>startAndEndMatches</code></td><td>始点 / 終点距離チェック</td></tr>
+    <tr><td>L713</td><td><code>directionMatches</code></td><td>cosine 類似度 (leniency 非依存)</td></tr>
+    <tr><td>L724</td><td><code>lengthMatches</code></td><td>長さ比</td></tr>
+    <tr><td>L744</td><td><code>shapeFit</code></td><td>5 角度回転 + Fréchet</td></tr>
+    <tr><td>L758</td><td><code>getMatchData</code></td><td>AND 5 チェック本体 + backward 内部呼び出し</td></tr>
+    <tr><td>L2251</td><td><code>leniency: 1</code> ほか</td><td>デフォルトオプション block</td></tr>
+  </tbody>
+</table>
+
+<hr>
+
+<footer>
+  <p>調査対象: <a href="https://www.npmjs.com/package/hanzi-writer/v/3.7.3">hanzi-writer@3.7.3</a> (<code>node_modules/hanzi-writer/dist/index.esm.js</code>)。kakitori 側コードは <code>packages/core/src/char.ts</code> を参照。</p>
+</footer>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+</script>
+
+</body>
+</html>
