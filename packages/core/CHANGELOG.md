@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.16.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.15.1...packages/core/v0.16.0) - 2026-06-10
+
+### Breaking Changes 🛠
+- refactor(core)!: normalize CharStrokeResult.points to internal coords by @k1LoW in https://github.com/k1LoW/kakitori/pull/99
+- refactor(core)!: keep retained ink on final NG, wipe only on retry start by @k1LoW in https://github.com/k1LoW/kakitori/pull/102
+### New Features 🚀
+- feat: static restore API for char / block / page results by @k1LoW in https://github.com/k1LoW/kakitori/pull/100
+- feat(core): render annotation strip in page.restore by @k1LoW in https://github.com/k1LoW/kakitori/pull/101
+- feat(core): block-wide and page-wide leniency options by @k1LoW in https://github.com/k1LoW/kakitori/pull/103
+### Dependency Updates ⬆️
+- chore(deps-dev): bump vitest from 3.1.3 to 4.1.0 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/97
+
 ## [v0.15.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.15.0...packages/core/v0.15.1) - 2026-06-01
 
 ### Other Changes
