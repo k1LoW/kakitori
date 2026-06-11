@@ -1,5 +1,22 @@
 # Changelog
 
+## [v0.8.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.8.0...packages/data/v0.8.1) - 2026-06-11
+
+### Breaking Changes 🛠
+- refactor(core)!: normalize CharStrokeResult.points to internal coords by @k1LoW in https://github.com/k1LoW/kakitori/pull/99
+- refactor(core)!: keep retained ink on final NG, wipe only on retry start by @k1LoW in https://github.com/k1LoW/kakitori/pull/102
+### New Features 🚀
+- feat: static restore API for char / block / page results by @k1LoW in https://github.com/k1LoW/kakitori/pull/100
+- feat(core): render annotation strip in page.restore by @k1LoW in https://github.com/k1LoW/kakitori/pull/101
+- feat(core): block-wide and page-wide leniency options by @k1LoW in https://github.com/k1LoW/kakitori/pull/103
+### Dependency Updates ⬆️
+- chore(deps-dev): bump vitest from 3.1.3 to 4.1.0 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/97
+### Other Changes
+- feat(site): add block Examples section + trim Live Example controls by @k1LoW in https://github.com/k1LoW/kakitori/pull/91
+- docs: refresh README vocabulary to match judge → check rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/94
+- docs(core): align package.json description with judge → check rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/95
+- fix(core): accumulate tome pause across stationary trailing samples by @k1LoW in https://github.com/k1LoW/kakitori/pull/96
+
 ## [v0.8.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.7.3...packages/data/v0.8.0) - 2026-05-21
 ### Breaking Changes 🛠
 - refactor(core)!: replace HANZI_COORD_SIZE (900) with the actual hanzi-writer canvas dims by @k1LoW in https://github.com/k1LoW/kakitori/pull/77
