@@ -1,0 +1,52 @@
+{
+  "skill_name": "kakitori",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "@k1low/kakitori を使って小学生向けの漢字書き取りプリントの SPA を作りたい。HTML/JS を書いてください。お題は 山 / 川 / 学校 / 天気 / 勉強 の 5 問で、それぞれふりがな (やま / かわ / がっこう / てんき / べんきょう) を画面上に表示しておきたい (ふりがな自体は書かせない、表示のみ)。縦書きの練習帳っぽい見た目で 5 段組みで並べたい。最後まで書き終わったらコンソールに正答率 (一画ごとの matched 数 / 全画数) を出す。1 ファイル完結で動く index.html がほしい。",
+      "expected_output": "page.create を使った vertical-rl のサイトコード。各ブロックの annotations に mode: 'show' のふりがな、cells には guided/write の漢字。onPageComplete で collectCharResults を使って正答率計算。CDN や bundler の選定込みで動くコード。",
+      "files": [],
+      "expectations": [
+        "Imports from @k1low/kakitori/page (page primitive)",
+        "Uses writingMode: 'vertical-rl'",
+        "Defines 5 blocks (one per problem)",
+        "Block for 学校 uses 2 guided cells (one per character), not a single free cell",
+        "Furigana annotations use mode: 'show' (not 'write')",
+        "Furigana annotations have cellRange covering the right cells (e.g. [0,1] for 学校)",
+        "Uses onPageComplete callback to detect when the sheet is done",
+        "Uses collectCharResults to flatten the result tree for scoring",
+        "Scoring filters to writable cells only (modes: ['write']) so show-mode furigana is not counted as 'matched'",
+        "The HTML is a single self-contained file that can be opened in a browser (script tag with module type and importmap, OR a bundler-ready setup explicitly explained)"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "kakitori で書き取り問題作ってるんだけど、ストロークの形は合ってるのに『位置が少しズレてる』だけで NG になることがある。逆にめちゃくちゃズレた線でも通っちゃうケースもあって、判定の調整方法がわからん。どうチューニングしたら『形は合ってるけど位置がちゃんと中央』というのを要求できる？できれば仕組みもざっくり教えて。",
+      "expected_output": "leniency を下げる (例: 0.5 - 0.7) と位置関連のチェック (平均距離・始終点距離) が厳しくなることを説明。位置に特化して厳しくする手段は現状無いことに触れる (averageDistanceThreshold は forward されていない)。5 つの AND チェックの内訳と、leniency が 4 つに乗ること、cosine 方向は非依存であることを触れる。あと衝突解決 (後続ストロークとの) が自動で leniency を 0.3-0.6 倍に引き締める仕組みがある点も触れると満点。",
+      "files": [],
+      "expectations": [
+        "Explains that leniency is the primary tuning knob",
+        "Recommends lowering leniency (a value like 0.5-0.7) to tighten position judgment",
+        "Mentions that position is governed mainly by the average-distance check and the start/end position check",
+        "Mentions that leniency scales 4 of the 5 checks (not the direction/cosine check)",
+        "Notes that kakitori's only matcher knob is leniency (averageDistanceThreshold is not exposed)",
+        "Does NOT incorrectly claim leniency goes in MountOptions only — also valid on CharCreateOptions, BlockCreateOptions, PageCreateOptions",
+        "Does NOT recommend invalid values like 0 or negative leniency (those are rejected by kakitori validation)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "kakitori の page で書き取らせた結果を JSON でサーバに送って、後で別の画面で『書いた答案』を一覧表示したい。一覧では cellSize 小さめ (80px くらい) で並べたい。保存と復元のコード書ける？ あと cellSize を変えても保存した時の書き味は再現される？",
+      "expected_output": "PageResult を JSON.stringify で保存できることと、page.restore でロードして任意の cellSize で再描画できることを示すコード。Restore のシグネチャ (columns, cellsPerColumn, cellSize) も具体的に。cellSize 変えても再現される理由 (内部 1024 座標系で points が保存されているため) に触れると満点。",
+      "files": [],
+      "expectations": [
+        "Shows JSON.stringify on PageResult (or p.result())",
+        "Shows page.restore with explicit columns / cellsPerColumn / cellSize",
+        "Mentions that PageResult is plain JSON with no DOM refs / methods",
+        "Explains that strokes are stored in internal 1024 coordinates, so cellSize at restore time can differ from the original",
+        "The restore example uses cellSize ~80px (matching what the user asked for) or notes that it can be any positive number",
+        "Does NOT suggest rolling a custom serializer or needing to extract sub-fields manually"
+      ]
+    }
+  ]
+}
