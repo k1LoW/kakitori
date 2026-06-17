@@ -40,7 +40,7 @@ Used by higher-level coordinators (`block.correction: "per-block"`, `page.correc
 
 ### `per-block`
 
-At block level, every guided cell is mounted with `correction: "deferred"`. The block waits until every cell has captured. When the last cell captures, the block fires `onBlockCaptured`, then walks each cell in order, calling `Char.check()` and dispatching the cell's `onCellComplete` synchronously. Finally `onBlockComplete` fires.
+At block level, every writable entry (guided cell, free cell, write-mode annotation) defers its verdict. The block waits until every entry has captured. When the last entry captures, the block fires `onBlockCaptured`, then walks each entry in order, triggering its finalize step (guided cells via the underlying `Char.check()`; free cells and annotations via their own internal finalize, since those primitives don't expose `Char.check()`) and dispatching the cell's `onCellComplete` synchronously. Finally `onBlockComplete` fires.
 
 NG behavior: if any cell's check lands NG, that single cell wipes and re-arms; the rest stay captured. The block waits for the user to redraw the failed cell. `onBlockRejected` fires per failed cell. `onBlockComplete` only lands once every cell has settled OK (or `maxRetries` for the failed cell is exhausted).
 

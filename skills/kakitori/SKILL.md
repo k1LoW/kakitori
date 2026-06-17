@@ -19,7 +19,7 @@ block  one practice problem   -- a row of cells (guided | free | blank) + option
 page   one practice sheet     -- a vertical-rl grid of blocks, with shared correction across blocks
 ```
 
-Every primitive's `.result()` produces a tree that bottoms out in `CharResult` leaves. `collectCharResults()` flattens any result tree and filters by `sources` (`guided` / `free` / `annotation`) and `modes` (`write` / `show`).
+Every primitive's `.result()` ultimately yields `CharResult` leaves. `char.result()` returns a single `CharResult`; `block.result()` returns a `BlockResult` whose cells / annotations carry `CharResult[]`; `page.result()` returns a `PageResult` aggregating those blocks. `collectCharResults()` flattens a `BlockResult` or `PageResult` tree (not a bare `CharResult`) and filters by `sources` (`guided` / `free` / `annotation`) and `modes` (`write` / `show`).
 
 ## Decide which primitive to use
 
@@ -127,7 +127,7 @@ These files exist as siblings to this `SKILL.md`. Cite the exact file path back 
 
 These come from real validation guards inside kakitori; surface the error message itself to the user so they can grep it.
 
-1. **`leniency`, `freeCellLeniency`** must be a finite positive number at every level (`char.create`, `block.create`, `page.create`, and per-cell `overrides.leniency`). `0`, negatives, `NaN`, `Infinity` are all rejected at the entry point. Higher = more permissive, lower = stricter. See `references/matcher.md` for what each value actually does.
+1. **`leniency`, `freeCellLeniency`** must be a finite positive number. `block.create()` and `page.create()` validate them at the entry point (including per-cell `overrides.leniency` on guided cells) and reject `0`, negatives, `NaN`, `Infinity`. `char.create()` itself currently does NOT validate `leniency` and forwards whatever value it gets straight to hanzi-writer, so callers wiring `char.create` directly must sanitize first; everything via block / page is already guarded. Higher = more permissive, lower = stricter. See `references/matcher.md` for what each value actually does.
 2. **`free` cell `span`** must be `>= max(expected.length)` if set. If `expected: ["学校", "がっこう"]` (longest = 4 chars), `span` defaults to 4; setting `span: 2` throws.
 3. **Annotations cover `span: 1` cells only.** A furigana strip across cells with `span > 1` (free cells in particular) throws — annotated cells must be guided cells or 1-slot free cells.
 4. **`writingMode: "vertical-rl"`** allows `annotation.placement: "right"` only; `"horizontal-tb"` allows `"top"` only. Other placements throw.

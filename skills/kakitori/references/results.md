@@ -93,8 +93,8 @@ Flatten any subtree into a flat `CharResult[]`. Filter by source / mode / comple
 
 ```ts
 function collectCharResults(
-  root: CharResult | BlockResult | PageResult,
-  opts?: {
+  result: BlockResult | PageResult,    // bare CharResult is NOT accepted
+  options?: {
     sources?: ("guided" | "free" | "annotation")[];
     modes?: ("write" | "show")[];
     completedOnly?: boolean;
@@ -180,7 +180,7 @@ interface TimedPoint { x: number; y: number; t: number; }   // t = ms since stro
 
 The shape is the same whether the points came from a mounted quiz or from headless `Char.checkStroke`. You can:
 
-- **Replay** them: feed the array back into `Char.checkStroke(points)` with NO `sourceBox` (since they're already internal-coord), and you'll get the same `CharStrokeResult` (modulo nondeterminism in hanzi-writer's matcher? — none currently observed).
+- **Replay** them: feed the array back into `await Char.checkStroke(strokeNum, points)` (async, with the logical strokeNum as the first arg) with NO `sourceBox` (since they're already internal-coord), and you'll get the same `CharStrokeResult` (modulo nondeterminism in hanzi-writer's matcher? — none currently observed).
 - **Visualize** them: draw them alongside the medians from `@k1low/hanzi-writer-data-jp`, which use the same 1024 system. No projection math needed.
 - **Aggregate** them: stroke duration is `t[last] - t[first]`; stroke speed is path length divided by duration. All in 1024 units.
 

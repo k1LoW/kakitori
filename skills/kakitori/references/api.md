@@ -114,9 +114,15 @@ Render a captured `CharResult` back into pixels. See `references/results.md`.
 
 ```ts
 interface Char {
-  el: HTMLElement | null;        // mounted target, or null when headless
   ready(): Promise<void>;        // resolves once strokeEndings / strokeGroups / char-data loaded
-  checkStroke(points: TimedPoint[], opts?: CharCheckStrokeOptions): CharStrokeResult;
+  // Headless judge for one logical stroke. Async (resolves after any pending
+  // ready / data load). `strokeNum` is the logical stroke index (0-based,
+  // respecting `strokeGroups`). Throws when called on a mounted instance.
+  checkStroke(
+    strokeNum: number,
+    points: TimedPoint[],
+    opts?: CharCheckStrokeOptions,
+  ): Promise<CharStrokeResult>;
   check(): Char;                 // run correction for "deferred" mode (block / page coordinator)
   result(): CharResult;
   getStrokeEndings(): readonly StrokeEnding[] | null;
@@ -297,7 +303,7 @@ interface FuriganaAnnotation {
   cellRange: [number, number];        // inclusive, into spec.cells
   expected: string | string[];
   mode: "write" | "show";
-  placement?: "top" | "bottom" | "left" | "right";  // see writingMode rules in pitfalls.md
+  placement?: "top" | "bottom" | "left" | "right";  // see writingMode rules in SKILL.md "Top pitfalls"
   sizeRatio?: number;                 // 0..1; thickness relative to cellSize
 }
 ```
@@ -308,7 +314,10 @@ interface FuriganaAnnotation {
 interface Block {
   el: HTMLElement;
   reset(): void;
-  undo(): { kind: "cell" | "annotation"; index: number } | null;
+  undo(): { kind: "cell" | "annotation"; index: number; hasMore: boolean } | null;
+  // `hasMore` lets a wrapping page tell whether another undo() on this block
+  // would still find earlier activity, so page.undo() can fall through to
+  // the next block when this one is exhausted.
   result(): BlockResult;
   check(): void;                      // burst-finalize for "deferred" mode
   destroy(): void;
@@ -396,7 +405,7 @@ page.create(target, {
 interface Page {
   el: HTMLElement;
   reset(): void;
-  undo(): PageUndoResult;
+  undo(): PageUndoResult | null;   // null when nothing is left to undo
   result(): PageResult;
   check(): void;                      // burst-finalize for "per-page" deferral
   destroy(): void;
@@ -433,8 +442,8 @@ Flattens a result tree into a flat `CharResult[]`.
 
 ```ts
 function collectCharResults(
-  root: CharResult | BlockResult | PageResult,
-  opts?: {
+  result: BlockResult | PageResult,    // bare CharResult is NOT accepted
+  options?: {
     sources?: ("guided" | "free" | "annotation")[];
     modes?: ("write" | "show")[];
     completedOnly?: boolean;

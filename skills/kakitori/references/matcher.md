@@ -6,7 +6,7 @@ kakitori's matcher = hanzi-writer's matcher + a tome / hane / harai layer on top
 
 `leniency` is a multiplier on hanzi-writer's tolerance, default `1.0`. Higher = more permissive, lower = stricter. It scales 4 of the 5 AND-gated stroke checks (average distance, start / end position, Fréchet shape, length ratio); the direction (cosine similarity) check is fixed and not affected by leniency.
 
-`0` / negatives / `NaN` / `Infinity` are rejected at every kakitori entry point because they silently break the matcher inside hanzi-writer (the threshold becomes 0 or undefined and either everything passes or nothing does).
+`0` / negatives / `NaN` / `Infinity` are rejected at the `block.create()` / `page.create()` entry points (including per-cell `overrides.leniency` on guided cells) because they silently break the matcher inside hanzi-writer (the threshold becomes 0 or undefined and either everything passes or nothing does). Note that `char.create()` itself does NOT validate `leniency` today; callers wiring `char.create` directly should sanitize input before forwarding.
 
 ## The 5 AND checks
 
@@ -50,7 +50,7 @@ If the user complains "I write the right shape but the wrong direction and it st
 
 When `getMatchData` returns `isMatch: false`, the matcher reverses the user's points and tries again. If the reversed form would match, `isMatch` stays `false` but `meta.isStrokeBackwards: true` is reported, and `onCorrectStroke` / `onMistake` callbacks can see `data.isBackwards`.
 
-`MountOptions.acceptBackwardsStrokes: true` (forwarded to hanzi-writer) promotes backward matches to accepted; off by default. Set it explicitly if you want to be lenient about direction.
+hanzi-writer itself has an `acceptBackwardsStrokes` option that promotes backward matches to accepted, but **kakitori does not currently expose or forward it**. The information surfaces only through the callback / result data (`data.isBackwards` on the per-stroke callback, `CharStrokeResult.isBackwards` in the result), so the host can detect it and decide how to react (show a hint, mark the cell, ignore, etc.). If you genuinely need automatic acceptance of backward strokes, that's a feature gap to file against kakitori.
 
 ## Later-stroke conflict resolution
 
@@ -108,7 +108,7 @@ When a user reports "this stroke should pass but doesn't" or vice versa:
 
 1. Capture the rejected stroke's `points` from `onMistake`'s callback payload (or read `result().perStroke[i].points`).
 2. Check the start / end deviation against the median. The matcher's start / end threshold (`250 * leniency`) is in 1024-coord units; 250 is ~24% of the character box. If the user starts the stroke far from the median's start, that check fails before any shape evaluation.
-3. Check direction. If `data.isBackwards === true` you wrote it the right shape but the wrong direction; consider `acceptBackwardsStrokes: true`.
+3. Check direction. If `data.isBackwards === true` you wrote it the right shape but the wrong direction. kakitori does not currently expose hanzi-writer's `acceptBackwardsStrokes`, so this can only be observed (not auto-accepted) at the kakitori level today.
 4. Cross-reference `similarity`. If similarity is very low (< 0.2), the average distance is far over threshold and leniency would have to be > 2 to compensate.
 5. As a last resort, the `logger` option (`CharCreateOptions.logger`) emits verbose matcher trace. Enable it temporarily to see hanzi-writer's per-stroke decisions.
 
@@ -119,7 +119,7 @@ When a user reports "this stroke should pass but doesn't" or vice versa:
 | `leniency` | `1.0` | hanzi-writer default, kakitori forwards as-is |
 | `freeCellLeniency` | `1.0` (de-facto) | separate threshold for free / annotation cells |
 | `strokeEndingStrictness` | `0.7` | kakitori-side |
-| `acceptBackwardsStrokes` | `false` | hanzi-writer default |
+| `acceptBackwardsStrokes` | (not exposed by kakitori) | hanzi-writer has this; kakitori does not currently forward it. `data.isBackwards` is still visible to callbacks |
 | `strokeEndingAsMiss` | `false` | kakitori-side; when true, an ending NG rejects the stroke entirely |
 | `showHintAfterMisses` | `3` | hanzi-writer default; show the next stroke after N misses |
 | `markStrokeCorrectAfterMisses` | `false` | hanzi-writer default; auto-accept after N misses |

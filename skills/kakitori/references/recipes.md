@@ -205,7 +205,8 @@ Useful for unit tests or evaluating saved strokes.
 const c = char.create("学");
 await c.ready();          // wait for char data + strokeGroups / strokeEndings to load
 for (const [i, points] of capturedPerStroke.entries()) {
-  const res = c.checkStroke(points);
+  // checkStroke is async and takes the logical strokeNum first
+  const res = await c.checkStroke(i, points);
   console.log(i, res.matched, res.similarity, res.strokeEnding);
 }
 const full = c.result(); // CharResult with the same shape as a mounted quiz produces
@@ -248,14 +249,14 @@ p.undo();            // page: walks back through most-recently-touched units acr
 c.mount(target, {
   size: 240,
   onClick: ({ strokeIndex }) => {
-    if (strokeIndex === null) return;       // null while a quiz / per-char cycle is active
+    if (strokeIndex === null) return;       // click missed every stroke region
     c.resetStrokeColors();
     c.setStrokeColor(strokeIndex, "#c00");
   },
 });
 ```
 
-`onClick.strokeIndex` is gated by the runtime so a trailing drag-tail click during drawing cannot recolor a just-accepted stroke; null when no stroke was hit or while writing is in progress.
+`onClick` is suppressed entirely by the runtime while a quiz / per-char capture is active, so the callback simply does not fire during writing (no trailing drag-tail click can recolor a just-accepted stroke). When it does fire, `strokeIndex` is the hit stroke's logical index, or `null` if the click landed outside every stroke region.
 
 ## 15. Tone down a specific cell (per-cell overrides)
 
