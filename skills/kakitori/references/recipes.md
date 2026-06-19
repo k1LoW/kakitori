@@ -197,9 +197,9 @@ page.restore(target, restoredResult, {
 
 The strokes were captured in hanzi-writer's internal 1024 coords, so `cellSize` at restore time can differ from the original. See `references/results.md` for more on coordinate invariance.
 
-## 11. Headless judging (no DOM, no quiz)
+## 11. Headless judging (no visible UI, no quiz lifecycle)
 
-Useful for unit tests or evaluating saved strokes.
+Useful for unit tests or evaluating saved strokes. "Headless" here means no visible UI and no mounted quiz on the host page — `Char.checkStroke` still needs a DOM-capable environment (browser, or a DOM shim like jsdom / happy-dom in tests), because internally it spins up an offscreen hidden hanzi-writer instance attached to `document.body` to drive the matcher.
 
 ```ts
 const c = char.create("学");

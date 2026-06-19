@@ -117,7 +117,7 @@ When a user reports "this stroke should pass but doesn't" or vice versa:
 | Option | Default | Where |
 |---|---|---|
 | `leniency` | `1.0` | hanzi-writer default, kakitori forwards as-is |
-| `freeCellLeniency` | `1.0` (de-facto) | separate threshold for free / annotation cells |
+| `freeCellLeniency` | `1.5` (`DEFAULT_FREE_CELL_LENIENCY` in `packages/core/src/block/freeCell.ts`) | separate threshold for free / annotation cells. Defaults looser than guided cells because freehand input has more positional drift |
 | `strokeEndingStrictness` | `0.7` | kakitori-side |
 | `acceptBackwardsStrokes` | (not exposed by kakitori) | hanzi-writer has this; kakitori does not currently forward it. `data.isBackwards` is still visible to callbacks |
 | `strokeEndingAsMiss` | `false` | kakitori-side; when true, an ending NG rejects the stroke entirely |
