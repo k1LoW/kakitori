@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.16.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.16.0...packages/core/v0.16.1) - 2026-07-03
+
+### Dependency Updates ⬆️
+- chore(deps-dev): bump vite from 6.4.2 to 6.4.3 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/107
+### Other Changes
+- docs: add kakitori skill for Claude Code users by @k1LoW in https://github.com/k1LoW/kakitori/pull/104
+
 ## [v0.16.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.15.1...packages/core/v0.16.0) - 2026-06-10
 
 ### Breaking Changes 🛠
