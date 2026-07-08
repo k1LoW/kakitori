@@ -32,7 +32,10 @@
       "types": [
         "hane"
       ],
-      "direction": null
+      "direction": [
+        -0.86,
+        0.5
+      ]
     },
     {
       "types": [

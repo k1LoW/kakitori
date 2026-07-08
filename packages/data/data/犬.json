@@ -10,7 +10,10 @@
       "types": [
         "harai"
       ],
-      "direction": null
+      "direction": [
+        -0.87,
+        -0.49
+      ]
     },
     {
       "types": [

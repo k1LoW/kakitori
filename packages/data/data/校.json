@@ -53,7 +53,10 @@
       "types": [
         "harai"
       ],
-      "direction": null
+      "direction": [
+        -0.95,
+        -0.31
+      ]
     },
     {
       "types": [
