@@ -1,3 +1,44 @@
 {
-  "character": "先"
+  "character": "先",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.66,
+        -0.75
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.87,
+        -0.49
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": null
+    }
+  ]
 }

@@ -1,3 +1,48 @@
 {
-  "character": "字"
+  "character": "字",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.78,
+        -0.62
+      ]
+    },
+    {
+      "types": [
+        "hane",
+        "tome"
+      ],
+      "direction": [
+        -0.73,
+        -0.68
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.86,
+        0.51
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

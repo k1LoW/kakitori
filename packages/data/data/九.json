@@ -1,3 +1,23 @@
 {
-  "character": "九"
+  "character": "九",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.81,
+        -0.59
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        0.06,
+        1
+      ]
+    }
+  ]
 }

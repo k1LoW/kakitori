@@ -1,3 +1,25 @@
 {
-  "character": "女"
+  "character": "女",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": [
+        -0.94,
+        -0.33
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }
