@@ -191,9 +191,16 @@ async function annotateChar(
   saveData(result);
 }
 
+const isAlreadySetCache = new Map<string, boolean>();
 function isAlreadySet(char: string): boolean {
+  const cached = isAlreadySetCache.get(char);
+  if (cached !== undefined) {
+    return cached;
+  }
   const existing = loadExisting(char);
-  return existing?.strokeEndings !== undefined && existing.strokeEndings.length > 0;
+  const result = Array.isArray(existing?.strokeEndings) && existing.strokeEndings.length > 0;
+  isAlreadySetCache.set(char, result);
+  return result;
 }
 
 async function askSkipAlreadySet(
