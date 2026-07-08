@@ -1,3 +1,30 @@
 {
-  "character": "月"
+  "character": "月",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.72,
+        -0.69
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

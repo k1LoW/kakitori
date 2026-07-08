@@ -1,3 +1,81 @@
 {
-  "character": "森"
+  "character": "森",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.83,
+        -0.57
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.78,
+        -0.63
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.74,
+        -0.67
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": null
+    }
+  ]
 }

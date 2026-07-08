@@ -1,3 +1,15 @@
 {
-  "character": "十"
+  "character": "十",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

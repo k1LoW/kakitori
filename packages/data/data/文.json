@@ -1,3 +1,32 @@
 {
-  "character": "文"
+  "character": "文",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        0.54,
+        -0.84
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

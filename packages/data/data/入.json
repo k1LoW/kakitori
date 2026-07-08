@@ -1,3 +1,23 @@
 {
-  "character": "入"
+  "character": "入",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.83,
+        -0.56
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.95,
+        -0.33
+      ]
+    }
+  ]
 }

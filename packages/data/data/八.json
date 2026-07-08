@@ -1,3 +1,20 @@
 {
-  "character": "八"
+  "character": "八",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.81,
+        -0.59
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

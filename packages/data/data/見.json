@@ -1,3 +1,48 @@
 {
-  "character": "見"
+  "character": "見",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.88,
+        -0.48
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        0.04,
+        1
+      ]
+    }
+  ]
 }

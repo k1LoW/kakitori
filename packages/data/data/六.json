@@ -1,3 +1,35 @@
 {
-  "character": "六"
+  "character": "六",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        0.54,
+        -0.84
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": [
+        -0.86,
+        -0.51
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

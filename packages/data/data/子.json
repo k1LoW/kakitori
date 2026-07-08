@@ -1,3 +1,29 @@
 {
-  "character": "子"
+  "character": "子",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane",
+        "tome"
+      ],
+      "direction": [
+        -0.73,
+        -0.68
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.91,
+        0.42
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

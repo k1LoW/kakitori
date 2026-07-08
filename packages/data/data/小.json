@@ -1,3 +1,26 @@
 {
-  "character": "小"
+  "character": "小",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.86,
+        0.51
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

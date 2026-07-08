@@ -1,3 +1,20 @@
 {
-  "character": "力"
+  "character": "力",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.79,
+        0.62
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

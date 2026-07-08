@@ -1,3 +1,19 @@
 {
-  "character": "七"
+  "character": "七",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.11,
+        0.99
+      ]
+    }
+  ]
 }
