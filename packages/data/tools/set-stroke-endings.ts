@@ -191,13 +191,35 @@ async function annotateChar(
   saveData(result);
 }
 
+function isAlreadySet(char: string): boolean {
+  const existing = loadExisting(char);
+  return existing?.strokeEndings !== undefined && existing.strokeEndings.length > 0;
+}
+
+async function askSkipAlreadySet(
+  rl: Interface,
+  chars: string[],
+): Promise<boolean> {
+  const setCount = chars.filter(isAlreadySet).length;
+  if (setCount === 0) {
+    return false;
+  }
+  const answer = await rl.question(
+    `\n${setCount}/${chars.length} characters already have strokeEndings. Skip them? [Y/n]: `,
+  );
+  const input = answer.trim().toLowerCase();
+  return input === "" || input === "y" || input === "yes";
+}
+
 async function main() {
   const args = process.argv.slice(2);
   let chars: string[] = [];
+  let isSet = false;
 
   const setIndex = args.indexOf("--set");
   if (setIndex !== -1 && args[setIndex + 1]) {
     chars = getCharSet(args[setIndex + 1]);
+    isSet = true;
   } else if (args.length > 0 && !args[0].startsWith("-")) {
     chars = [...args[0]];
   } else {
@@ -214,7 +236,12 @@ async function main() {
   });
 
   try {
+    const skipAlreadySet = isSet ? await askSkipAlreadySet(rl, chars) : false;
     for (const char of chars) {
+      if (skipAlreadySet && isAlreadySet(char)) {
+        console.log(`\n  ${char}: already set, skipping.`);
+        continue;
+      }
       await annotateChar(rl, char);
     }
   } finally {
