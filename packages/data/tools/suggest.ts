@@ -5,10 +5,10 @@ interface SuggestionResult {
   direction: [number, number] | null;
 }
 
-function normalize(v: [number, number]): [number, number] {
+function normalize(v: [number, number]): [number, number] | null {
   const mag = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
   if (mag === 0) {
-    return [0, 0];
+    return null;
   }
   return [
     Math.round((v[0] / mag) * 100) / 100,
@@ -48,7 +48,9 @@ export function suggestStrokeEnding(
   if (n >= 6) {
     const bodyStart = Math.floor(n * 0.4);
     const bodyEnd = Math.floor(n * 0.7);
-    const tipStart = Math.floor(n * 0.85);
+    // Clamp to n-2 so tipStartPt is never the last point itself; otherwise
+    // short medians (n=6 → floor(0.85*6)=5=n-1) collapse tipDir to [0, 0].
+    const tipStart = Math.min(Math.floor(n * 0.85), n - 2);
 
     const bodyStartPt = median[bodyStart] as [number, number];
     const bodyEndPt = median[bodyEnd] as [number, number];
@@ -63,14 +65,14 @@ export function suggestStrokeEnding(
       last[1] - tipStartPt[1],
     ]);
 
-    if (angle(bodyDir, tipDir) >= Math.PI / 2) {
+    if (bodyDir !== null && tipDir !== null && angle(bodyDir, tipDir) >= Math.PI / 2) {
       return { type: "hane", direction: tipDir };
     }
   }
 
   // Diagonal downward or sideways sweep suggests harai.
   // In hanzi-writer coordinate system, Y decreases downward.
-  if (Math.abs(normEnd[0]) > 0.5 && Math.abs(normEnd[1]) > 0.3) {
+  if (normEnd !== null && Math.abs(normEnd[0]) > 0.5 && Math.abs(normEnd[1]) > 0.3) {
     return { type: "harai", direction: normEnd };
   }
 
