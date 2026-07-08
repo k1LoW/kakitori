@@ -49,7 +49,8 @@ export function suggestStrokeEnding(
     const bodyStart = Math.floor(n * 0.4);
     const bodyEnd = Math.floor(n * 0.7);
     // Clamp to n-2 so tipStartPt is never the last point itself; otherwise
-    // short medians (n=6 → floor(0.85*6)=5=n-1) collapse tipDir to [0, 0].
+    // short medians (n=6 → floor(0.85*6)=5=n-1) make tipStartPt === last,
+    // so `normalize` returns null and hane detection cannot fire.
     const tipStart = Math.min(Math.floor(n * 0.85), n - 2);
 
     const bodyStartPt = median[bodyStart] as [number, number];
