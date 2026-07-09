@@ -50,6 +50,7 @@ function charResult(
     complete: true,
     matched: strokes.every((s) => s.matched),
     perStroke: [...strokes],
+    outlineShown: false,
     ...extras,
   };
 }
@@ -164,6 +165,7 @@ describe("char.restore", () => {
       matched: true,
       perStroke: [],
       mode: "show",
+      outlineShown: false,
     };
     char.restore(host, result, {
       size: 200,
@@ -208,6 +210,7 @@ describe("char.restore", () => {
       complete: true,
       matched: true,
       perStroke: [],
+      outlineShown: false,
     };
     char.restore(host, result, {
       size: 200,
@@ -230,6 +233,7 @@ describe("char.restore", () => {
       complete: true,
       matched: true,
       perStroke: [],
+      outlineShown: false,
     };
     char.restore(host, result, {
       size: 200,
@@ -300,6 +304,7 @@ describe("char.restore", () => {
       matched: true,
       perStroke: [],
       mode: "show",
+      outlineShown: false,
     };
     const secondResult: CharResult = {
       character: "二",
@@ -307,6 +312,7 @@ describe("char.restore", () => {
       matched: true,
       perStroke: [],
       mode: "show",
+      outlineShown: false,
     };
 
     char.restore(host, firstResult, { size: 200, charDataLoader: slowLoader });

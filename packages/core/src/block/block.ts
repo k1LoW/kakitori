@@ -770,6 +770,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
           perStroke: [],
           source: "guided",
           mode: "show",
+          outlineShown: false,
         },
       ];
       queueMicrotask(() => {
