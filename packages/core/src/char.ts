@@ -518,6 +518,26 @@ interface MountState {
    * onMistake event.
    */
   skipNextOnMistakeStroke: number | null;
+  /**
+   * Live mirror of hanzi-writer's outline visibility. Initialised from
+   * `MountOptions.showOutline` at mount() time (defaulting to `true`,
+   * matching hanzi-writer's own default), flipped by the public
+   * {@link Char.showOutline} / {@link Char.hideOutline} setters. Used
+   * to seed {@link outlineShownDuringWrite} at each write-attempt
+   * start and to decide whether a mid-write `showOutline()` should
+   * flip the sticky flag.
+   */
+  outlineVisible: boolean;
+  /**
+   * Sticky "was the outline visible at any moment during the most
+   * recent write attempt?" flag surfaced through
+   * {@link CharResult.outlineShown}. Seeded from `outlineVisible` at
+   * every {@link startQuiz} call (fresh start() / undo() re-arm), set
+   * to `true` by `showOutline()` while `quizActive`, and left
+   * untouched by `hideOutline()` so a mid-write "peek" isn't erased
+   * when the outline is hidden again before completion.
+   */
+  outlineShownDuringWrite: boolean;
   // pointer timing
   isPointerDown: boolean;
   lastMoveTime: number;
@@ -948,6 +968,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.perStroke = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
+    // Fresh write attempt: seed the sticky flag from the current
+    // outline visibility so an outline that is already on-screen at
+    // start()/undo() re-arm counts as "shown during writing" from
+    // moment zero, and previous attempts' sticky value does not leak.
+    m.outlineShownDuringWrite = m.outlineVisible;
 
     // Pre-load character data for direction auto-computation
     m.hw.getCharacterData().then((c) => {
@@ -2161,10 +2186,17 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     let perStrokeSrc: ReadonlyArray<CharStrokeResult | undefined> = [];
     let mistakes: number | undefined;
     let strokeEndingMistakes: number | undefined;
+    // `outlineShown` is always present on the returned CharResult so
+    // callers can branch on a plain boolean. It flips true only on the
+    // mount path when the sticky "outline was visible during writing"
+    // flag has been set; every other path (headless check, no-writing
+    // mount) has no window in which the outline could have been shown.
+    let outlineShown = false;
     if (mounted && mounted.perStroke.length > 0) {
       perStrokeSrc = mounted.perStroke;
       mistakes = mounted.totalMistakes;
       strokeEndingMistakes = mounted.strokeEndingMistakes;
+      outlineShown = mounted.outlineShownDuringWrite;
     } else if (checker) {
       perStrokeSrc = checker.perStroke;
     }
@@ -2203,6 +2235,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       complete,
       matched,
       perStroke,
+      outlineShown,
     };
     if (mistakes !== undefined) {
       out.mistakes = mistakes;
@@ -2360,6 +2393,12 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perStroke: [],
       totalMistakes: 0,
       skipNextOnMistakeStroke: null,
+      // hanzi-writer's default when `showOutline` is left unset is `true`;
+      // keep the mirror in sync with the value the underlying writer
+      // will actually render, so the very first outlineVisible read
+      // matches what the user sees on screen.
+      outlineVisible: mountOpts.showOutline ?? true,
+      outlineShownDuringWrite: false,
       isPointerDown: false,
       lastMoveTime: 0,
       releaseTime: 0,
@@ -2569,11 +2608,26 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     return api;
   }
   function showOutline(): Char {
-    assertMounted().hw.showOutline();
+    const m = assertMounted();
+    m.hw.showOutline();
+    m.outlineVisible = true;
+    // Sticky-once-true within the current write attempt: only flip
+    // the flag while a quiz is in flight so a `showOutline()` invoked
+    // after the quiz has settled (or before start()) does not count as
+    // "shown during writing". `startQuiz` re-seeds this from
+    // `outlineVisible` on the next start()/undo(), which is the right
+    // pathway for capturing "outline was already on at attempt start".
+    if (m.quizActive) {
+      m.outlineShownDuringWrite = true;
+    }
     return api;
   }
   function hideOutline(): Char {
-    assertMounted().hw.hideOutline();
+    const m = assertMounted();
+    m.hw.hideOutline();
+    m.outlineVisible = false;
+    // Sticky flag is intentionally not cleared: a mid-write peek at
+    // the outline still means the user had it visible during writing.
     return api;
   }
 

@@ -650,6 +650,99 @@ describe("char", () => {
       expect(polylines.length).toBe(0);
     });
 
+    describe("result().outlineShown", () => {
+      // `maxRetries: 0` commits on the first attempt regardless of the
+      // per-stroke verdict, so perStroke is guaranteed to be populated
+      // by the time result() is called — the mount branch in result()
+      // is what emits `outlineShown`.
+
+      it("is true after a write attempt when the outline defaults to visible", async () => {
+        // mountOpts.showOutline unset → hanzi-writer's default (`true`)
+        // is what's actually rendered; the sticky flag should reflect
+        // that the user had the outline visible from moment zero.
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+        drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(k.result().outlineShown).toBe(true);
+      });
+
+      it("is false when mounted with showOutline: false and never toggled on", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          showOutline: false,
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+        drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(k.result().outlineShown).toBe(false);
+      });
+
+      it("stays true when the outline is hidden mid-write (sticky once shown)", async () => {
+        // Outline was visible at start(); hiding it mid-attempt must
+        // not erase the fact that the user could see the reference.
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+        k.hideOutline();
+        drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(k.result().outlineShown).toBe(true);
+      });
+
+      it("flips to true when showOutline() is called while the quiz is active", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          showOutline: false,
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 10], [40, 40], [70, 70]]);
+        k.showOutline();
+        k.hideOutline();
+        drawStroke(layer, [[120, 120], [180, 180], [240, 240]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(k.result().outlineShown).toBe(true);
+      });
+    });
+
   });
 
   describe("correction: deferred", () => {
@@ -2248,6 +2341,24 @@ describe("char", () => {
       expect(res.perStroke[0]).not.toBe(res.perStroke[1]);
       res.perStroke[0].similarity = 999;
       expect(res.perStroke[1].similarity).toBe(0);
+    });
+
+    it("result() reports outlineShown: false on the headless check() path", async () => {
+      // The headless checker has no DOM, so no outline could have been
+      // visible during writing. The field is always populated (never
+      // undefined) so callers can branch on a plain boolean.
+      const k = char.create("あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      await k.checkStroke(0, [
+        { x: 0, y: 0, t: 0 },
+        { x: 50, y: 50, t: 0 },
+        { x: 100, y: 100, t: 0 },
+      ]);
+      const res = k.result();
+      expect(res.outlineShown).toBe(false);
     });
 
     it("result() reports matched=false when at least one checked stroke missed", async () => {

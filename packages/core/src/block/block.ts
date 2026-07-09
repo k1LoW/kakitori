@@ -1019,6 +1019,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       perStroke: [],
       source,
       mode: "show",
+      outlineShown: false,
     }));
   }
 
