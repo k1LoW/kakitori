@@ -482,9 +482,9 @@ export interface CharResult {
    * `false` in every non-guided-write path — the headless `check()`
    * path (no DOM, no outline to render), synthetic {@link CharResult}s
    * (show-mode display slots, free-cell pending / rejected fallbacks,
-   * annotation candidates), and the empty placeholder emitted by
-   * `restore` for still-uninhabited slots — because there was no
-   * writing during which the outline could have been shown.
+   * annotation candidates), and the empty placeholder `restore`
+   * constructs internally for still-uninhabited slots — because there
+   * was no writing during which the outline could have been shown.
    */
   outlineShown: boolean;
 }
