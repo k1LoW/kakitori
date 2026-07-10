@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.17.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.16.1...packages/core/v0.17.0) - 2026-07-10
+
+### New Features 🚀
+- feat(core): expose outlineShown on CharResult by @k1LoW in https://github.com/k1LoW/kakitori/pull/111
+### Other Changes
+- feat(data): let set-stroke-endings skip already-configured chars by @k1LoW in https://github.com/k1LoW/kakitori/pull/108
+- feat(data): add strokeEndings for grade1 kanji by @k1LoW in https://github.com/k1LoW/kakitori/pull/110
+
 ## [v0.16.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.16.0...packages/core/v0.16.1) - 2026-07-03
 
 ### Dependency Updates ⬆️
