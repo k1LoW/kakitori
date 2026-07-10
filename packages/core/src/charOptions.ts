@@ -471,4 +471,20 @@ export interface CharResult {
    *   (`perStroke` is always empty).
    */
   mode?: "write" | "show";
+  /**
+   * `true` iff the reference outline was visible at any moment during
+   * the write attempt whose data this result carries. Sticky-once-true
+   * within a single attempt (a mid-write `hideOutline()` doesn't erase
+   * a previous `showOutline()`); re-seeded from the current outline
+   * visibility on each fresh `start()` / `undo()` re-arm.
+   *
+   * Always defined so callers can branch on a plain boolean. Falls to
+   * `false` in every non-guided-write path — the headless `check()`
+   * path (no DOM, no outline to render), synthetic {@link CharResult}
+   * values (show-mode display slots, free-cell pending / rejected fallbacks,
+   * annotation candidates), and the empty placeholder `restore`
+   * constructs internally for still-uninhabited slots — because there
+   * was no writing during which the outline could have been shown.
+   */
+  outlineShown: boolean;
 }

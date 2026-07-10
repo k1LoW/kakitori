@@ -485,6 +485,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
           perStroke: [],
           source: "annotation",
           mode: "show",
+          outlineShown: false,
         }));
         const slotState: AnnotationHandleState = {
           annotationIndex,

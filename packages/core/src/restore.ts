@@ -563,6 +563,7 @@ export function blockRestore(
       complete: false,
       matched: true,
       perStroke: [],
+      outlineShown: false,
     };
     for (let k = 0; k < span; k++) {
       const slotX = writingMode === "horizontal-tb" ? k * cellSize : 0;

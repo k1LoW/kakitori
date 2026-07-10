@@ -638,6 +638,10 @@ export function createFreeCell(
         candidate: candidate.text,
         source: opts.resultSource ?? "free",
         mode: "write",
+        // Free cells do not render a reference outline against the
+        // user's input, so "was the outline visible during writing"
+        // has no meaning here — surface `false` uniformly.
+        outlineShown: false,
       };
       chars.push(result);
       const perStrokeFlags = perStroke
@@ -797,6 +801,7 @@ export function createFreeCell(
         candidate: fallbackCandidate,
         source: opts.resultSource ?? "free",
         mode: "write",
+        outlineShown: false,
       }));
     }
     settledChars = chars;
@@ -931,6 +936,7 @@ export function createFreeCell(
       perStroke: [],
       source: opts.resultSource ?? "free",
       mode: "write",
+      outlineShown: false,
     }));
   }
 

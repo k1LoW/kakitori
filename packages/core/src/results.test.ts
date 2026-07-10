@@ -17,6 +17,7 @@ function makeChar(
     perStroke: [],
     source,
     mode,
+    outlineShown: false,
   };
 }
 
@@ -167,6 +168,7 @@ describe("collectCharResults", () => {
               complete: true,
               matched: true,
               perStroke: [],
+              outlineShown: false,
               // source / mode missing on purpose
             },
           ],

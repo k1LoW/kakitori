@@ -205,10 +205,10 @@ describe("Block.results", () => {
     expect(snap.matched).toBe(true);
     expect(snap.cells).toHaveLength(2);
     expect(snap.cells[0].chars).toEqual([
-      { character: "あ", complete: true, matched: true, perStroke: [], source: "free", mode: "show" },
+      { character: "あ", complete: true, matched: true, perStroke: [], source: "free", mode: "show", outlineShown: false },
     ]);
     expect(snap.cells[1].chars).toEqual([
-      { character: "い", complete: true, matched: true, perStroke: [], source: "free", mode: "show" },
+      { character: "い", complete: true, matched: true, perStroke: [], source: "free", mode: "show", outlineShown: false },
     ]);
     expect(snap.annotations).toEqual([]);
     b.destroy();
