@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.18.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.17.1...packages/core/v0.18.0) - 2026-07-11
+
+### Breaking Changes 🛠
+- feat(core): expose per-mistake breakdown via CharResult.mistakeEvents by @k1LoW in https://github.com/k1LoW/kakitori/pull/115
+
 ## [v0.17.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.17.0...packages/core/v0.17.1) - 2026-07-11
 
 ### Other Changes
