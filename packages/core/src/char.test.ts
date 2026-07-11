@@ -883,29 +883,63 @@ describe("char", () => {
     // coords. Stub both with identity so the pointer path executes.
     // We're testing event dispatch flow (does onMistake fire, does the
     // push land) — not coord-transform accuracy, so the stub is fine.
+    //
+    // The stubs are captured and restored per-test so the prototype
+    // mutation cannot leak into later suites — that would make
+    // failures order-dependent, and other tests may rely on happy-dom's
+    // original (missing) implementations.
+    type SvgSvgProto = {
+      createSVGPoint?: () => { x: number; y: number; matrixTransform: () => { x: number; y: number } };
+    };
+    type SvgGraphicsProto = {
+      getScreenCTM?: () => { inverse: () => null };
+    };
+    const HAS_OWN = Symbol("hadOwnProp");
+    let originalCreateSVGPoint: { value: SvgSvgProto["createSVGPoint"]; [k: symbol]: boolean };
+    let originalGetScreenCTM: { value: SvgGraphicsProto["getScreenCTM"]; [k: symbol]: boolean };
+
     beforeEach(() => {
-      const proto = (SVGSVGElement.prototype as unknown as {
-        createSVGPoint?: () => { x: number; y: number; matrixTransform: () => { x: number; y: number } };
-      });
-      if (!proto.createSVGPoint || !proto.createSVGPoint.name.startsWith("stub")) {
-        proto.createSVGPoint = function stubCreateSVGPoint() {
-          const pt = {
-            x: 0,
-            y: 0,
-            matrixTransform() {
-              return { x: this.x, y: this.y };
-            },
-          };
-          return pt;
-        };
-      }
-      const gproto = SVGGraphicsElement.prototype as unknown as {
-        getScreenCTM?: () => { inverse: () => null };
+      const proto = SVGSVGElement.prototype as unknown as SvgSvgProto;
+      originalCreateSVGPoint = {
+        value: proto.createSVGPoint,
+        [HAS_OWN]: Object.hasOwn(proto, "createSVGPoint"),
       };
-      if (!gproto.getScreenCTM || !gproto.getScreenCTM.name.startsWith("stub")) {
-        gproto.getScreenCTM = function stubGetScreenCTM() {
-          return { inverse: () => null };
+      proto.createSVGPoint = function stubCreateSVGPoint() {
+        const pt = {
+          x: 0,
+          y: 0,
+          matrixTransform() {
+            return { x: this.x, y: this.y };
+          },
         };
+        return pt;
+      };
+
+      const gproto = SVGGraphicsElement.prototype as unknown as SvgGraphicsProto;
+      originalGetScreenCTM = {
+        value: gproto.getScreenCTM,
+        [HAS_OWN]: Object.hasOwn(gproto, "getScreenCTM"),
+      };
+      gproto.getScreenCTM = function stubGetScreenCTM() {
+        return { inverse: () => null };
+      };
+    });
+
+    afterEach(() => {
+      // Restore whatever happy-dom had (or didn't have) before the
+      // stub took over: reassign a real prior value, or `delete` the
+      // own property so prototype-chain fallbacks keep working.
+      const proto = SVGSVGElement.prototype as unknown as SvgSvgProto;
+      if (originalCreateSVGPoint[HAS_OWN]) {
+        proto.createSVGPoint = originalCreateSVGPoint.value;
+      } else {
+        delete proto.createSVGPoint;
+      }
+      const gproto = SVGGraphicsElement.prototype as unknown as SvgGraphicsProto;
+      if (originalGetScreenCTM[HAS_OWN]) {
+        gproto.getScreenCTM = originalGetScreenCTM.value;
+      } else {
+        delete gproto.getScreenCTM;
       }
     });
 
