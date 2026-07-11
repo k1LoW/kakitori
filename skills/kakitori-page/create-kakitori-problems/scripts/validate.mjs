@@ -59,7 +59,9 @@ function validate(file) {
 
   const allowed = new Set(["$schema", "word", "reading", "segments", "sentences"]);
   for (const key of Object.keys(problem)) {
-    if (!allowed.has(key)) errors.push(`unknown field "${key}"`);
+    if (!allowed.has(key)) {
+      errors.push(`unknown field "${key}"`);
+    }
   }
   if (problem.$schema === undefined) {
     warnings.push(`missing "$schema": "${SCHEMA_URL}" (editor validation will not work)`);
@@ -87,7 +89,9 @@ function validate(file) {
         continue;
       }
       for (const key of Object.keys(seg)) {
-        if (key !== "text" && key !== "reading") errors.push(`segments[${i}] has unknown field "${key}"`);
+        if (key !== "text" && key !== "reading") {
+          errors.push(`segments[${i}] has unknown field "${key}"`);
+        }
       }
       if (typeof seg.text !== "string" || cp(seg.text).length !== 1) {
         errors.push(`segments[${i}].text must be exactly one character`);
@@ -120,9 +124,11 @@ function validate(file) {
     const contributions = [];
     for (const seg of segments) {
       if (typeof seg?.text !== "string") { checkable = false; break; }
-      if (seg.reading !== undefined) contributions.push(seg.reading);
-      else if (KANA_RE.test(seg.text)) contributions.push(toHiragana(seg.text));
-      else { checkable = false; break; }
+      if (seg.reading !== undefined) {
+        contributions.push(seg.reading);
+      } else if (KANA_RE.test(seg.text)) {
+        contributions.push(toHiragana(seg.text));
+      } else { checkable = false; break; }
     }
     if (checkable && typeof reading === "string" && contributions.join("") !== reading) {
       errors.push(
@@ -151,7 +157,9 @@ function validate(file) {
         if (typeof word === "string" && !s.includes(word)) {
           errors.push(`sentences[${i}] does not contain the word "${word}" as-is`);
         }
-        if (seen.has(s)) errors.push(`sentences[${i}] duplicates another sentence`);
+        if (seen.has(s)) {
+          errors.push(`sentences[${i}] duplicates another sentence`);
+        }
         seen.add(s);
       }
     }
@@ -173,7 +181,9 @@ function validate(file) {
 // exist in @k1low/hanzi-writer-data-jp or registration fails with 422.
 const charCache = new Map();
 async function charExists(char) {
-  if (charCache.has(char)) return charCache.get(char);
+  if (charCache.has(char)) {
+    return charCache.get(char);
+  }
   const res = await fetch(`${CHAR_DATA_BASE_URL}/${encodeURIComponent(char)}.json`, {
     method: "HEAD",
   });
@@ -199,11 +209,15 @@ for (const file of files) {
   if (errors.length > 0) {
     failed++;
     console.log(`✗ ${file}`);
-    for (const e of errors) console.log(`    error: ${e}`);
+    for (const e of errors) {
+      console.log(`    error: ${e}`);
+    }
   } else {
     console.log(`✓ ${file}`);
   }
-  for (const w of warnings) console.log(`    warning: ${w}`);
+  for (const w of warnings) {
+    console.log(`    warning: ${w}`);
+  }
 }
 
 console.log(`\n${files.length - failed}/${files.length} passed`);
