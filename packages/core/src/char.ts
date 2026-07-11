@@ -1491,7 +1491,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           attempt: m.retries + 1,
         });
       }
-      if (verdict.strokeEnding && !verdict.strokeEnding.correct) {
+      // Ending accounting only makes sense when the matcher accepted
+      // the shape: `kind: "ending"` is documented as "shape was accepted
+      // but the tome/hane/harai check failed", and `checkStrokeImpl`
+      // always runs the ending check regardless of the shape verdict.
+      // Counting an ending failure on top of a shape rejection would
+      // both double-book the same stroke as two mistakes and violate
+      // that doc contract.
+      if (verdict.matched && verdict.strokeEnding && !verdict.strokeEnding.correct) {
         m.strokeEndingMistakes += 1;
         m.mistakeEvents.push({
           strokeNum,
