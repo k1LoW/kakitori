@@ -47,5 +47,7 @@ export type {
   StrokeEnding,
   StrokeEndingResult,
   CharStrokeData,
+  CharMistakeKind,
+  CharMistakeEvent,
   TimedPoint,
 } from "./types.js";

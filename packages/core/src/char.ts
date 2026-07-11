@@ -9,6 +9,7 @@ import type {
   RenderOptions,
 } from "./charOptions.js";
 import type {
+  CharMistakeEvent,
   CharStrokeData,
   StrokeEnding,
   StrokeEndingResult,
@@ -509,6 +510,16 @@ interface MountState {
    */
   totalMistakes: number;
   /**
+   * Chronological log of every mistake observed on the mounted-quiz path
+   * (per-stroke via hanzi-writer's callbacks, per-char / deferred via
+   * {@link runPerCharCheck}). Surfaced through
+   * {@link CharResult.mistakeEvents}. Reset alongside `totalMistakes` /
+   * `strokeEndingMistakes` on {@link startQuiz}. See
+   * {@link CharResult.mistakeEvents} for the accounting invariants tying
+   * event counts to the numeric totals.
+   */
+  mistakeEvents: CharMistakeEvent[];
+  /**
    * When `strokeEndingAsMiss` is on, an ending-check failure fires
    * `onStrokeEndingMistake` (matched: true + ending info) AND
    * hanzi-writer's underlying `onMistake` (matched: false). The ending
@@ -909,17 +920,18 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         const hwData = q._getStrokeData({ isCorrect: willAdvance, meta });
         const logicalStrokeNum = getLogicalStrokeNum(dataStrokeNum);
         const points = getCapturedPoints(m);
+        const similarity = computeSimilarity(
+          getMountStroke(m, dataStrokeNum),
+          points,
+          leniency,
+        );
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
           // hanzi-writer's matcher accepted the stroke (success path),
           // even though the ending check rejected it.
           matched: true,
-          similarity: computeSimilarity(
-            getMountStroke(m, dataStrokeNum),
-            points,
-            leniency,
-          ),
+          similarity,
           points,
           isBackwards: hwData.isBackwards,
           mistakesOnStroke: hwData.mistakesOnStroke,
@@ -931,6 +943,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           ),
           strokeEnding: endingCheck,
         };
+        m.mistakeEvents.push({
+          strokeNum: logicalStrokeNum,
+          kind: "ending",
+          mistakesOnStroke: hwData.mistakesOnStroke,
+          similarity,
+          strokeEnding: endingCheck,
+          attempt: 1,
+        });
         // Record the matcher's view (matched=true with ending check)
         // before hanzi-writer's own onMistake handler runs and would
         // otherwise overwrite this slot with matched=false. Tag the
@@ -966,6 +986,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.totalMistakes = 0;
     m.retries = 0;
     m.perStroke = [];
+    m.mistakeEvents = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
     // Fresh write attempt: seed the sticky flag from the current
@@ -1086,7 +1107,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         // strokeEndingAsMiss=true follow-up of an ending-check
         // failure that already wrote { matched: true, strokeEnding } to
         // the same logical stroke. Without this guard the ending data
-        // would be clobbered with matched=false.
+        // would be clobbered with matched=false — and the mistake event
+        // for that same failure was already pushed with kind: "ending",
+        // so we must not push a duplicate "shape" event here either.
         if (m.skipNextOnMistakeStroke === logicalStrokeNum) {
           m.skipNextOnMistakeStroke = null;
           m.totalMistakes = hwData.totalMistakes;
@@ -1103,6 +1126,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
             isBackwards: hwData.isBackwards,
           };
           m.totalMistakes = hwData.totalMistakes;
+          m.mistakeEvents.push({
+            strokeNum: logicalStrokeNum,
+            kind: hwData.isBackwards ? "backwards" : "shape",
+            mistakesOnStroke: hwData.mistakesOnStroke,
+            similarity: charData.similarity,
+            attempt: 1,
+          });
         }
         m.options.onMistake?.(charData);
       },
@@ -1451,9 +1481,33 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       }
       if (!verdict.matched) {
         m.totalMistakes += 1;
+        m.mistakeEvents.push({
+          strokeNum,
+          kind: verdict.isBackwards ? "backwards" : "shape",
+          // per-char has no per-stroke retry loop, so the "misses
+          // accumulated on this stroke" count is always 0.
+          mistakesOnStroke: 0,
+          similarity: verdict.similarity,
+          attempt: m.retries + 1,
+        });
       }
-      if (verdict.strokeEnding && !verdict.strokeEnding.correct) {
+      // Ending accounting only makes sense when the matcher accepted
+      // the shape: `kind: "ending"` is documented as "shape was accepted
+      // but the tome/hane/harai check failed", and `checkStrokeImpl`
+      // always runs the ending check regardless of the shape verdict.
+      // Counting an ending failure on top of a shape rejection would
+      // both double-book the same stroke as two mistakes and violate
+      // that doc contract.
+      if (verdict.matched && verdict.strokeEnding && !verdict.strokeEnding.correct) {
         m.strokeEndingMistakes += 1;
+        m.mistakeEvents.push({
+          strokeNum,
+          kind: "ending",
+          mistakesOnStroke: 0,
+          similarity: verdict.similarity,
+          strokeEnding: verdict.strokeEnding,
+          attempt: m.retries + 1,
+        });
       }
       const charData: CharStrokeData = {
         character: currentCharacter,
@@ -1901,6 +1955,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.totalMistakes = 0;
     m.retries = 0;
     m.perStroke = [];
+    m.mistakeEvents = [];
     m.skipNextOnMistakeStroke = null;
     m.pendingEndingCheck = null;
     // Drop any stashed deferred-correction buffer too: the cell is
@@ -2186,6 +2241,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     let perStrokeSrc: ReadonlyArray<CharStrokeResult | undefined> = [];
     let mistakes: number | undefined;
     let strokeEndingMistakes: number | undefined;
+    let mistakeEvents: CharMistakeEvent[] | undefined;
     // `outlineShown` is always present on the returned CharResult so
     // callers can branch on a plain boolean. It flips true only on the
     // mount path when the sticky "outline was visible during writing"
@@ -2196,6 +2252,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       perStrokeSrc = mounted.perStroke;
       mistakes = mounted.totalMistakes;
       strokeEndingMistakes = mounted.strokeEndingMistakes;
+      // Copy so mutating the returned array can't corrupt the mount's
+      // internal event log across subsequent result() calls or retry
+      // attempts.
+      mistakeEvents = mounted.mistakeEvents.slice();
       outlineShown = mounted.outlineShownDuringWrite;
     } else if (checker) {
       perStrokeSrc = checker.perStroke;
@@ -2242,6 +2302,9 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     }
     if (strokeEndingMistakes !== undefined) {
       out.strokeEndingMistakes = strokeEndingMistakes;
+    }
+    if (mistakeEvents !== undefined) {
+      out.mistakeEvents = mistakeEvents;
     }
     return out;
   }
@@ -2392,6 +2455,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       strokeEndingMistakes: 0,
       perStroke: [],
       totalMistakes: 0,
+      mistakeEvents: [],
       skipNextOnMistakeStroke: null,
       // hanzi-writer's default when `showOutline` is left unset is `true`;
       // keep the mirror in sync with the value the underlying writer
@@ -2519,7 +2583,20 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     strokeEndings = null;
     characterData = null;
     if (mounted) {
+      // Wipe the whole per-attempt state so a stale attempt against the
+      // previous character can't leak into the next `result()` call —
+      // `result()` gates its guided fields on `mounted.perStroke.length
+      // > 0`, so leaving perStroke/totalMistakes/retries behind while
+      // the character name updated would surface old counters under a
+      // new label. Match the reset set that `startQuiz` and
+      // `cancelActiveQuiz` already use so all three entry points settle
+      // on the same "fresh attempt state" definition.
       mounted.strokeEndingMistakes = 0;
+      mounted.totalMistakes = 0;
+      mounted.retries = 0;
+      mounted.perStroke = [];
+      mounted.mistakeEvents = [];
+      mounted.skipNextOnMistakeStroke = null;
       mounted.pendingEndingCheck = null;
       // Retained ink belongs to the previous character; drop it so the
       // overlay corresponds to whatever is being rendered now.

@@ -1,4 +1,9 @@
-import type { CharStrokeData, StrokeEndingResult, TimedPoint } from "./types.js";
+import type {
+  CharMistakeEvent,
+  CharStrokeData,
+  StrokeEndingResult,
+  TimedPoint,
+} from "./types.js";
 import type { CharacterConfig } from "./dataLoader.js";
 
 export type CharLogger = (msg: string) => void;
@@ -441,6 +446,52 @@ export interface CharResult {
   mistakes?: number;
   /** Guided-only: tome / hane / harai mistakes accumulated so far. */
   strokeEndingMistakes?: number;
+  /**
+   * Guided-only: chronological log of individual mistakes observed during
+   * the current write attempt (per-stroke mode) or accumulated across
+   * every attempt of the character (per-char / deferred modes). Each
+   * event records which logical stroke it happened on and what kind of
+   * failure it was — a matcher-rejected shape, a reverse-direction NG,
+   * or a tome / hane / harai ending NG.
+   *
+   * Accounting invariants:
+   * - `mistakeEvents.filter(e => e.kind === "ending").length` is always
+   *   equal to {@link strokeEndingMistakes}.
+   * - An `ending` event is only ever emitted when the matcher accepted
+   *   the shape for that stroke: on the per-stroke path the ending
+   *   patch fires from hanzi-writer's shape-OK moment, and on the
+   *   per-char / deferred path an ending failure on a matcher-rejected
+   *   stroke is intentionally not counted so a single bad stroke never
+   *   double-books as both `shape` and `ending`.
+   * - {@link MountOptions.strokeEndingAsMiss} only affects the
+   *   per-stroke path (it drives hanzi-writer's quiz behaviour, which
+   *   per-char and deferred bypass). Under `correction: "per-stroke"`:
+   *   - `strokeEndingAsMiss: false`: ending failures do NOT roll into
+   *     {@link mistakes}, so
+   *     `mistakeEvents.filter(e => e.kind !== "ending").length` equals
+   *     `mistakes` and `mistakeEvents.length` equals
+   *     `mistakes + strokeEndingMistakes`.
+   *   - `strokeEndingAsMiss: true`: ending failures also count toward
+   *     hanzi-writer's `totalMistakes`, so
+   *     `mistakeEvents.filter(e => e.kind !== "ending").length` equals
+   *     `mistakes - strokeEndingMistakes` and `mistakeEvents.length`
+   *     equals `mistakes`. The duplicated hanzi-writer follow-up
+   *     `onMistake` is de-duplicated on push (via the existing
+   *     `skipNextOnMistakeStroke` hand-off) so a single ending failure
+   *     never produces two events.
+   * - Under `correction: "per-char"` / `"deferred"`, ending failures
+   *   are always tracked as a separate counter (the strokeEndingAsMiss
+   *   `false` shape), matching the mode's "no per-stroke rejection"
+   *   contract:
+   *   `mistakeEvents.filter(e => e.kind !== "ending").length === mistakes`
+   *   and `mistakeEvents.length === mistakes + strokeEndingMistakes`.
+   *
+   * Undefined on the headless {@link Char.checkStroke} path (no
+   * mount, so no ending / matcher retry loop) and on synthetic
+   * {@link CharResult} values (show-mode, free-cell pending / rejected
+   * fallbacks, annotation candidates, restore placeholders).
+   */
+  mistakeEvents?: CharMistakeEvent[];
   /**
    * Free / annotation only: per-character similarity inside the
    * candidate the matcher locked onto. Undefined while the freeCell is

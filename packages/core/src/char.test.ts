@@ -650,6 +650,128 @@ describe("char", () => {
       expect(polylines.length).toBe(0);
     });
 
+    describe("result().mistakeEvents", () => {
+      // per-char mode is where NG scenarios are cheap to drive without
+      // wiring a real ending config: a horizontal drag against
+      // mockCharData's diagonals lands as a matcher NG, so every
+      // rejected stroke should surface exactly one `kind: "shape"`
+      // (or `"backwards"`) event in the log. Ending events are covered
+      // by the patch-level tests in patchEndingCheck.test.ts.
+
+      it("populates one event per matcher NG, with kind shape/backwards", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        const res = k.result();
+        expect(res.mistakeEvents).toBeDefined();
+        const events = res.mistakeEvents ?? [];
+        // No ending config was provided, so every event must be shape
+        // or backwards, and their count must equal `mistakes` exactly.
+        expect(res.strokeEndingMistakes).toBe(0);
+        expect(events.every((e) => e.kind === "shape" || e.kind === "backwards")).toBe(true);
+        expect(events.length).toBe(res.mistakes);
+        expect(events.length).toBeGreaterThan(0);
+        // per-char attempt tracking: this whole run is attempt 1.
+        expect(events.every((e) => e.attempt === 1)).toBe(true);
+      });
+
+      it("accumulates events across per-char retries", async () => {
+        // `maxRetries: 1` lets attempt 1 re-arm as a retry, then the
+        // second NG exhausts the budget and commits as final. At the
+        // commit point, `perStroke` is populated (final attempt's
+        // verdicts), so `result()` exposes the accumulated
+        // `mistakeEvents` from both attempts.
+        const onComplete = vi.fn();
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 1,
+          onComplete,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        // Attempt 1: horizontals → NG, cycle re-arms as retry 1.
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]], 1);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]], 1);
+        await new Promise((r) => setTimeout(r, 50));
+
+        // Attempt 2 (retry): different pointer ids to avoid hanzi-writer
+        // pointer bookkeeping quirks between attempts.
+        drawStroke(layer, [[10, 100], [40, 100], [70, 100]], 2);
+        drawStroke(layer, [[10, 120], [40, 120], [70, 120]], 3);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(onComplete).toHaveBeenCalledTimes(1);
+        expect(onComplete.mock.calls[0][0].matched).toBe(false);
+
+        const res = k.result();
+        const events = res.mistakeEvents ?? [];
+        // Events from both attempts must be present, tagged by attempt.
+        const attempts = new Set(events.map((e) => e.attempt));
+        expect(attempts.has(1)).toBe(true);
+        expect(attempts.has(2)).toBe(true);
+        // Total events still line up with the mistake counter.
+        expect(events.length).toBe(res.mistakes);
+      });
+
+      it("is undefined on the headless check() path", async () => {
+        const k = char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        await k.ready();
+        await k.checkStroke(0, [
+          { x: -999, y: -999, t: 0 },
+          { x: -888, y: -888, t: 0 },
+        ]);
+        const res = k.result();
+        expect(res.mistakeEvents).toBeUndefined();
+        // `mistakes` / `strokeEndingMistakes` are also undefined on the
+        // headless path, so the guided-only doc contract is intact.
+        expect(res.mistakes).toBeUndefined();
+        expect(res.strokeEndingMistakes).toBeUndefined();
+      });
+
+      it("returns a snapshot the caller can mutate without corrupting internal state", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        const first = k.result().mistakeEvents ?? [];
+        const originalLen = first.length;
+        first.length = 0;
+        const second = k.result().mistakeEvents ?? [];
+        expect(second.length).toBe(originalLen);
+      });
+    });
+
     describe("result().outlineShown", () => {
       // `maxRetries: 0` commits on the first attempt regardless of the
       // per-stroke verdict, so perStroke is guaranteed to be populated
@@ -743,6 +865,187 @@ describe("char", () => {
       });
     });
 
+  });
+
+  describe("correction: per-stroke — mistakeEvents", () => {
+    // per-stroke exercises `mistakeEvents` through hanzi-writer's real
+    // quiz callbacks — the shape / backwards push in the `onMistake`
+    // handler and the `skipNextOnMistakeStroke` de-dup on the
+    // strokeEndingAsMiss ending-follow-up path. Unlike per-char /
+    // deferred (which use kakitori's own pointer capture), hanzi-writer's
+    // quiz binds `mousedown` / `mousemove` on the SVG node and `mouseup`
+    // on the document, so drive strokes via MouseEvent — PointerEvent
+    // will not reach the matcher.
+    //
+    // happy-dom does not implement `SVGPoint.matrixTransform` or
+    // `SVGGraphicsElement.getScreenCTM`, which hanzi-writer's
+    // `_getMousePoint` needs to translate `clientX/Y` into internal
+    // coords. Stub both with identity so the pointer path executes.
+    // We're testing event dispatch flow (does onMistake fire, does the
+    // push land) — not coord-transform accuracy, so the stub is fine.
+    //
+    // The stubs are captured and restored per-test so the prototype
+    // mutation cannot leak into later suites — that would make
+    // failures order-dependent, and other tests may rely on happy-dom's
+    // original (missing) implementations.
+    type SvgSvgProto = {
+      createSVGPoint?: () => { x: number; y: number; matrixTransform: () => { x: number; y: number } };
+    };
+    type SvgGraphicsProto = {
+      getScreenCTM?: () => { inverse: () => null };
+    };
+    const HAS_OWN = Symbol("hadOwnProp");
+    let originalCreateSVGPoint: { value: SvgSvgProto["createSVGPoint"]; [k: symbol]: boolean };
+    let originalGetScreenCTM: { value: SvgGraphicsProto["getScreenCTM"]; [k: symbol]: boolean };
+
+    beforeEach(() => {
+      const proto = SVGSVGElement.prototype as unknown as SvgSvgProto;
+      originalCreateSVGPoint = {
+        value: proto.createSVGPoint,
+        [HAS_OWN]: Object.hasOwn(proto, "createSVGPoint"),
+      };
+      proto.createSVGPoint = function stubCreateSVGPoint() {
+        const pt = {
+          x: 0,
+          y: 0,
+          matrixTransform() {
+            return { x: this.x, y: this.y };
+          },
+        };
+        return pt;
+      };
+
+      const gproto = SVGGraphicsElement.prototype as unknown as SvgGraphicsProto;
+      originalGetScreenCTM = {
+        value: gproto.getScreenCTM,
+        [HAS_OWN]: Object.hasOwn(gproto, "getScreenCTM"),
+      };
+      gproto.getScreenCTM = function stubGetScreenCTM() {
+        return { inverse: () => null };
+      };
+    });
+
+    afterEach(() => {
+      // Restore whatever happy-dom had (or didn't have) before the
+      // stub took over: reassign a real prior value, or `delete` the
+      // own property so prototype-chain fallbacks keep working.
+      const proto = SVGSVGElement.prototype as unknown as SvgSvgProto;
+      if (originalCreateSVGPoint[HAS_OWN]) {
+        proto.createSVGPoint = originalCreateSVGPoint.value;
+      } else {
+        delete proto.createSVGPoint;
+      }
+      const gproto = SVGGraphicsElement.prototype as unknown as SvgGraphicsProto;
+      if (originalGetScreenCTM[HAS_OWN]) {
+        gproto.getScreenCTM = originalGetScreenCTM.value;
+      } else {
+        delete gproto.getScreenCTM;
+      }
+    });
+
+    function drawMouseStroke(
+      svgNode: SVGSVGElement,
+      points: Array<[number, number]>,
+    ): void {
+      const rect = svgNode.getBoundingClientRect();
+      const dispatch = (target: EventTarget, type: string, x: number, y: number) => {
+        const evt = new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          clientX: rect.left + x,
+          clientY: rect.top + y,
+        });
+        target.dispatchEvent(evt);
+      };
+      dispatch(svgNode, "mousedown", points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) {
+        dispatch(svgNode, "mousemove", points[i][0], points[i][1]);
+      }
+      const last = points[points.length - 1];
+      // mouseup is bound on document, not the SVG node.
+      dispatch(document, "mouseup", last[0], last[1]);
+    }
+
+    function getHwSvg(root: HTMLElement): SVGSVGElement {
+      // With `showGrid: true` (the default), the layer holds two SVGs:
+      // the grid (no `<defs>`) and hanzi-writer's (carries `<defs>`).
+      // Pick the hw one so events reach the matcher, not the grid.
+      const allSvgs = Array.from(root.querySelectorAll("svg"));
+      const hwSvg = allSvgs.find((s) => s.querySelector(":scope > defs"))
+        ?? allSvgs[allSvgs.length - 1];
+      if (!hwSvg) {
+        throw new Error("test setup: hanzi-writer SVG not found");
+      }
+      return hwSvg as SVGSVGElement;
+    }
+
+    it("pushes a mistakeEvents entry per hanzi-writer onMistake", async () => {
+      // Default correction is per-stroke. A horizontal drag against
+      // mockCharData's diagonal median gets rejected by hanzi-writer,
+      // firing `onMistake` — which the mount's handler translates into
+      // a `kind: "shape"` push. The `mistakeEvents` count must line up
+      // with the callback count so the log tracks hanzi-writer's own
+      // mistake bookkeeping stroke-for-stroke.
+      const onMistake = vi.fn();
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+        onMistake,
+      });
+      await k.ready();
+      k.start();
+      // hw.quiz() returns a promise; give the microtask queue plenty of
+      // room so hanzi-writer's `onMistake` handler is installed before
+      // we fire the first pointer sequence.
+      await new Promise((r) => setTimeout(r, 100));
+
+      const hw = getHwSvg(container);
+      drawMouseStroke(hw, [[10, 60], [40, 60], [70, 60]]);
+      await new Promise((r) => setTimeout(r, 100));
+
+      expect(onMistake.mock.calls.length).toBeGreaterThan(0);
+      const res = k.result();
+      const events = res.mistakeEvents ?? [];
+      // No ending config was provided, so every event must be a shape /
+      // backwards NG and the count matches the shape-side counter.
+      expect(res.strokeEndingMistakes).toBe(0);
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.every((e) => e.kind === "shape" || e.kind === "backwards")).toBe(true);
+      expect(events.length).toBe(res.mistakes);
+      // per-stroke never re-arms as a fresh attempt; every event is
+      // attempt 1 by contract.
+      expect(events.every((e) => e.attempt === 1)).toBe(true);
+      // Each event carries hanzi-writer's mistakesOnStroke at the
+      // moment of dispatch, so the last event's counter is at least 1.
+      expect(events[events.length - 1].mistakesOnStroke).toBeGreaterThanOrEqual(1);
+    });
+
+    it("records the current logical stroke on the event", async () => {
+      // Drive an NG on the very first stroke and verify the event
+      // records `strokeNum: 0`. Advancing past stroke 0 in this env is
+      // unreliable (the SVG coord stub uses identity, so hanzi-writer
+      // sees client coords, not properly scaled internal coords, and
+      // the matcher only occasionally accepts synthetic mouse traces),
+      // so we do not try to reach stroke 1 here — the per-char tests
+      // above already cover multi-stroke attribution, and this test
+      // only needs to prove that the per-stroke push carries the
+      // logical stroke index rather than a stale value.
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 100));
+
+      const hw = getHwSvg(container);
+      drawMouseStroke(hw, [[10, 60], [40, 60], [70, 60]]);
+      await new Promise((r) => setTimeout(r, 100));
+
+      const events = k.result().mistakeEvents ?? [];
+      expect(events.length).toBeGreaterThan(0);
+      expect(events.every((e) => e.strokeNum === 0)).toBe(true);
+    });
   });
 
   describe("correction: deferred", () => {
