@@ -2576,11 +2576,20 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     strokeEndings = null;
     characterData = null;
     if (mounted) {
+      // Wipe the whole per-attempt state so a stale attempt against the
+      // previous character can't leak into the next `result()` call —
+      // `result()` gates its guided fields on `mounted.perStroke.length
+      // > 0`, so leaving perStroke/totalMistakes/retries behind while
+      // the character name updated would surface old counters under a
+      // new label. Match the reset set that `startQuiz` and
+      // `cancelActiveQuiz` already use so all three entry points settle
+      // on the same "fresh attempt state" definition.
       mounted.strokeEndingMistakes = 0;
-      // Also drop the accompanying event log so the `kind === "ending"`
-      // count invariant against `strokeEndingMistakes` still holds on
-      // whatever fresh attempt runs against the new character.
+      mounted.totalMistakes = 0;
+      mounted.retries = 0;
+      mounted.perStroke = [];
       mounted.mistakeEvents = [];
+      mounted.skipNextOnMistakeStroke = null;
       mounted.pendingEndingCheck = null;
       // Retained ink belongs to the previous character; drop it so the
       // overlay corresponds to whatever is being rendered now.
