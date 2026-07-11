@@ -46,6 +46,55 @@ export interface StrokeEnding {
   direction?: [number, number] | null;
 }
 
+/**
+ * Category of a single mistake event recorded on {@link CharResult.mistakeEvents}.
+ *
+ * - `shape`: hanzi-writer's matcher rejected the stroke's coordinates.
+ * - `backwards`: matcher rejected the stroke AND detected it was drawn in
+ *   reverse direction. Emitted instead of `shape` when `isBackwards` is true.
+ * - `ending`: the shape was accepted but the tome / hane / harai check
+ *   failed for the stroke.
+ */
+export type CharMistakeKind = "shape" | "backwards" | "ending";
+
+/**
+ * A single mistake observed while writing a character. Emitted once per
+ * rejection: hanzi-writer's per-stroke matcher NG, an ending-check NG, or
+ * a reverse-direction NG. See {@link CharResult.mistakeEvents} for the
+ * accounting invariants tying event counts to the numeric `mistakes` /
+ * `strokeEndingMistakes` totals.
+ */
+export interface CharMistakeEvent {
+  /** 0-indexed logical stroke the mistake happened on. */
+  strokeNum: number;
+  kind: CharMistakeKind;
+  /**
+   * Misses accumulated on this stroke at the moment of the event. Same
+   * value as {@link CharStrokeData.mistakesOnStroke}. For per-stroke
+   * quiz, hanzi-writer reports this as the running count including the
+   * current miss (`1` on the first miss, `2` on the second, ...). For
+   * an ending NG surfaced through the ending-check patch, this mirrors
+   * whatever hanzi-writer reports for the shape-OK moment (typically
+   * `0` on a first-try shape success), NOT a rewritten index. For
+   * per-char / deferred mode where per-stroke retries do not exist,
+   * this is always `0`.
+   */
+  mistakesOnStroke: number;
+  /** Match score in [0, 1] for the drawn stroke. Mirrors {@link CharStrokeResult.similarity}. */
+  similarity: number;
+  /** Present when `kind === "ending"`; carries the tome/hane/harai verdict details. */
+  strokeEnding?: StrokeEndingResult;
+  /**
+   * 1-indexed character-level attempt this mistake belongs to.
+   *
+   * - `correction: "per-stroke"`: always `1` (there is no per-character
+   *   retry loop; the user retries individual strokes in place).
+   * - `correction: "per-char"` / `"deferred"`: `1` on the first attempt,
+   *   `2` after the first NG re-arms the cycle, etc.
+   */
+  attempt: number;
+}
+
 /** Result of stroke ending check for a completed stroke. */
 export interface StrokeEndingResult {
   /** True if the detected ending type is in the expected list. */

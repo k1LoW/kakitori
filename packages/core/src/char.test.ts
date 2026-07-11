@@ -650,6 +650,128 @@ describe("char", () => {
       expect(polylines.length).toBe(0);
     });
 
+    describe("result().mistakeEvents", () => {
+      // per-char mode is where NG scenarios are cheap to drive without
+      // wiring a real ending config: a horizontal drag against
+      // mockCharData's diagonals lands as a matcher NG, so every
+      // rejected stroke should surface exactly one `kind: "shape"`
+      // (or `"backwards"`) event in the log. Ending events are covered
+      // by the patch-level tests in patchEndingCheck.test.ts.
+
+      it("populates one event per matcher NG, with kind shape/backwards", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        const res = k.result();
+        expect(res.mistakeEvents).toBeDefined();
+        const events = res.mistakeEvents ?? [];
+        // No ending config was provided, so every event must be shape
+        // or backwards, and their count must equal `mistakes` exactly.
+        expect(res.strokeEndingMistakes).toBe(0);
+        expect(events.every((e) => e.kind === "shape" || e.kind === "backwards")).toBe(true);
+        expect(events.length).toBe(res.mistakes);
+        expect(events.length).toBeGreaterThan(0);
+        // per-char attempt tracking: this whole run is attempt 1.
+        expect(events.every((e) => e.attempt === 1)).toBe(true);
+      });
+
+      it("accumulates events across per-char retries", async () => {
+        // `maxRetries: 1` lets attempt 1 re-arm as a retry, then the
+        // second NG exhausts the budget and commits as final. At the
+        // commit point, `perStroke` is populated (final attempt's
+        // verdicts), so `result()` exposes the accumulated
+        // `mistakeEvents` from both attempts.
+        const onComplete = vi.fn();
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 1,
+          onComplete,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        // Attempt 1: horizontals → NG, cycle re-arms as retry 1.
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]], 1);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]], 1);
+        await new Promise((r) => setTimeout(r, 50));
+
+        // Attempt 2 (retry): different pointer ids to avoid hanzi-writer
+        // pointer bookkeeping quirks between attempts.
+        drawStroke(layer, [[10, 100], [40, 100], [70, 100]], 2);
+        drawStroke(layer, [[10, 120], [40, 120], [70, 120]], 3);
+        await new Promise((r) => setTimeout(r, 50));
+
+        expect(onComplete).toHaveBeenCalledTimes(1);
+        expect(onComplete.mock.calls[0][0].matched).toBe(false);
+
+        const res = k.result();
+        const events = res.mistakeEvents ?? [];
+        // Events from both attempts must be present, tagged by attempt.
+        const attempts = new Set(events.map((e) => e.attempt));
+        expect(attempts.has(1)).toBe(true);
+        expect(attempts.has(2)).toBe(true);
+        // Total events still line up with the mistake counter.
+        expect(events.length).toBe(res.mistakes);
+      });
+
+      it("is undefined on the headless check() path", async () => {
+        const k = char.create("あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+        });
+        await k.ready();
+        await k.checkStroke(0, [
+          { x: -999, y: -999, t: 0 },
+          { x: -888, y: -888, t: 0 },
+        ]);
+        const res = k.result();
+        expect(res.mistakeEvents).toBeUndefined();
+        // `mistakes` / `strokeEndingMistakes` are also undefined on the
+        // headless path, so the guided-only doc contract is intact.
+        expect(res.mistakes).toBeUndefined();
+        expect(res.strokeEndingMistakes).toBeUndefined();
+      });
+
+      it("returns a snapshot the caller can mutate without corrupting internal state", async () => {
+        const k = createMounted(container, "あ", {
+          charDataLoader: mockCharDataLoader,
+          configLoader: null,
+          correction: "per-char",
+          maxRetries: 0,
+        });
+        await k.ready();
+        k.start();
+        await new Promise((r) => setTimeout(r, 0));
+
+        const layer = getWriterLayer(container);
+        drawStroke(layer, [[10, 60], [40, 60], [70, 60]]);
+        drawStroke(layer, [[10, 80], [40, 80], [70, 80]]);
+        await new Promise((r) => setTimeout(r, 50));
+
+        const first = k.result().mistakeEvents ?? [];
+        const originalLen = first.length;
+        first.length = 0;
+        const second = k.result().mistakeEvents ?? [];
+        expect(second.length).toBe(originalLen);
+      });
+    });
+
     describe("result().outlineShown", () => {
       // `maxRetries: 0` commits on the first attempt regardless of the
       // per-stroke verdict, so perStroke is guaranteed to be populated
