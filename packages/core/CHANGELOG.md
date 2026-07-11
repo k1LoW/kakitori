@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.17.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.17.0...packages/core/v0.17.1) - 2026-07-11
+
+### Other Changes
+- fix(skills): satisfy oxlint curly rule in validate.mjs by @k1LoW in https://github.com/k1LoW/kakitori/pull/114
+
 ## [v0.17.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.16.1...packages/core/v0.17.0) - 2026-07-10
 
 ### New Features 🚀
