@@ -1,3 +1,23 @@
 {
-  "character": "刀"
+  "character": "刀",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.79,
+        0.62
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.82,
+        -0.57
+      ]
+    }
+  ]
 }

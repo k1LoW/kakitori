@@ -1,3 +1,33 @@
 {
-  "character": "元"
+  "character": "元",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.79,
+        -0.61
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        0.02,
+        1
+      ]
+    }
+  ]
 }
