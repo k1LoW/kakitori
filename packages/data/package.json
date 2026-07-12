@@ -16,7 +16,8 @@
       "types": "./dist/index.d.mts",
       "import": "./dist/index.mjs"
     },
-    "./data/*.json": "./data/*.json"
+    "./data/*.json": "./data/*.json",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",
