@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.9.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.0...packages/data/v0.9.1) - 2026-07-12
+
+### Breaking Changes 🛠
+- feat(core): expose per-mistake breakdown via CharResult.mistakeEvents by @k1LoW in https://github.com/k1LoW/kakitori/pull/115
+- docs(skills): align kakitori-page skill with question API rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/117
+### New Features 🚀
+- feat(core): expose outlineShown on CharResult by @k1LoW in https://github.com/k1LoW/kakitori/pull/111
+### Other Changes
+- fix(skills): satisfy oxlint curly rule in validate.mjs by @k1LoW in https://github.com/k1LoW/kakitori/pull/114
+
 ## [v0.9.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.8.0...packages/data/v0.9.0) - 2026-07-08
 
 ### Breaking Changes 🛠
