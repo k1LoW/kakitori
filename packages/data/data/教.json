@@ -1,3 +1,86 @@
 {
-  "character": "教"
+  "character": "教",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.8,
+        -0.6
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "hane"
+      ],
+      "direction": [
+        -0.67,
+        -0.74
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.84,
+        0.54
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.91,
+        0.41
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.53,
+        -0.85
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.92,
+        -0.39
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }
