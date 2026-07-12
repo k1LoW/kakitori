@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.9.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.1...packages/data/v0.9.2) - 2026-07-12
+
+### Other Changes
+- feat(data): export ./package.json so consumers can read the version by @k1LoW in https://github.com/k1LoW/kakitori/pull/119
+
 ## [v0.9.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.0...packages/data/v0.9.1) - 2026-07-12
 
 ### Breaking Changes 🛠
