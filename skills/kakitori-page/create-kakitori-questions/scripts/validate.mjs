@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Validates kakitori.page problem files (one problem per JSON file) against
-// the published schema constraints and the server-side integrity rules, so
-// registration succeeds on the first try. Dependency-free; Node 18+.
+// Validates kakitori.page question files (one question per JSON file)
+// against the published schema constraints and the server-side integrity
+// rules, so registration succeeds on the first try. Dependency-free; Node 18+.
 //
 // Usage: node validate.mjs [--offline] <file.json | dir> ...
 //   --offline  skip the stroke-data existence check (needs network)
@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
 
-const SCHEMA_URL = "https://kakitori.page/schemas/problem.json";
+const SCHEMA_URL = "https://kakitori.page/schemas/question.json";
 const CHAR_DATA_BASE_URL = "https://unpkg.com/@k1low/hanzi-writer-data-jp@latest";
 
 // Matches the server: hiragana, katakana and the long vowel mark count as
@@ -50,26 +50,26 @@ const toHiragana = (s) =>
 function validate(file) {
   const errors = [];
   const warnings = [];
-  let problem;
+  let question;
   try {
-    problem = JSON.parse(readFileSync(file, "utf8"));
+    question = JSON.parse(readFileSync(file, "utf8"));
   } catch (e) {
     return { errors: [`invalid JSON: ${e.message}`], warnings, chars: [] };
   }
 
   const allowed = new Set(["$schema", "word", "reading", "segments", "sentences"]);
-  for (const key of Object.keys(problem)) {
+  for (const key of Object.keys(question)) {
     if (!allowed.has(key)) {
       errors.push(`unknown field "${key}"`);
     }
   }
-  if (problem.$schema === undefined) {
+  if (question.$schema === undefined) {
     warnings.push(`missing "$schema": "${SCHEMA_URL}" (editor validation will not work)`);
-  } else if (problem.$schema !== SCHEMA_URL) {
+  } else if (question.$schema !== SCHEMA_URL) {
     errors.push(`$schema must be "${SCHEMA_URL}"`);
   }
 
-  const { word, reading, segments, sentences } = problem;
+  const { word, reading, segments, sentences } = question;
 
   if (typeof word !== "string" || cp(word).length < 1 || cp(word).length > 16) {
     errors.push("word must be a string of 1..16 characters");
@@ -165,8 +165,8 @@ function validate(file) {
     }
   }
 
-  // Filename convention: <word>-<reading>.json (unique because word+reading
-  // is the uniqueness key within a note).
+  // Filename convention: <word>-<reading>.json. word+reading is the
+  // uniqueness key within a note, so the filename is guaranteed unique too.
   if (typeof word === "string" && typeof reading === "string") {
     const expected = `${word}-${reading}.json`;
     if (basename(file) !== expected) {
@@ -177,7 +177,7 @@ function validate(file) {
   return { errors, warnings, chars: typeof word === "string" ? cp(word) : [] };
 }
 
-// Stroke-data existence (server integrity rule 4): every word char must
+// Stroke-data existence (server integrity rule 4). Every word char must
 // exist in @k1low/hanzi-writer-data-jp or registration fails with 422.
 const charCache = new Map();
 async function charExists(char) {
