@@ -1,5 +1,14 @@
 # Changelog
 
+## [v0.18.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.0...packages/core/v0.18.1) - 2026-07-19
+
+### Breaking Changes 🛠
+- docs(skills): align kakitori-page skill with question API rename by @k1LoW in https://github.com/k1LoW/kakitori/pull/117
+### Other Changes
+- feat(data): export ./package.json so consumers can read the version by @k1LoW in https://github.com/k1LoW/kakitori/pull/119
+- docs(skills): add kakitori.page question registration skill by @k1LoW in https://github.com/k1LoW/kakitori/pull/121
+- docs(skills): guide create-kakitori-questions example sentences by @k1LoW in https://github.com/k1LoW/kakitori/pull/123
+
 ## [v0.18.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.17.1...packages/core/v0.18.0) - 2026-07-11
 
 ### Breaking Changes 🛠
