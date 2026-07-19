@@ -56,7 +56,13 @@ function maskKey(k) {
 }
 
 function collect(path) {
-  if (statSync(path).isDirectory()) {
+  let stat;
+  try {
+    stat = statSync(path);
+  } catch (e) {
+    fail(`cannot read "${path}" (${e.code ?? e.message})`);
+  }
+  if (stat.isDirectory()) {
     return readdirSync(path)
       .filter((f) => f.endsWith(".json"))
       .sort()
