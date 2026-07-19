@@ -1,3 +1,45 @@
 {
-  "character": "考"
+  "character": "考",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.87,
+        -0.49
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.86,
+        0.51
+      ]
+    }
+  ]
 }

@@ -1,3 +1,51 @@
 {
-  "character": "羽"
+  "character": "羽",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.87,
+        0.5
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.74,
+        0.68
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.86,
+        0.5
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.74,
+        0.68
+      ]
+    }
+  ]
 }

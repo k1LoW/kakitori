@@ -14,4 +14,4 @@ coverage/
 
 # skill-creator workspace (eval runs, generated review HTML, feedback).
 # Reproducible from skills/<name>/evals/evals.json — keep local only.
-skills/*-workspace/
+skills/**/*-workspace/

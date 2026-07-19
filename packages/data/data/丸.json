@@ -1,3 +1,28 @@
 {
-  "character": "丸"
+  "character": "丸",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.82,
+        -0.58
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        0.09,
+        1
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }
