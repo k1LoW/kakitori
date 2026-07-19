@@ -36,7 +36,7 @@ question ファイルそのものの作り方 (表層形ふりがな・segments�
 $ node ../create-kakitori-questions/scripts/validate.mjs <対象のファイルまたはディレクトリ>
 ```
 
-(パスはこのスキルの `scripts/` からの相対。作成側スキルの検証器を再利用する)
+(パスはこのスキルのディレクトリ `register-kakitori-questions/` からの相対。作成側スキルの検証器を再利用する)
 
 検証が1件でも失敗したら登録に進まない。表層形ふりがなの誤りなどは `create-kakitori-questions` の規則に沿って直す。全ファイルが pass してから次へ。
 
