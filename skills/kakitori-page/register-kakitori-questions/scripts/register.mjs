@@ -102,9 +102,15 @@ if (files.length === 0) {
 // Parse, strip $schema, keep the source filename for error attribution.
 const items = [];
 for (const file of files) {
+  let text;
+  try {
+    text = readFileSync(file, "utf8");
+  } catch (e) {
+    fail(`cannot read "${file}" (${e.code ?? e.message})`);
+  }
   let q;
   try {
-    q = JSON.parse(readFileSync(file, "utf8"));
+    q = JSON.parse(text);
   } catch (e) {
     fail(`${file}: invalid JSON (${e.message})`);
   }
