@@ -1,0 +1,54 @@
+{
+  "skill_name": "register-kakitori-questions",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "questions/ にある kakitori.page の問題ファイルをノートに登録して。追記でいい。import key は環境変数に入れてある。",
+      "expected_output": "全ファイルを validate.mjs で検証 (pass) してから register.mjs で登録する。$schema は除去。mode は append。本番送信の前に dry-run で件数・モードを提示する。素手の fetch を書かず同梱スクリプトを使う。",
+      "files": ["questions/ = 学校-がっこう.json, 花火-はなび.json の2つの正しい question ファイル"],
+      "assertions": [
+        "register.mjs を使って登録している (手書きの fetch/curl でノートへ POST していない)",
+        "登録より前に validate.mjs で検証を実行している",
+        "mode は append (replace を使っていない)",
+        "$schema をそのまま送っていない (除去する、または除去するスクリプトに委ねている)",
+        "本番登録の前に --dry-run で送信内容を提示している"
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "この questions/ を kakitori.page に登録しておいて。",
+      "expected_output": "questions/ 内の 1 ファイルが表層形ふりがな違反 (学校の学が がく)。validate.mjs が失敗を検出し、登録には進まない。学=がっ に直すべきと報告する。直してから登録する場合も、修正後に全ファイルが pass してから登録する。",
+      "files": ["questions/ = 学校-がっこう.json (学 の reading が誤って がく、正しくは がっ) と 山-やま.json (正しい) の2つ"],
+      "assertions": [
+        "validate.mjs を実行し、学校ファイルの表層形ふりがな違反を検出している",
+        "検証を直さないまま register.mjs で登録を強行していない",
+        "学 の reading を がく から がっ に直すべきと特定している",
+        "(もし修正して登録まで進む場合) 修正後に validate.mjs が全ファイル pass してから登録している"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "questions/ の内容で kakitori.page のノートを replace で登録したい。中身をこのセットに入れ替えて。",
+      "expected_output": "replace はノートの既存問題を全消去する不可逆操作なので、実行前に『既存を全部置き換えます』と明示的に確認を取る。確認前に本番の replace を送らない。実際に送るなら register.mjs --mode replace を使う。",
+      "files": ["questions/ = 学校-がっこう.json, 花火-はなび.json の2つの正しい question ファイル"],
+      "assertions": [
+        "replace が既存問題を全置換する不可逆操作であることをユーザーに伝えている",
+        "確認を取る前に本番の replace 登録を送信していない",
+        "(送信するなら) register.mjs に --mode replace を渡している (手書き fetch ではない)"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "「新しい」と「電車」を kakitori.page に登録して。問題ファイルはまだ作ってない。追記でいいよ。",
+      "expected_output": "ファイル未作成なので、まず create-kakitori-questions の規則で question ファイルを作成 (新しい=あたらしい は送り仮名かなに reading なし、電車=でんしゃ)。validate.mjs で検証してから register.mjs で append 登録する。作成から登録まで一気通貫。",
+      "files": [],
+      "assertions": [
+        "新しい と 電車 の question ファイルを新規作成している",
+        "新しい: 送り仮名の し・い に reading を付けていない (かな segment)",
+        "電車: 電=でん, 車=しゃ の表層形ふりがな",
+        "作成したファイルを validate.mjs で検証してから登録に進んでいる",
+        "登録は register.mjs で mode append"
+      ]
+    }
+  ]
+}
