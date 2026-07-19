@@ -2,7 +2,7 @@
 // Registers kakitori.page question files (one question per JSON file) to a
 // note via the import API. Strips the editor-only `$schema`, batches into the
 // server's 100-item limit, and reports per-batch results. Dependency-free;
-// Node 20+ (global fetch, Array.toSorted).
+// Node 18+ (global fetch).
 //
 // Usage: node register.mjs [--key K] [--mode append|replace] [--base URL]
 //                          [--dry-run] <file.json | dir> ...
@@ -26,12 +26,21 @@ const opts = { key: undefined, mode: "append", base: undefined, dryRun: false };
 const paths = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === "--key") {
-    opts.key = argv[++i];
-  } else if (a === "--mode") {
-    opts.mode = argv[++i];
-  } else if (a === "--base") {
-    opts.base = argv[++i];
+  if (a === "--key" || a === "--mode" || a === "--base") {
+    // Value-taking flags must be followed by a real value. Without this a
+    // trailing "--key" would silently consume the next flag as its value, or
+    // fall through to KAKITORI_IMPORT_KEY, risking a write to the wrong note.
+    const v = argv[++i];
+    if (v === undefined || v.startsWith("--")) {
+      fail(`${a} requires a value`);
+    }
+    if (a === "--key") {
+      opts.key = v;
+    } else if (a === "--mode") {
+      opts.mode = v;
+    } else {
+      opts.base = v;
+    }
   } else if (a === "--dry-run") {
     opts.dryRun = true;
   } else if (a.startsWith("--")) {
@@ -78,7 +87,8 @@ function collect(path) {
   if (stat.isDirectory()) {
     return readdirSync(path)
       .filter((f) => f.endsWith(".json"))
-      .toSorted()
+      // eslint-disable-next-line unicorn/no-array-sort -- filter() returns a fresh array, so sorting in place is safe; toSorted() would need Node 20+
+      .sort()
       .map((f) => join(path, f));
   }
   return [path];
