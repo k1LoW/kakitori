@@ -43,7 +43,7 @@ $ node ../create-kakitori-questions/scripts/validate.mjs <対象のファイル�
 ## 登録の実行
 
 ```console
-$ node <このスキルのディレクトリ>/scripts/register.mjs [--mode append|replace] [--dry-run] <対象>
+$ node <このスキルのディレクトリ>/scripts/register.mjs [--mode append|replace] [--dry-run] <ファイルまたはディレクトリ> ...
 ```
 
 スクリプトがやること。
