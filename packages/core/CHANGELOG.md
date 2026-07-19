@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.18.2](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.1...packages/core/v0.18.2) - 2026-07-19
+
+### Fix bug 🐛
+- fix(core): route block undo to the cell being written, not the captured one by @k1LoW in https://github.com/k1LoW/kakitori/pull/127
+### Other Changes
+- feat(data): add strokeEndings for grade2 kanji by @k1LoW in https://github.com/k1LoW/kakitori/pull/124
+
 ## [v0.18.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.0...packages/core/v0.18.1) - 2026-07-19
 
 ### Breaking Changes 🛠
