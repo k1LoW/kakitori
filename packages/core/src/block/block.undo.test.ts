@@ -56,6 +56,41 @@ function buildBlock(spec: BlockSpec) {
   return { parent, b };
 }
 
+// "い" needs two strokes; every other char settles in one. A single
+// stroke into an "い" cell therefore leaves it mid-character (never
+// captured), which is exactly the "currently being written" state the
+// undo-ordering tests below rely on.
+const twoStrokeForI: CharDataLoaderFn = (c, onLoad) => {
+  if (c === "い") {
+    onLoad({
+      strokes: ["M 0 0 L 100 100", "M 0 0 L 100 100"],
+      medians: [
+        [[0, 0], [100, 100]],
+        [[0, 0], [100, 100]],
+      ],
+    });
+    return;
+  }
+  onLoad({
+    strokes: ["M 0 0 L 100 100"],
+    medians: [[[0, 0], [100, 100]]],
+  });
+};
+
+function buildDeferredBlock(spec: BlockSpec, loader: CharDataLoaderFn) {
+  const parent = document.createElement("div");
+  document.body.appendChild(parent);
+  const b = block.create(parent, {
+    spec,
+    cellSize: 80,
+    correction: "per-block",
+    loaders: { charDataLoader: loader, configLoader: null },
+  });
+  return { parent, b };
+}
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 describe("Block.undo", () => {
   it("returns null when no activity has been recorded", () => {
     const { b, parent } = buildBlock({
@@ -107,6 +142,69 @@ describe("Block.undo", () => {
     strokeAt(annotationSvg, [[10, 10], [25, 25]], 1);
     const u = b.undo();
     expect(u).toEqual({ kind: "annotation", index: 0, hasMore: false });
+    b.destroy();
+    parent.remove();
+  });
+
+  it("free per-block: undo targets the cell being written, not one that captured earlier", async () => {
+    // Regression: in a deferred/per-block block a cell's capture is
+    // asynchronous, landing after the user has already moved on to the
+    // next cell. Undo must revert the cell currently being written, not
+    // the earlier one whose (late) capture would otherwise re-sort it to
+    // the top of the activity stack.
+    const { b, parent } = buildDeferredBlock(
+      {
+        cells: [
+          { kind: "free", expected: "あ", mode: "write" },
+          { kind: "free", expected: "い", mode: "write" },
+        ],
+      },
+      twoStrokeForI,
+    );
+    const surfaces = parent.querySelectorAll("svg");
+    // Complete cell 0 (single stroke → matches → captures async).
+    strokeAt(surfaces[0] as SVGElement, [[10, 10], [70, 70]], 1);
+    // Start cell 1 (needs two strokes → one stroke leaves it mid-write).
+    strokeAt(surfaces[1] as SVGElement, [[10, 10], [70, 70]], 2);
+    // Let cell 0's async match settle so its capture callback fires.
+    await wait(100);
+
+    const u = b.undo();
+    expect(u).toEqual({ kind: "cell", index: 1, hasMore: true });
+    b.destroy();
+    parent.remove();
+  });
+
+  it("guided per-block: undo targets the in-progress cell, not the captured one", async () => {
+    // Same regression for guided cells, where the failure is
+    // deterministic: under per-block deferral the per-stroke verdict
+    // callbacks are suppressed, so before the fix the ONLY activity
+    // signal was the char-completion capture, leaving a half-written
+    // second cell invisible to undo.
+    const { b, parent } = buildDeferredBlock(
+      {
+        cells: [
+          { kind: "guided", char: "あ", mode: "write" },
+          { kind: "guided", char: "い", mode: "write" },
+        ],
+      },
+      twoStrokeForI,
+    );
+    await wait(50);
+    const writerSvgs = Array.from(
+      parent.querySelectorAll<SVGSVGElement>("svg"),
+    ).filter((s) => s.querySelector(":scope > defs") !== null);
+
+    // Complete cell 0 (single stroke → captured).
+    strokeAt(writerSvgs[0], [[10, 40], [70, 40]], 1);
+    await wait(100);
+    // Start cell 1 (needs two strokes → one stroke leaves it mid-write,
+    // never captured).
+    strokeAt(writerSvgs[1], [[10, 40], [70, 40]], 2);
+    await wait(50);
+
+    const u = b.undo();
+    expect(u).toEqual({ kind: "cell", index: 1, hasMore: true });
     b.destroy();
     parent.remove();
   });

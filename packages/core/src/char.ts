@@ -1241,6 +1241,13 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         return;
       }
       captures.push(points);
+      // Announce the drawn stroke before any completion check below.
+      // Per-char / deferred suppress the per-stroke verdict callbacks, so
+      // this is the only signal a host gets that the cell is being
+      // written into mid-character. A host needs it so undo can target
+      // the cell in progress rather than the previous, already-captured
+      // one.
+      m.options.onStroke?.();
       // Lock in the final polyline geometry. The live updater already
       // matches the captured points, but redo it once to make sure the
       // saved polyline reflects the released stroke exactly.

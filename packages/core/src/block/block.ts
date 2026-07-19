@@ -700,11 +700,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     };
 
     if (cell.mode === "write") {
-      // Quiz mode: instrument callbacks for activity tracking + completion.
-      mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
-      mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
-      mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, data);
-      mountOpts.onComplete = () => commitGuidedCell(state);
+      // Quiz mode: route completion into the block commit chain. Compose
+      // with any caller-provided `overrides.onComplete` so the block's
+      // commit wiring doesn't swallow an external observer (same
+      // composition the activity callbacks below use). Activity tracking
+      // (for undo) is wired below, keyed on the effective correction mode.
+      const userOnComplete = mountOpts.onComplete;
+      mountOpts.onComplete = (data) => {
+        userOnComplete?.(data);
+        commitGuidedCell(state);
+      };
       // pickMountOpts(overrides) above can swap the cell's correction
       // back to per-stroke / per-char via per-cell overrides; honor
       // the EFFECTIVE value here, not the block-wide one.
@@ -728,6 +733,50 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         mountOpts.correction = "per-char";
       }
       const effectiveCorrection = mountOpts.correction;
+      // Activity tracking for undo must follow DRAW order. Which callback
+      // carries that signal depends on the correction mode:
+      if (
+        effectiveCorrection === "per-char" ||
+        effectiveCorrection === "deferred"
+      ) {
+        // Per-char / deferred fire the verdict callbacks (onCorrectStroke
+        // / onMistake) at FINALIZATION, not during drawing: per-char runs
+        // finalize in the background once the char is fully drawn,
+        // deferred runs it from the coordinator's Char.check() burst after
+        // every cell captured. By then the user has moved on, so keying
+        // activity off them would re-sort the stack out of draw order,
+        // the same defect this fix removes from the capture path. Use
+        // `onStroke`, which fires per drawn stroke, instead. Compose with
+        // any caller-provided `overrides.onStroke` (mirroring the
+        // onCharCaptured / onCharRejected composition below) so block
+        // activity tracking doesn't swallow an external observer.
+        const userOnStroke = mountOpts.onStroke;
+        mountOpts.onStroke = () => {
+          userOnStroke?.();
+          markActive("cell", state.index);
+        };
+      } else {
+        // Per-stroke: the verdict callbacks fire live as the user draws,
+        // so they ARE the per-stroke activity signal. (`onStroke` is not
+        // fired by Char in this mode.) Compose with any caller-provided
+        // overrides so activity tracking doesn't swallow an external
+        // observer, same as the onStroke / onCharCaptured paths.
+        const userOnCorrectStroke = mountOpts.onCorrectStroke;
+        mountOpts.onCorrectStroke = (data) => {
+          userOnCorrectStroke?.(data);
+          handleGuidedStroke(state, data);
+        };
+        const userOnMistake = mountOpts.onMistake;
+        mountOpts.onMistake = (data) => {
+          userOnMistake?.(data);
+          handleGuidedStroke(state, data);
+        };
+        const userOnStrokeEndingMistake = mountOpts.onStrokeEndingMistake;
+        mountOpts.onStrokeEndingMistake = (data) => {
+          userOnStrokeEndingMistake?.(data);
+          handleGuidedStroke(state, data);
+        };
+      }
       if (effectiveCorrection === "deferred") {
         // Register this cell with the per-block coordinator. Its
         // captures arrive via onCharCaptured; correction only kicks
@@ -806,11 +855,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     if (destroyed) {
       return;
     }
-    if (key.startsWith("cell:")) {
-      markActive("cell", Number(key.slice(5)));
-    } else if (key.startsWith("annot:")) {
-      markActive("annotation", Number(key.slice(6)));
-    }
+    // Do NOT markActive() here. Capture is asynchronous (a free cell
+    // settles after its matcher resolves; a guided cell after its last
+    // stroke completes the character) and can land after the user has
+    // already started the next cell. Re-sorting that just-captured cell
+    // to the top of the activity stack would make undo() revert it
+    // instead of the cell being written. Activity is instead recorded
+    // per stroke while drawing (guided: `onStroke` / per-stroke verdict
+    // callbacks; free: freeCell `onStroke`), which is the order undo
+    // must follow.
     perBlockPending.delete(key);
     if (perBlockPending.size > 0) {
       return;
