@@ -1,3 +1,31 @@
 {
-  "character": "今"
+  "character": "今",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.8,
+        -0.6
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

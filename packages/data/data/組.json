@@ -1,3 +1,67 @@
 {
-  "character": "組"
+  "character": "組",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        0.92,
+        0.39
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

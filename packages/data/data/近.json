@@ -36,8 +36,10 @@
     },
     {
       "types": [
-        "tome"
-      ]
+        "tome",
+        "harai"
+      ],
+      "direction": null
     },
     {
       "types": [

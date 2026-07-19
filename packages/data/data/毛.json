@@ -1,3 +1,33 @@
 {
-  "character": "毛"
+  "character": "毛",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.9,
+        -0.43
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.08,
+        1
+      ]
+    }
+  ]
 }

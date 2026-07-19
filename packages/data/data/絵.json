@@ -8,7 +8,12 @@
     },
     {
       "types": [
-        "tome"
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        0.92,
+        0.39
       ]
     },
     {
@@ -23,6 +28,7 @@
     },
     {
       "types": [
+        "tome",
         "harai"
       ],
       "direction": null

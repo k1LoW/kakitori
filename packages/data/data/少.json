@@ -1,3 +1,34 @@
 {
-  "character": "少"
+  "character": "少",
+  "strokeEndings": [
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.83,
+        0.56
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.9,
+        -0.43
+      ]
+    }
+  ]
 }

@@ -1,3 +1,64 @@
 {
-  "character": "前"
+  "character": "前",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.74,
+        -0.68
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.85,
+        0.53
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.76,
+        0.65
+      ]
+    }
+  ]
 }

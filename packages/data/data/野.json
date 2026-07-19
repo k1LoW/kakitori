@@ -1,3 +1,76 @@
 {
-  "character": "野"
+  "character": "野",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        0.95,
+        0.32
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.74,
+        -0.67
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.74,
+        -0.67
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.84,
+        0.54
+      ]
+    }
+  ]
 }

@@ -1,3 +1,76 @@
 {
-  "character": "道"
+  "character": "道",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.7,
+        -0.71
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.56,
+        -0.83
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

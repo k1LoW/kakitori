@@ -1,3 +1,55 @@
 {
-  "character": "姉"
+  "character": "姉",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.87,
+        -0.5
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.92,
+        0.39
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

@@ -1,3 +1,36 @@
 {
-  "character": "冬"
+  "character": "冬",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.81,
+        -0.58
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

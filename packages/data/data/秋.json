@@ -1,3 +1,67 @@
 {
-  "character": "秋"
+  "character": "秋",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.92,
+        -0.39
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.68,
+        -0.73
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.8,
+        -0.61
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.84,
+        -0.54
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

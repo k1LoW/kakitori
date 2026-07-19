@@ -1,3 +1,69 @@
 {
-  "character": "鳥"
+  "character": "鳥",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.66,
+        -0.75
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.76,
+        0.65
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

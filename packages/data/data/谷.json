@@ -1,3 +1,50 @@
 {
-  "character": "谷"
+  "character": "谷",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": [
+        -0.82,
+        -0.57
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.85,
+        -0.52
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    }
+  ]
 }

@@ -1,3 +1,31 @@
 {
-  "character": "父"
+  "character": "父",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.71,
+        -0.71
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

@@ -1,3 +1,69 @@
 {
-  "character": "通"
+  "character": "通",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai",
+        "hane"
+      ],
+      "direction": [
+        -0.74,
+        -0.67
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "harai",
+        "tome"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.86,
+        0.51
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome",
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    }
+  ]
 }

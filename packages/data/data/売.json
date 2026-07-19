@@ -1,3 +1,49 @@
 {
-  "character": "売"
+  "character": "売",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.81,
+        -0.59
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.84,
+        -0.55
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": null
+    }
+  ]
 }

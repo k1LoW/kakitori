@@ -1,3 +1,28 @@
 {
-  "character": "万"
+  "character": "万",
+  "strokeEndings": [
+    {
+      "types": [
+        "tome"
+      ]
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.79,
+        0.61
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.81,
+        -0.59
+      ]
+    }
+  ]
 }

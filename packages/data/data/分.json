@@ -1,3 +1,38 @@
 {
-  "character": "分"
+  "character": "分",
+  "strokeEndings": [
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.77,
+        -0.64
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": null
+    },
+    {
+      "types": [
+        "hane"
+      ],
+      "direction": [
+        -0.82,
+        0.57
+      ]
+    },
+    {
+      "types": [
+        "harai"
+      ],
+      "direction": [
+        -0.85,
+        -0.53
+      ]
+    }
+  ]
 }
