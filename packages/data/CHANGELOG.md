@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.10.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.2...packages/data/v0.10.0) - 2026-07-19
+
+### Other Changes
+- docs(skills): add kakitori.page question registration skill by @k1LoW in https://github.com/k1LoW/kakitori/pull/121
+- docs(skills): guide create-kakitori-questions example sentences by @k1LoW in https://github.com/k1LoW/kakitori/pull/123
+- feat(data): add strokeEndings for grade2 kanji by @k1LoW in https://github.com/k1LoW/kakitori/pull/124
+
 ## [v0.9.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.1...packages/data/v0.9.2) - 2026-07-12
 
 ### Other Changes
