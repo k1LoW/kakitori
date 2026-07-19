@@ -740,8 +740,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         // every cell captured. By then the user has moved on, so keying
         // activity off them would re-sort the stack out of draw order,
         // the same defect this fix removes from the capture path. Use
-        // `onStroke`, which fires per drawn stroke, instead.
-        mountOpts.onStroke = () => markActive("cell", state.index);
+        // `onStroke`, which fires per drawn stroke, instead. Compose with
+        // any caller-provided `overrides.onStroke` (mirroring the
+        // onCharCaptured / onCharRejected composition below) so block
+        // activity tracking doesn't swallow an external observer.
+        const userOnStroke = mountOpts.onStroke;
+        mountOpts.onStroke = () => {
+          userOnStroke?.();
+          markActive("cell", state.index);
+        };
       } else {
         // Per-stroke: the verdict callbacks fire live as the user draws,
         // so they ARE the per-stroke activity signal. (`onStroke` is not
