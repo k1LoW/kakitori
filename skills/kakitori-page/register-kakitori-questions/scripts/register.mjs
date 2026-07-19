@@ -2,7 +2,7 @@
 // Registers kakitori.page question files (one question per JSON file) to a
 // note via the import API. Strips the editor-only `$schema`, batches into the
 // server's 100-item limit, and reports per-batch results. Dependency-free;
-// Node 18+ (global fetch).
+// Node 20+ (global fetch, Array.toSorted).
 //
 // Usage: node register.mjs [--key K] [--mode append|replace] [--base URL]
 //                          [--dry-run] <file.json | dir> ...
@@ -26,16 +26,27 @@ const opts = { key: undefined, mode: "append", base: undefined, dryRun: false };
 const paths = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
-  if (a === "--key") opts.key = argv[++i];
-  else if (a === "--mode") opts.mode = argv[++i];
-  else if (a === "--base") opts.base = argv[++i];
-  else if (a === "--dry-run") opts.dryRun = true;
-  else if (a.startsWith("--")) fail(`unknown flag "${a}"`);
-  else paths.push(a);
+  if (a === "--key") {
+    opts.key = argv[++i];
+  } else if (a === "--mode") {
+    opts.mode = argv[++i];
+  } else if (a === "--base") {
+    opts.base = argv[++i];
+  } else if (a === "--dry-run") {
+    opts.dryRun = true;
+  } else if (a.startsWith("--")) {
+    fail(`unknown flag "${a}"`);
+  } else {
+    paths.push(a);
+  }
 }
 
-if (paths.length === 0) fail("usage: node register.mjs [--key K] [--mode append|replace] [--base URL] [--dry-run] <file.json | dir> ...");
-if (opts.mode !== "append" && opts.mode !== "replace") fail(`--mode must be "append" or "replace" (got "${opts.mode}")`);
+if (paths.length === 0) {
+  fail("usage: node register.mjs [--key K] [--mode append|replace] [--base URL] [--dry-run] <file.json | dir> ...");
+}
+if (opts.mode !== "append" && opts.mode !== "replace") {
+  fail(`--mode must be "append" or "replace" (got "${opts.mode}")`);
+}
 
 const key = opts.key ?? process.env.KAKITORI_IMPORT_KEY;
 if (!key && !opts.dryRun) {
@@ -51,7 +62,9 @@ function fail(msg) {
 // Show only the last 4 chars so a key never lands in logs or the terminal
 // scrollback in full.
 function maskKey(k) {
-  if (!k) return "(none)";
+  if (!k) {
+    return "(none)";
+  }
   return k.length <= 4 ? "****" : `****${k.slice(-4)}`;
 }
 
@@ -65,14 +78,16 @@ function collect(path) {
   if (stat.isDirectory()) {
     return readdirSync(path)
       .filter((f) => f.endsWith(".json"))
-      .sort()
+      .toSorted()
       .map((f) => join(path, f));
   }
   return [path];
 }
 
 const files = paths.flatMap(collect);
-if (files.length === 0) fail("no .json files found");
+if (files.length === 0) {
+  fail("no .json files found");
+}
 
 // Parse, strip $schema, keep the source filename for error attribution.
 const items = [];
@@ -104,7 +119,9 @@ for (let i = 0; i < items.length; i += BATCH_SIZE) {
 // wipe the questions the earlier batch just added. So downgrade the rest to
 // append.
 function modeForBatch(index) {
-  if (opts.mode === "replace" && index > 0) return "append";
+  if (opts.mode === "replace" && index > 0) {
+    return "append";
+  }
   return opts.mode;
 }
 
@@ -147,7 +164,9 @@ for (let i = 0; i < batches.length; i++) {
     let detail = text.slice(0, 500);
     try {
       const j = JSON.parse(text);
-      if (j?.error) detail = `${j.error.code ?? "error"}: ${j.error.message ?? ""}`;
+      if (j?.error) {
+        detail = `${j.error.code ?? "error"}: ${j.error.message ?? ""}`;
+      }
     } catch {}
     console.log(`✗ batch ${i + 1}/${batches.length} (${batch.length} items, ${mode}) -> ${res.status}  ${detail}`);
     console.log(`    files: ${batch.map((b) => basename(b.file)).join(", ")}`);
