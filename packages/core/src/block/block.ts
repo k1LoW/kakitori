@@ -700,15 +700,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     };
 
     if (cell.mode === "write") {
-      // Quiz mode: instrument callbacks for activity tracking + completion.
-      mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
-      mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
-      mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, data);
-      // Per-char / deferred cells suppress the per-stroke verdict
-      // callbacks above, so `onStroke` is the only per-stroke activity
-      // signal there. Under per-stroke correction it never fires (the
-      // verdict callbacks cover it), so wiring both is safe.
-      mountOpts.onStroke = () => markActive("cell", state.index);
+      // Quiz mode: route completion into the block commit chain. Activity
+      // tracking (for undo) is wired below, keyed on the effective
+      // correction mode.
       mountOpts.onComplete = () => commitGuidedCell(state);
       // pickMountOpts(overrides) above can swap the cell's correction
       // back to per-stroke / per-char via per-cell overrides; honor
@@ -733,6 +727,30 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         mountOpts.correction = "per-char";
       }
       const effectiveCorrection = mountOpts.correction;
+      // Activity tracking for undo must follow DRAW order. Which callback
+      // carries that signal depends on the correction mode:
+      if (
+        effectiveCorrection === "per-char" ||
+        effectiveCorrection === "deferred"
+      ) {
+        // Per-char / deferred fire the verdict callbacks (onCorrectStroke
+        // / onMistake) at FINALIZATION, not during drawing: per-char runs
+        // finalize in the background once the char is fully drawn,
+        // deferred runs it from the coordinator's Char.check() burst after
+        // every cell captured. By then the user has moved on, so keying
+        // activity off them would re-sort the stack out of draw order,
+        // the same defect this fix removes from the capture path. Use
+        // `onStroke`, which fires per drawn stroke, instead.
+        mountOpts.onStroke = () => markActive("cell", state.index);
+      } else {
+        // Per-stroke: the verdict callbacks fire live as the user draws,
+        // so they ARE the per-stroke activity signal. (`onStroke` is not
+        // fired by Char in this mode.)
+        mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
+        mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
+        mountOpts.onStrokeEndingMistake = (data) =>
+          handleGuidedStroke(state, data);
+      }
       if (effectiveCorrection === "deferred") {
         // Register this cell with the per-block coordinator. Its
         // captures arrive via onCharCaptured; correction only kicks
