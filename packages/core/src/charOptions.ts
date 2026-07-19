@@ -291,6 +291,18 @@ export interface MountOptions {
   onCorrectStroke?: (data: CharStrokeData) => void;
   onStrokeEndingMistake?: (data: CharStrokeData) => void;
   onMistake?: (data: CharStrokeData) => void;
+  /**
+   * Fires after the user completes each stroke (pointerup) under
+   * `correction: "per-char"` / `"deferred"`, where the per-stroke
+   * verdict callbacks (`onCorrectStroke` / `onMistake`) are held back
+   * until the whole character is judged. Lets a host observe that the
+   * cell is being written into right now, e.g. a wrapping block tracking
+   * the most recently active cell so a later `undo()` reverts the cell
+   * currently being written, not one that captured earlier. Not fired
+   * under `correction: "per-stroke"`, where `onCorrectStroke` /
+   * `onMistake` already fire per stroke during drawing.
+   */
+  onStroke?: () => void;
   onComplete?: (data: {
     character: string;
     totalMistakes: number;

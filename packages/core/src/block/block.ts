@@ -704,6 +704,11 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
       mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
       mountOpts.onStrokeEndingMistake = (data) => handleGuidedStroke(state, data);
+      // Per-char / deferred cells suppress the per-stroke verdict
+      // callbacks above, so `onStroke` is the only per-stroke activity
+      // signal there. Under per-stroke correction it never fires (the
+      // verdict callbacks cover it), so wiring both is safe.
+      mountOpts.onStroke = () => markActive("cell", state.index);
       mountOpts.onComplete = () => commitGuidedCell(state);
       // pickMountOpts(overrides) above can swap the cell's correction
       // back to per-stroke / per-char via per-cell overrides; honor
@@ -806,11 +811,15 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     if (destroyed) {
       return;
     }
-    if (key.startsWith("cell:")) {
-      markActive("cell", Number(key.slice(5)));
-    } else if (key.startsWith("annot:")) {
-      markActive("annotation", Number(key.slice(6)));
-    }
+    // Do NOT markActive() here. Capture is asynchronous (a free cell
+    // settles after its matcher resolves; a guided cell after its last
+    // stroke completes the character) and can land after the user has
+    // already started the next cell. Re-sorting that just-captured cell
+    // to the top of the activity stack would make undo() revert it
+    // instead of the cell being written. Activity is instead recorded
+    // per stroke while drawing (guided: `onStroke` / per-stroke verdict
+    // callbacks; free: freeCell `onStroke`), which is the order undo
+    // must follow.
     perBlockPending.delete(key);
     if (perBlockPending.size > 0) {
       return;
