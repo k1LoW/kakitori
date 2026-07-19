@@ -700,10 +700,16 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     };
 
     if (cell.mode === "write") {
-      // Quiz mode: route completion into the block commit chain. Activity
-      // tracking (for undo) is wired below, keyed on the effective
-      // correction mode.
-      mountOpts.onComplete = () => commitGuidedCell(state);
+      // Quiz mode: route completion into the block commit chain. Compose
+      // with any caller-provided `overrides.onComplete` so the block's
+      // commit wiring doesn't swallow an external observer (same
+      // composition the activity callbacks below use). Activity tracking
+      // (for undo) is wired below, keyed on the effective correction mode.
+      const userOnComplete = mountOpts.onComplete;
+      mountOpts.onComplete = (data) => {
+        userOnComplete?.(data);
+        commitGuidedCell(state);
+      };
       // pickMountOpts(overrides) above can swap the cell's correction
       // back to per-stroke / per-char via per-cell overrides; honor
       // the EFFECTIVE value here, not the block-wide one.
@@ -752,11 +758,24 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       } else {
         // Per-stroke: the verdict callbacks fire live as the user draws,
         // so they ARE the per-stroke activity signal. (`onStroke` is not
-        // fired by Char in this mode.)
-        mountOpts.onCorrectStroke = (data) => handleGuidedStroke(state, data);
-        mountOpts.onMistake = (data) => handleGuidedStroke(state, data);
-        mountOpts.onStrokeEndingMistake = (data) =>
+        // fired by Char in this mode.) Compose with any caller-provided
+        // overrides so activity tracking doesn't swallow an external
+        // observer, same as the onStroke / onCharCaptured paths.
+        const userOnCorrectStroke = mountOpts.onCorrectStroke;
+        mountOpts.onCorrectStroke = (data) => {
+          userOnCorrectStroke?.(data);
           handleGuidedStroke(state, data);
+        };
+        const userOnMistake = mountOpts.onMistake;
+        mountOpts.onMistake = (data) => {
+          userOnMistake?.(data);
+          handleGuidedStroke(state, data);
+        };
+        const userOnStrokeEndingMistake = mountOpts.onStrokeEndingMistake;
+        mountOpts.onStrokeEndingMistake = (data) => {
+          userOnStrokeEndingMistake?.(data);
+          handleGuidedStroke(state, data);
+        };
       }
       if (effectiveCorrection === "deferred") {
         // Register this cell with the per-block coordinator. Its
