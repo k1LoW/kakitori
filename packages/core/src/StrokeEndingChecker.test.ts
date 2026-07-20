@@ -252,6 +252,28 @@ describe("check", () => {
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
+
+    it("clamps confidence to [0, 1] when expected.direction is not exactly unit-length", () => {
+      // computeDirectionFromMedian() rounds to 2 decimal places, and stored
+      // direction vectors are only validated with |mag - 1| < 0.1. A vector
+      // like [0.71, 0.71] has magnitude ~1.0041, so an aligned drawn stroke
+      // yields a dot product > 1 and — without clamping — confidence > 1.
+      // See issue #130.
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 50, y: 50, t: 155 },
+      ];
+      const expected: StrokeEnding = {
+        types: ["harai"],
+        direction: [0.71, 0.71],
+      };
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      expect(result.confidence).toBeGreaterThanOrEqual(0);
+      expect(result.confidence).toBeLessThanOrEqual(1);
+    });
   });
 
   describe("confidence", () => {

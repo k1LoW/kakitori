@@ -234,7 +234,15 @@ export function checkStrokeEnding(
       actualEndDirection != null &&
       (detectedType === "hane" || detectedType === "harai")
     ) {
-      const dirSimilarity = dotProduct(actualEndDirection, expected.direction);
+      // `expected.direction` is rounded to 2 decimal places in
+      // computeDirectionFromMedian() and unit-vector validation on stored
+      // data only requires |mag - 1| < 0.1, so the raw dot product can drift
+      // slightly outside [-1, 1]. Clamp before feeding it into the confidence
+      // formula so `confidence` stays inside its documented `[0, 1]` range.
+      const dirSimilarity = Math.max(
+        -1,
+        Math.min(1, dotProduct(actualEndDirection, expected.direction)),
+      );
       const threshold = 1 - strictness;
       if (dirSimilarity < threshold) {
         correct = false;
