@@ -89,6 +89,8 @@ export interface BlockCreateOptions {
   retainStrokes?: boolean;
   /** Block-wide default for {@link MountOptions.retainedStrokeColor}. */
   retainedStrokeColor?: string;
+  /** Block-wide default for {@link MountOptions.retainedEndingNgColor}. */
+  retainedEndingNgColor?: string;
   /** Block-wide default for {@link MountOptions.retainedStrokeWidth}. */
   retainedStrokeWidth?: number;
   /**
@@ -670,6 +672,9 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
         : {}),
       ...(opts.retainedStrokeColor !== undefined
         ? { retainedStrokeColor: opts.retainedStrokeColor }
+        : {}),
+      ...(opts.retainedEndingNgColor !== undefined
+        ? { retainedEndingNgColor: opts.retainedEndingNgColor }
         : {}),
       ...(opts.retainedStrokeWidth !== undefined
         ? { retainedStrokeWidth: opts.retainedStrokeWidth }

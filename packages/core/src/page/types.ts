@@ -85,6 +85,8 @@ export interface PageCreateOptions {
   retainStrokes?: boolean;
   /** Page-wide default for {@link MountOptions.retainedStrokeColor}. */
   retainedStrokeColor?: string;
+  /** Page-wide default for {@link MountOptions.retainedEndingNgColor}. */
+  retainedEndingNgColor?: string;
   /** Page-wide default for {@link MountOptions.retainedStrokeWidth}. */
   retainedStrokeWidth?: number;
   /**
