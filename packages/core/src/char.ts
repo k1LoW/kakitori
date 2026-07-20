@@ -560,6 +560,7 @@ interface MountState {
   boundOnPointerDown: ((e: PointerEvent) => void) | null;
   boundOnPointerMove: ((e: PointerEvent) => void) | null;
   boundOnPointerUp: ((e: PointerEvent) => void) | null;
+  boundOnPointerCancel: ((e: PointerEvent) => void) | null;
   boundOnClick: ((e: MouseEvent) => void) | null;
   options: MountOptions;
   hw: HanziWriter;
@@ -709,6 +710,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const now = performance.now();
       m.lastMoveTime = now;
       m.releaseTime = 0;
+      // Capture the pointer so moves that stray outside layerEl still land
+      // here. Combined with touch-action none this stops the browser from
+      // reinterpreting the drag as a scroll and firing pointercancel.
+      try {
+        m.layerEl.setPointerCapture(e.pointerId);
+      } catch {
+        // synthetic events / inactive pointers cannot be captured
+      }
       // Snapshot the layer's rect once per stroke so pointermove only does
       // arithmetic. The layer cannot move mid-stroke without an external
       // resize / scroll, in which case the next pointerdown re-snapshots.
@@ -745,6 +754,27 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.timedPoints.push(releasePoint);
       const pause = (m.releaseTime - m.lastMoveTime).toFixed(0);
       log?.(`pointerup    x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  pause=${pause}ms`);
+      try {
+        m.layerEl.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer may already be released
+      }
+    };
+    m.boundOnPointerCancel = (e: PointerEvent) => {
+      if (!m.isPointerDown) {
+        return;
+      }
+      // A cancelled stroke has no valid release sample. Clear the per-stroke
+      // flag so the next pointerdown starts a clean buffer instead of
+      // inheriting a stuck isPointerDown, and drop the capture so the next
+      // pointerdown can re-capture.
+      m.isPointerDown = false;
+      try {
+        m.layerEl.releasePointerCapture(e.pointerId);
+      } catch {
+        // pointer may already be released
+      }
+      log?.(`pointercancel x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}`);
     };
     // Listen on the Char-owned layerEl (not targetEl) so pointer events on
     // unrelated sibling DOM the host placed inside targetEl never feed
@@ -763,6 +793,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     m.layerEl.addEventListener("pointerdown", m.boundOnPointerDown, true);
     m.layerEl.addEventListener("pointermove", m.boundOnPointerMove, true);
     m.layerEl.addEventListener("pointerup", m.boundOnPointerUp, true);
+    m.layerEl.addEventListener("pointercancel", m.boundOnPointerCancel, true);
   }
   function stopTimingTracking(m: MountState): void {
     if (m.boundOnPointerDown) {
@@ -776,6 +807,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (m.boundOnPointerUp) {
       m.layerEl.removeEventListener("pointerup", m.boundOnPointerUp, true);
       m.boundOnPointerUp = null;
+    }
+    if (m.boundOnPointerCancel) {
+      m.layerEl.removeEventListener("pointercancel", m.boundOnPointerCancel, true);
+      m.boundOnPointerCancel = null;
     }
   }
   function getCapturedPoints(m: MountState): TimedPoint[] {
@@ -2400,6 +2435,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     layerEl.style.position = "relative";
     layerEl.style.display = "inline-block";
     layerEl.style.lineHeight = "0";
+    // Own the touch gesture on the writer surface rather than depending on
+    // the integrator's CSS. Without this, a touch or stylus drag inside a
+    // scrollable ancestor gets claimed by the browser as a scroll or pan,
+    // which fires pointercancel and drops the stroke. hanzi-writer does call
+    // preventDefault() on its own touch listeners, but that races the
+    // browser's scroll decision and it never subscribes to touchcancel, so
+    // touch-action none is the only reliable guard. Set here on the durable,
+    // kakitori-owned ancestor so it survives any re-render of the inner SVG.
+    layerEl.style.touchAction = "none";
     targetEl.appendChild(layerEl);
 
     const hw = HanziWriter.create(layerEl, currentCharacter, hwOptions);
@@ -2408,6 +2452,10 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     if (hwSvg) {
       hwSvg.style.position = "relative";
       hwSvg.style.zIndex = "1";
+      // Also mark the node that actually receives hanzi-writer's touch
+      // listeners, not only the ancestor layer, so the gesture is owned at
+      // the hit-tested element too.
+      hwSvg.style.touchAction = "none";
     }
 
     // Cross-grid defaults to ON to match the block / page layer's
@@ -2471,6 +2519,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       boundOnPointerDown: null,
       boundOnPointerMove: null,
       boundOnPointerUp: null,
+      boundOnPointerCancel: null,
       boundOnClick: null,
       options: mountOpts,
       hw,
