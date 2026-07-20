@@ -331,7 +331,8 @@ type ExampleKey =
   | "no-grid"
   | "no-outline"
   | "per-char"
-  | "retain";
+  | "retain"
+  | "ending-color";
 
 interface ExampleConfig {
   key: ExampleKey;
@@ -372,6 +373,16 @@ const EXAMPLES: ExampleConfig[] = [
       size: EXAMPLE_SIZE,
       retainStrokes: true,
       showAcceptedStroke: false,
+    },
+  },
+  {
+    key: "ending-color",
+    mountOpts: {
+      size: EXAMPLE_SIZE,
+      retainStrokes: true,
+      showAcceptedStroke: false,
+      retainedStrokeColor: "#059669",
+      retainedEndingNgColor: "#dc2626",
     },
   },
 ];
