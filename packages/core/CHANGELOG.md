@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.19.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.3...packages/core/v0.19.0) - 2026-07-20
+
+### Breaking Changes 🛠
+- fix(core): loosen stationary tail tolerance to 2 units for tome detection by @k1LoW in https://github.com/k1LoW/kakitori/pull/133
+### New Features 🚀
+- feat(core): add endingNgColor to distinguish tome/hane/harai mistakes by @k1LoW in https://github.com/k1LoW/kakitori/pull/136
+
 ## [v0.18.3](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.2...packages/core/v0.18.3) - 2026-07-20
 
 ### Fix bug 🐛
