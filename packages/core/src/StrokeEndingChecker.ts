@@ -94,11 +94,28 @@ function analyzeTailFromTimedPoints(
 const BASE_SIZE = 300;
 
 /**
+ * Axis-aligned tolerance for the stationary trailing cluster, in the
+ * same units as the `points` supplied to `findStationaryTailStart` /
+ * `checkStrokeEnding` (typically hanzi-writer internal coords, so
+ * HANZI_PRESCALED_SIZE=1024, but display coords are also permitted per
+ * `CheckOptions.drawableSize`). Unlike the speed and segment-distance
+ * thresholds the checker does NOT scale this by `drawableSize`, so the
+ * numeric value applies literally to whatever coord space the caller
+ * uses. Chosen at 2 rather than the naive sub-pixel 1 because on
+ * tablet input a fingertip "held still" routinely drifts by ~1..2
+ * units between samples, and a tighter bound shattered the cluster
+ * and collapsed pauseMs to 0, dropping deliberate tome to harai. In
+ * the internal-coord case 2 units ≈ 0.2% of the canvas (≈ 0.6 CSS px
+ * on a 300 px display), still well under any real stroke motion.
+ */
+const STATIONARY_TOLERANCE = 2;
+
+/**
  * Walk backwards from the last sample and return the index of the first
  * "stationary" sample — the boundary between motion and the trailing
- * pause cluster. Consecutive steps whose `|Δx| ≤ 1` and `|Δy| ≤ 1` are
- * treated as the user holding still: the ±1 tolerance absorbs sub-pixel
- * jitter that pointer devices keep emitting while the finger is stopped.
+ * pause cluster. Consecutive steps whose `|Δx| ≤ STATIONARY_TOLERANCE`
+ * and `|Δy| ≤ STATIONARY_TOLERANCE` are treated as the user holding
+ * still.
  *
  * The returned index is `points.length - 1` when there is no stationary
  * tail (the very last sample is a real motion sample), so callers can
@@ -113,8 +130,8 @@ export function findStationaryTailStart(
   let i = points.length - 1;
   while (
     i > 0 &&
-    Math.abs(points[i].x - points[i - 1].x) <= 1 &&
-    Math.abs(points[i].y - points[i - 1].y) <= 1
+    Math.abs(points[i].x - points[i - 1].x) <= STATIONARY_TOLERANCE &&
+    Math.abs(points[i].y - points[i - 1].y) <= STATIONARY_TOLERANCE
   ) {
     i--;
   }
@@ -178,9 +195,9 @@ export function checkStrokeEnding(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  // Trailing samples whose xy stays within 1 unit of the previous sample
-  // are treated as the user holding still before release; see
-  // findStationaryTailStart() for the rationale and tolerance choice.
+  // Trailing samples whose xy stays within STATIONARY_TOLERANCE of the
+  // previous sample are treated as the user holding still before release;
+  // see findStationaryTailStart() for the rationale and tolerance choice.
   // motionPoints drops that cluster before tail analysis: keeping
   // stationary samples in the tip window collapses tip distance and
   // dilutes tip speed with the pause duration, and pollutes

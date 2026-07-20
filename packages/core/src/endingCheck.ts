@@ -121,9 +121,10 @@ export function computeEndingCheck(
   }
 
   // Reuse the checker's pause computation so the log matches the verdict.
-  // Trailing samples within ±1 unit form one "stationary cluster" and
-  // their accumulated duration is the pause; motion-only sequences
-  // report 0.
+  // Trailing samples whose step satisfies the axis-aligned tolerance
+  // `|Δx| ≤ 2 AND |Δy| ≤ 2` (NOT a Euclidean distance) form one
+  // "stationary cluster" and their accumulated duration is the pause;
+  // motion-only sequences report 0.
   const pauseBeforeRelease = computeTailPauseMs(points);
   log?.(
     `check input: pause=${pauseBeforeRelease.toFixed(0)}ms points=${points.length}`,
