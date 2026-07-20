@@ -828,6 +828,35 @@ c.start();</pre>
         </div>
       </div>
 
+      <div class="char-example">
+        <h4>6. Highlight ending mistakes</h4>
+        <p>
+          Extends example 5 with a third color for shape-matched strokes whose
+          tome / hane / harai was judged wrong (`strokeEnding.correct === false`).
+          Write the strokes without pausing at the end and 学's tome-required
+          strokes turn red instead of green, so an ending mistake is visible
+          on the ink itself rather than only in the mistakes counter.
+        </p>
+        <div class="char-example-body">
+          <div class="char-example-demo">
+            <div id="char-example-ending-color" class="char-example-writer"></div>
+            <div data-status-for="ending-color" class="char-example-status"></div>
+            <div class="char-example-controls">
+              <button data-example="ending-color" data-action="reset" type="button">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const c = char.create("学");
+c.mount(target, {
+  size: 160,
+  retainStrokes: true,
+  showAcceptedStroke: false,
+  retainedStrokeColor: "#059669",   // green: shape + ending OK
+  retainedEndingNgColor: "#dc2626", // red:   shape OK but ending NG
+});
+c.start();</pre>
+        </div>
+      </div>
+
       <h3>CharResult</h3>
       <p>
         <code>c.result()</code> returns a <code>CharResult</code>. This is the leaf type used

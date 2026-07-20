@@ -397,6 +397,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         ...(opts.leniency !== undefined ? { leniency: opts.leniency } : {}),
         ...(opts.retainStrokes !== undefined ? { retainStrokes: opts.retainStrokes } : {}),
         ...(opts.retainedStrokeColor !== undefined ? { retainedStrokeColor: opts.retainedStrokeColor } : {}),
+        ...(opts.retainedEndingNgColor !== undefined ? { retainedEndingNgColor: opts.retainedEndingNgColor } : {}),
         ...(opts.retainedStrokeWidth !== undefined ? { retainedStrokeWidth: opts.retainedStrokeWidth } : {}),
         ...(opts.showAcceptedStroke !== undefined ? { showAcceptedStroke: opts.showAcceptedStroke } : {}),
         ...(opts.maxRetries !== undefined ? { maxRetries: opts.maxRetries } : {}),

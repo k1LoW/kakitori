@@ -3263,4 +3263,54 @@ describe("computeRetainedStrokeAttrs", () => {
     );
     expect(attrs!.stroke).toBe("#222");
   });
+
+  it("retainedEndingNgColor applies when wrongEnding is true", () => {
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { retainedStrokeColor: "#222", retainedEndingNgColor: "#f80" },
+      true,
+    );
+    expect(attrs!.stroke).toBe("#f80");
+  });
+
+  it("retainedEndingNgColor is ignored when wrongEnding is false", () => {
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { retainedStrokeColor: "#222", retainedEndingNgColor: "#f80" },
+      false,
+    );
+    expect(attrs!.stroke).toBe("#222");
+  });
+
+  it("falls back to retainedStrokeColor when wrongEnding is true but retainedEndingNgColor is unset", () => {
+    // Backward compat: an ending mistake stays on the base retained
+    // color when the caller hasn't opted into the third-color scheme.
+    const attrs = computeRetainedStrokeAttrs(
+      [
+        { x: 0, y: 0, t: 0 },
+        { x: 1, y: 0, t: 1 },
+      ],
+      PROJ_1X,
+      RECT_1X,
+      SIZE,
+      PADDING,
+      { retainedStrokeColor: "#222" },
+      true,
+    );
+    expect(attrs!.stroke).toBe("#222");
+  });
 });

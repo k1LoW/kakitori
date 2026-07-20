@@ -80,6 +80,15 @@ export interface RestoreOptions {
    */
   ngColor?: string;
   /**
+   * Color applied to strokes whose shape matched (`matched: true`) but
+   * whose stroke ending was wrong (`strokeEnding.correct === false`).
+   * Falls back to `okColor` when unset, keeping today's 2-color
+   * behavior. Strokes without `strokeEnding` (no ending config, or the
+   * character has no ending judgment configured for that stroke) are
+   * unaffected and follow `okColor`.
+   */
+  endingNgColor?: string;
+  /**
    * Loader used to fetch hanzi-writer character data when the
    * reference character needs to be painted (`showCharacter: true`,
    * or `mode === "show"`). Defaults to the unpkg-backed loader.
@@ -154,6 +163,16 @@ export interface MountOptions {
   retainStrokes?: boolean;
   /** Color used for retained strokes. Defaults to `drawingColor`. */
   retainedStrokeColor?: string;
+  /**
+   * Color used for retained strokes whose shape matched but whose
+   * stroke ending was wrong (`strokeEnding.correct === false`).
+   * Applies live during writing so the child sees the ending-mistake
+   * color the moment the stroke is accepted, matching the restore-
+   * time `RestoreOptions.endingNgColor` semantics. Falls back to
+   * `retainedStrokeColor` (and then `drawingColor`) when unset,
+   * keeping today's single-color retained ink.
+   */
+  retainedEndingNgColor?: string;
   /**
    * Stroke width (display pixels) used for retained strokes.
    * Defaults to {@link drawingWidth} verbatim — both options are now

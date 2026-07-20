@@ -188,9 +188,11 @@ export function computeRetainedStrokeAttrs(
   options: {
     retainedStrokeColor?: string;
     retainedStrokeWidth?: number;
+    retainedEndingNgColor?: string;
     drawingColor?: string;
     drawingWidth?: number;
   },
+  wrongEnding: boolean = false,
 ): RetainedStrokeAttrs | null {
   if (points.length < 2) {
     return null;
@@ -212,7 +214,7 @@ export function computeRetainedStrokeAttrs(
   // it to hanzi-writer's internal-coord units when forwarding). The
   // retained polyline is drawn directly in the overlay SVG whose
   // viewBox is `0..size`, so the same display-px value applies
-  // verbatim — no scaling needed for the on-screen thickness to match
+  // verbatim, no scaling needed for the on-screen thickness to match
   // the live pen. `padding` is kept on the signature for API
   // compatibility with the mount path but no longer drives the
   // stroke-width calculation under display-px semantics.
@@ -221,9 +223,14 @@ export function computeRetainedStrokeAttrs(
     options.retainedStrokeWidth ??
     options.drawingWidth ??
     DEFAULT_DRAWING_WIDTH;
+  const baseStroke =
+    options.retainedStrokeColor ?? options.drawingColor ?? "#555";
   return {
     points: ptsStr,
-    stroke: options.retainedStrokeColor ?? options.drawingColor ?? "#555",
+    stroke:
+      wrongEnding && options.retainedEndingNgColor != null
+        ? options.retainedEndingNgColor
+        : baseStroke,
     strokeWidth,
   };
 }
@@ -858,11 +865,15 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
    * the ink lands exactly where the user drew it. No-op when
    * `retainStrokes` is false or the captured points are insufficient.
    */
-  function appendRetainedStroke(m: MountState, points: TimedPoint[]): void {
+  function appendRetainedStroke(
+    m: MountState,
+    points: TimedPoint[],
+    wrongEnding: boolean = false,
+  ): void {
     if (!m.options.retainStrokes) {
       return;
     }
-    paintUserPolyline(m, points);
+    paintUserPolyline(m, points, wrongEnding);
   }
 
   /**
@@ -873,7 +884,11 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
    * directly so the stroke grows under the pointer instead of
    * snapping in on release.
    */
-  function paintUserPolyline(m: MountState, points: TimedPoint[]): void {
+  function paintUserPolyline(
+    m: MountState,
+    points: TimedPoint[],
+    wrongEnding: boolean = false,
+  ): void {
     const proj = m.pointerProjection;
     if (!proj) {
       return;
@@ -886,6 +901,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.size,
       m.padding,
       m.options,
+      wrongEnding,
     );
     if (!attrs) {
       return;
@@ -1076,8 +1092,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
         const points = getCapturedPoints(m);
         // Persist the user's drawn ink (one polyline per data stroke /
         // pointer cycle) so grouped strokes contribute every stroke
-        // they actually drew, not just the first-in-group.
-        appendRetainedStroke(m, points);
+        // they actually drew, not just the first-in-group. The ending
+        // verdict is already resolved via `onResolved` (which runs
+        // before hanzi-writer's `_handleSuccess` triggers this
+        // callback) and stashed on `m.pendingEndingCheck`, so we can
+        // paint the retained polyline with the ending-aware color on
+        // first paint instead of recoloring it afterwards.
+        const wrongEnding = m.pendingEndingCheck?.correct === false;
+        appendRetainedStroke(m, points, wrongEnding);
         const charData: CharStrokeData = {
           character: currentCharacter,
           strokeNum: logicalStrokeNum,
@@ -1550,6 +1572,21 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
           strokeEnding: verdict.strokeEnding,
           attempt: m.retries + 1,
         });
+        // Retro-color the live polyline that was painted during this
+        // stroke: in per-char / deferred mode the polyline is created
+        // on pointerdown (before the ending verdict is known), so
+        // `retainedEndingNgColor` cannot be applied at paint time the
+        // way per-stroke mode does. `retainedGroup.children[strokeNum]`
+        // is authoritative because taps with no movement remove
+        // themselves in onPointerUp, so the DOM order matches the
+        // capture order 1:1.
+        const endingNgColor = m.options.retainedEndingNgColor;
+        if (endingNgColor != null && m.retainedGroup) {
+          const polyline = m.retainedGroup.children[strokeNum];
+          if (polyline instanceof SVGPolylineElement) {
+            polyline.setAttribute("stroke", endingNgColor);
+          }
+        }
       }
       const charData: CharStrokeData = {
         character: currentCharacter,

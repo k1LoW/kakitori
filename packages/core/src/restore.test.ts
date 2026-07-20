@@ -32,11 +32,13 @@ const mockCharDataLoader: CharDataLoaderFn = (_char, onLoad) => {
 function strokeWithPoints(
   matched: boolean,
   raw: ReadonlyArray<[number, number, number]>,
+  strokeEnding?: CharStrokeResult["strokeEnding"],
 ): CharStrokeResult {
   return {
     matched,
     similarity: matched ? 0.9 : 0,
     points: raw.map(([x, y, t]) => ({ x, y, t })),
+    ...(strokeEnding ? { strokeEnding } : {}),
   };
 }
 
@@ -135,6 +137,87 @@ describe("char.restore", () => {
     const polylines = getPolylines(getRestoreSvg(host));
     expect(polylines[0].getAttribute("stroke")).toBe("#0a0");
     expect(polylines[1].getAttribute("stroke")).toBe("#a00");
+  });
+
+  it("colors shape-matched strokes with endingNgColor when strokeEnding.correct === false", () => {
+    // Three strokes:
+    //   [0] matched shape + ending OK → okColor
+    //   [1] matched shape + ending NG → endingNgColor
+    //   [2] mismatched shape           → ngColor (endingNgColor never overrides an NG shape)
+    const result = charResult("学", [
+      strokeWithPoints(
+        true,
+        [
+          [0, 0, 0],
+          [10, 10, 50],
+        ],
+        {
+          correct: true,
+          expected: ["tome"],
+          confidence: 0.9,
+          velocityProfile: "decelerating",
+          actualEndDirection: null,
+        },
+      ),
+      strokeWithPoints(
+        true,
+        [
+          [20, 20, 0],
+          [30, 30, 50],
+        ],
+        {
+          correct: false,
+          expected: ["tome"],
+          confidence: 0.3,
+          velocityProfile: "constant",
+          actualEndDirection: null,
+        },
+      ),
+      strokeWithPoints(false, [
+        [40, 40, 0],
+        [50, 50, 50],
+      ]),
+    ]);
+    char.restore(host, result, {
+      size: 200,
+      okColor: "#0a0",
+      ngColor: "#a00",
+      endingNgColor: "#f80",
+    });
+
+    const polylines = getPolylines(getRestoreSvg(host));
+    expect(polylines[0].getAttribute("stroke")).toBe("#0a0");
+    expect(polylines[1].getAttribute("stroke")).toBe("#f80");
+    expect(polylines[2].getAttribute("stroke")).toBe("#a00");
+  });
+
+  it("falls back to okColor for shape-matched ending-NG strokes when endingNgColor is unset", () => {
+    // Backward compat: without endingNgColor, an ending mistake on a
+    // matched-shape stroke stays on okColor (today's 2-color behavior).
+    const result = charResult("学", [
+      strokeWithPoints(
+        true,
+        [
+          [0, 0, 0],
+          [10, 10, 50],
+        ],
+        {
+          correct: false,
+          expected: ["tome"],
+          confidence: 0.3,
+          velocityProfile: "constant",
+          actualEndDirection: null,
+        },
+      ),
+    ]);
+    char.restore(host, result, {
+      size: 200,
+      okColor: "#0a0",
+      ngColor: "#a00",
+    });
+
+    const polylines = getPolylines(getRestoreSvg(host));
+    expect(polylines[0].getAttribute("stroke")).toBe("#0a0");
   });
 
   it("falls back to drawingColor for both ok / ng when okColor / ngColor unset", () => {
