@@ -121,7 +121,7 @@ export function computeEndingCheck(
   }
 
   // Reuse the checker's pause computation so the log matches the verdict.
-  // Trailing samples within ±1 unit form one "stationary cluster" and
+  // Trailing samples within ±2 units form one "stationary cluster" and
   // their accumulated duration is the pause; motion-only sequences
   // report 0.
   const pauseBeforeRelease = computeTailPauseMs(points);

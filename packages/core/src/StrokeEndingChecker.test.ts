@@ -52,11 +52,12 @@ describe("check", () => {
       expect(result.correct).toBe(false);
     });
 
-    it("accumulates pause time across consecutive stationary samples (xy delta <= 1)", () => {
+    it("accumulates pause time across consecutive stationary samples (xy delta <= 2)", () => {
       // The user holds still at the end. Each individual gap is 40ms,
       // safely under the 80ms tome threshold, and consecutive samples
-      // drift by 1 unit (sub-pixel jitter), but together they accumulate
-      // to 120ms — well over the 80ms tome threshold.
+      // drift by up to 2 units (touch-panel tremor within the stationary
+      // tolerance), but together they accumulate to 120ms — well over
+      // the 80ms tome threshold.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -64,8 +65,8 @@ describe("check", () => {
         { x: 30, y: 30, t: 150 },
         { x: 40, y: 40, t: 200 },
         { x: 40, y: 40, t: 240 },
-        { x: 41, y: 40, t: 280 },
-        { x: 40, y: 41, t: 320 },
+        { x: 42, y: 40, t: 280 },
+        { x: 40, y: 42, t: 320 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
@@ -73,8 +74,8 @@ describe("check", () => {
       expect(result.velocityProfile).toBe("decelerating");
     });
 
-    it("does not detect tome when trailing samples drift beyond 1 unit", () => {
-      // Gap between (40,40) and (42,40) is 2 units — not stationary, so
+    it("does not detect tome when trailing samples drift beyond 2 units", () => {
+      // Gap between (40,40) and (43,40) is 3 units — not stationary, so
       // the trailing pause cluster is just the last sample relative to
       // itself (0ms). Without a real pause the stroke is harai, not tome.
       const points: TimedPoint[] = [
@@ -83,7 +84,7 @@ describe("check", () => {
         { x: 20, y: 20, t: 100 },
         { x: 30, y: 30, t: 150 },
         { x: 40, y: 40, t: 200 },
-        { x: 42, y: 40, t: 400 },
+        { x: 43, y: 40, t: 400 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
