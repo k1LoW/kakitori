@@ -252,6 +252,40 @@ describe("check", () => {
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
+
+    it("clamps confidence to 1 when expected.direction is not exactly unit-length", () => {
+      // computeDirectionFromMedian() rounds to 2 decimal places, and stored
+      // direction vectors are only validated with |mag - 1| < 0.1. A vector
+      // like [0.71, 0.71] has magnitude ~1.0041, so an aligned drawn stroke
+      // yields a dot product > 1, and without the clamp confidence would
+      // exceed its documented [0, 1] range. See issue #130.
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 50, y: 50, t: 155 },
+      ];
+      const direction: [number, number] = [0.71, 0.71];
+      // Confirm the input actually reproduces the out-of-range condition
+      // the clamp is meant to catch (mag > 1 => aligned drawn stroke
+      // yields pre-clamp dirSimilarity > 1). Without this sanity check
+      // the test could silently drift into a unit-vector input and stop
+      // exercising the clamp.
+      expect(Math.hypot(direction[0], direction[1])).toBeGreaterThan(1);
+
+      const expected: StrokeEnding = { types: ["harai"], direction };
+      const result = checkStrokeEnding(points, expected, {
+        drawableSize: DEFAULT_SIZE,
+        strictness: 0.7,
+      });
+
+      // The direction-based confidence path must actually be taken,
+      // otherwise the assertion below is satisfied by the correct=false
+      // fallback (confidence=0.3) with the clamp never exercised.
+      expect(result.correct).toBe(true);
+      expect(result.confidence).toBe(1);
+    });
   });
 
   describe("confidence", () => {
