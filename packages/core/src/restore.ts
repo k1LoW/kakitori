@@ -141,6 +141,7 @@ function appendUserPolylines(
   drawingWidth: number,
   okColor: string,
   ngColor: string,
+  endingNgColor: string | undefined,
 ): void {
   for (const stroke of perStroke) {
     const pts = stroke.points;
@@ -151,7 +152,17 @@ function appendUserPolylines(
     const polyline = document.createElementNS(SVG_NS, "polyline");
     polyline.setAttribute("points", ptsStr);
     polyline.setAttribute("fill", "none");
-    polyline.setAttribute("stroke", stroke.matched ? okColor : ngColor);
+    // A shape-matched stroke with an explicit `strokeEnding.correct === false`
+    // gets `endingNgColor` when the caller supplied one; otherwise it stays
+    // on `okColor`. Strokes without `strokeEnding` (no ending judgment
+    // configured) are untouched and always use `okColor`.
+    const wrongEnding = stroke.strokeEnding?.correct === false;
+    const strokeColor = stroke.matched
+      ? wrongEnding && endingNgColor != null
+        ? endingNgColor
+        : okColor
+      : ngColor;
+    polyline.setAttribute("stroke", strokeColor);
     polyline.setAttribute("stroke-width", String(drawingWidth));
     polyline.setAttribute("stroke-linecap", "round");
     polyline.setAttribute("stroke-linejoin", "round");
@@ -220,6 +231,7 @@ export function charRestore(
   const drawingColor = options.drawingColor ?? DEFAULT_DRAWING_COLOR;
   const okColor = options.okColor ?? drawingColor;
   const ngColor = options.ngColor ?? drawingColor;
+  const endingNgColor = options.endingNgColor;
   const referenceColor = options.strokeColor ?? DEFAULT_REFERENCE_COLOR;
   const outlineColor = options.outlineColor ?? DEFAULT_OUTLINE_COLOR;
   const charDataLoader: CharDataLoaderFn =
@@ -256,6 +268,7 @@ export function charRestore(
       drawingWidth,
       okColor,
       ngColor,
+      endingNgColor,
     );
     clearPriorRestoreSvg(el);
     el.appendChild(svg);
@@ -612,6 +625,7 @@ export function blockRestore(
         outlineColor: options.outlineColor,
         okColor: options.okColor,
         ngColor: options.ngColor,
+        endingNgColor: options.endingNgColor,
         charDataLoader: options.charDataLoader,
       });
     }
@@ -852,6 +866,7 @@ function renderAnnotation(
         outlineColor: options.outlineColor,
         okColor: options.okColor,
         ngColor: options.ngColor,
+        endingNgColor: options.endingNgColor,
         charDataLoader: options.charDataLoader,
       });
     }
@@ -1207,6 +1222,7 @@ export function pageRestore(
       outlineColor: options.outlineColor,
       okColor: options.okColor,
       ngColor: options.ngColor,
+      endingNgColor: options.endingNgColor,
       charDataLoader: options.charDataLoader,
     });
   }

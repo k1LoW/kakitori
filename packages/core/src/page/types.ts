@@ -288,5 +288,6 @@ export interface PageRestoreOptions {
   outlineColor?: string;
   okColor?: string;
   ngColor?: string;
+  endingNgColor?: string;
   charDataLoader?: import("../charOptions.js").CharDataLoaderFn;
 }

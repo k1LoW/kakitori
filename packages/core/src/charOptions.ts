@@ -80,6 +80,15 @@ export interface RestoreOptions {
    */
   ngColor?: string;
   /**
+   * Color applied to strokes whose shape matched (`matched: true`) but
+   * whose stroke ending was wrong (`strokeEnding.correct === false`).
+   * Falls back to `okColor` when unset, keeping today's 2-color
+   * behavior. Strokes without `strokeEnding` (no ending config, or the
+   * character has no ending judgment configured for that stroke) are
+   * unaffected and follow `okColor`.
+   */
+  endingNgColor?: string;
+  /**
    * Loader used to fetch hanzi-writer character data when the
    * reference character needs to be painted (`showCharacter: true`,
    * or `mode === "show"`). Defaults to the unpkg-backed loader.
