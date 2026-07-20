@@ -353,6 +353,97 @@ describe("char", () => {
     });
   });
 
+  describe("gesture ownership (touch-action / pointer capture)", () => {
+    function getLayer(root: HTMLElement): HTMLElement {
+      const svg = root.querySelector("svg");
+      if (!svg) {
+        throw new Error("test setup: hanzi-writer SVG not found");
+      }
+      return svg.parentElement as HTMLElement;
+    }
+    function dispatchPointer(
+      el: HTMLElement,
+      type: string,
+      x: number,
+      y: number,
+      pointerId = 1,
+    ): void {
+      const rect = el.getBoundingClientRect();
+      const evt = new (globalThis as unknown as { PointerEvent: typeof PointerEvent }).PointerEvent(
+        type,
+        {
+          bubbles: true,
+          cancelable: true,
+          pointerId,
+          clientX: rect.left + x,
+          clientY: rect.top + y,
+        },
+      );
+      el.dispatchEvent(evt);
+    }
+
+    it("marks the writer layer and SVG with touch-action:none", () => {
+      // The browser must never reinterpret a drawing drag as a scroll or
+      // pan, so both the pointer layer and the hit-tested hanzi-writer SVG
+      // opt out of native touch gestures.
+      createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      const layer = getLayer(container);
+      // The grid SVG shares the layer, so pick the hanzi-writer SVG (the
+      // one that carries the quiz pointer listeners), not the grid.
+      const hwSvg = Array.from(layer.querySelectorAll<SVGSVGElement>("svg")).find(
+        (s) => !s.classList.contains("kakitori-grid"),
+      );
+      expect(layer.style.touchAction).toBe("none");
+      expect(hwSvg?.style.touchAction).toBe("none");
+    });
+
+    it("captures the pointer on pointerdown during a quiz", async () => {
+      // Capturing keeps pointermove / pointerup landing on the writer even
+      // when the finger or stylus strays outside the layer mid-stroke.
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getLayer(container);
+      const capture = vi.spyOn(layer, "setPointerCapture");
+      dispatchPointer(layer, "pointerdown", 10, 10);
+      expect(capture).toHaveBeenCalledWith(1);
+    });
+
+    it("recovers from pointercancel and accepts the next stroke", async () => {
+      // If the browser still claims the gesture, pointercancel fires
+      // instead of pointerup. The writer must release the capture and reset
+      // its per-stroke state so the following stroke starts clean rather
+      // than inheriting a stuck pointer-down.
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getLayer(container);
+      const release = vi.spyOn(layer, "releasePointerCapture");
+      dispatchPointer(layer, "pointerdown", 10, 10);
+      dispatchPointer(layer, "pointermove", 40, 40);
+      dispatchPointer(layer, "pointercancel", 40, 40);
+      expect(release).toHaveBeenCalledWith(1);
+
+      // The next pointerdown must still be picked up and re-capture.
+      const capture = vi.spyOn(layer, "setPointerCapture");
+      dispatchPointer(layer, "pointerdown", 20, 20);
+      expect(capture).toHaveBeenCalledWith(1);
+    });
+  });
+
   describe("correction: per-char", () => {
     function drawStroke(
       el: HTMLElement,
