@@ -1,5 +1,11 @@
 # Changelog
 
+## [v0.18.3](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.2...packages/core/v0.18.3) - 2026-07-20
+
+### Fix bug 🐛
+- fix(core): clamp direction dot product so confidence stays in [0, 1] by @k1LoW in https://github.com/k1LoW/kakitori/pull/131
+- fix(core): own the writer's touch gesture so scroll can't steal strokes by @k1LoW in https://github.com/k1LoW/kakitori/pull/129
+
 ## [v0.18.2](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.1...packages/core/v0.18.2) - 2026-07-19
 
 ### Fix bug 🐛
