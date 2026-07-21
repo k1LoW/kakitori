@@ -153,10 +153,12 @@ const NEIGHBORHOOD_RADIUS_SQ = NEIGHBORHOOD_RADIUS * NEIGHBORHOOD_RADIUS;
 export function findStationaryTailStart(
   points: ReadonlyArray<TimedPoint>,
 ): number {
+  // For an empty input `last` is undefined and `i` starts at -1, but the
+  // loop guard rejects it before either is used, so the natural path
+  // returns -1 — matching the docstring contract and the historical
+  // behavior callers depend on (motionEndIdx < points.length - 1 as the
+  // "no cluster" sentinel).
   const n = points.length;
-  if (n === 0) {
-    return 0;
-  }
   const last = points[n - 1];
   let i = n - 1;
   while (i > 0) {
