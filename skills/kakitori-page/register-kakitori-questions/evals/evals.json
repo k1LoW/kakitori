@@ -49,6 +49,42 @@
         "作成したファイルを validate.mjs で検証してから登録に進んでいる",
         "登録は register.mjs で mode append"
       ]
+    },
+    {
+      "id": 4,
+      "prompt": "この間登録した『学校』の segments を間違えて登録しちゃった (学=がく で登録してた、正しくは がっ)。直したい。回答実績はまだ無いはず。",
+      "expected_output": "問題は immutable なので pause + 再登録ではなく DELETE + POST の入れ替えが必要。word+reading の一意制約は paused 行にも効くので、古い行を残したままだと同じ 学校/がっこう を再登録できない。list.mjs で qid を得て、delete.mjs --dry-run → delete.mjs で削除、その後修正版を register.mjs --mode append で登録する。結果ありなら 409 が返るので、そのときだけユーザー確認を取って --force。手書き fetch は禁止。",
+      "files": [],
+      "assertions": [
+        "問題が immutable であることを踏まえ、DELETE + POST 再登録の入れ替えワークフローを提案している",
+        "list.mjs で対象の qid を確認するステップを含んでいる (id は必要)",
+        "delete.mjs を使う (手書きの curl / fetch で DELETE を送っていない)",
+        "--force を最初から付けていない (回答結果の有無をサーバー応答で確認してから判断する)",
+        "修正版ファイルは create-kakitori-questions の規則で 学=がっ に直し、validate.mjs を通してから register.mjs --mode append で登録する"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "『花火』の問題を消したい。もう出したくない。ちなみに既に何回か答えてるはず。",
+      "expected_output": "既に回答結果ありなら DELETE は素で 409 question_has_results を返す。回答履歴ごと消えることをユーザーに明示して確認を取ってから delete.mjs --force。もし『実績は残したい』方向に揺れたら、DELETE ではなく replace で paused に落とす選択肢もあることを提示する (word+reading スロットは占有し続けるので、後から同じ語で作り直したいなら DELETE 一択)。",
+      "files": [],
+      "assertions": [
+        "回答結果が紐づいていると DELETE が 409 で拒否されることを説明している",
+        "--force は不可逆で回答履歴も一緒に消えることをユーザーに伝えている",
+        "確認前に --force を実行していない",
+        "実行するなら delete.mjs --force (素手 fetch ではない)"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "このノート、pausedになってる問題ないか確認したい。",
+      "expected_output": "list.mjs --status paused (import key 限定) を実行する。paused 行があれば id と word/reading を表として提示する。paused / all は play key では 403 になることに触れる。",
+      "files": [],
+      "assertions": [
+        "list.mjs を --status paused (もしくは --status all) で実行している",
+        "paused / all フィルタは import key 必須である旨に触れている",
+        "手書きの curl / fetch で GET /questions を叩いていない"
+      ]
     }
   ]
 }
