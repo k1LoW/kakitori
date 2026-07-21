@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.20.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.19.0...packages/core/v0.20.0) - 2026-07-21
+
+### Breaking Changes 🛠
+- fix(core): base tome pause on a release-point neighborhood radius by @k1LoW in https://github.com/k1LoW/kakitori/pull/139
+### Other Changes
+- docs(skills): add delete + list ops to register-kakitori-questions by @k1LoW in https://github.com/k1LoW/kakitori/pull/137
+
 ## [v0.19.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.18.3...packages/core/v0.19.0) - 2026-07-20
 
 ### Breaking Changes 🛠
