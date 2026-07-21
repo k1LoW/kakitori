@@ -113,20 +113,23 @@ const BASE_SIZE = 300;
  * arbitrary oscillation patterns (jitter, zig-zag, symmetric bounce)
  * as long as the finger stays inside that neighborhood.
  *
- * Why 8. Empirically calibrated against the hane data in
+ * Why 15. Empirically calibrated against the hane data in
  * `@k1low/hanzi-writer-data-jp`: the shortest designed hane "tip"
  * (85%..end of the median) across the 163 hane strokes shipped in
- * `packages/data` is ~65 units, so R=8 leaves an 88% safety margin
- * before neighborhood eats into a real hane flick. On the tremor
- * side, 8 units ≈ 2.4 CSS px on a 300 px display (0.78 % of a
- * 1024-coord canvas) — comfortably above the amplitude of a
- * pressed-down fingertip's involuntary shake, comfortably below a
- * deliberate hane flick. Slow, deliberate slides into the endpoint
+ * `packages/data` is ~65 units, so R=15 still leaves a 77 % safety
+ * margin before the neighborhood can eat into a real hane flick. On
+ * the tremor side, 15 units ≈ 4.4 CSS px on a 300 px display (1.5 %
+ * of a 1024-coord canvas) — enough to swallow the stronger,
+ * tension-driven tremor a small child produces while pressing hard,
+ * which was still bleeding through at R=8 in practice. On the small
+ * end (60 px kanji-drill cells) R=15 works out to ~0.9 CSS px, so
+ * even there the neighborhood is a full physical pixel rather than a
+ * sub-pixel curiosity. Slow deliberate slides into the endpoint
  * shift slightly toward being read as tome; that's an accepted
- * trade-off because "stopped in the neighborhood" IS the design intent
- * of tome here.
+ * trade-off because "stopped in the neighborhood" IS the design
+ * intent of tome here.
  */
-const NEIGHBORHOOD_RADIUS = 8;
+const NEIGHBORHOOD_RADIUS = 15;
 const NEIGHBORHOOD_RADIUS_SQ = NEIGHBORHOOD_RADIUS * NEIGHBORHOOD_RADIUS;
 
 /**

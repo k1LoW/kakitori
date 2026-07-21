@@ -39,13 +39,14 @@ describe("check", () => {
     it("does not detect tome from a slow final motion segment without a release marker", () => {
       // Low-frequency sampling: the last segment naturally takes longer
       // than the tome threshold (>=80ms), but the user never paused — the
-      // last point is just another motion sample (different xy). pauseMs
+      // final sample is a real motion sample that lands well outside the
+      // neighborhood radius (>15 units from the previous sample). pauseMs
       // should be 0, not the segment duration, otherwise tome would fire.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
         { x: 20, y: 20, t: 100 },
-        { x: 30, y: 30, t: 250 },
+        { x: 50, y: 50, t: 250 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
@@ -107,17 +108,17 @@ describe("check", () => {
     });
 
     it("does not detect tome when a trailing sample sits outside the neighborhood radius", () => {
-      // (50, 40) is 10 units from the release point (40, 40), outside
-      // the neighborhood radius. The walk-back stops at the release
-      // sample itself, cluster time span is 0 and pauseMs = 0, so the
-      // stroke is judged harai instead of tome.
+      // (60, 40) is 20 units from the release point (40, 40), well
+      // outside the neighborhood radius. The walk-back stops at the
+      // release sample itself, cluster time span is 0 and pauseMs = 0,
+      // so the stroke is judged harai instead of tome.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
         { x: 20, y: 20, t: 100 },
         { x: 30, y: 30, t: 150 },
         { x: 40, y: 40, t: 200 },
-        { x: 50, y: 40, t: 400 },
+        { x: 60, y: 40, t: 400 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
@@ -154,14 +155,16 @@ describe("check", () => {
     });
 
     it("detects harai even when stroke decelerates (no speed condition)", () => {
-      // Slow tip relative to body, no pause, no direction change.
+      // Slow tip relative to body, no pause, no direction change. Tip
+      // samples are spaced > 15 units apart so the neighborhood-radius
+      // walk-back doesn't absorb them into a pause cluster.
       const points: TimedPoint[] = [];
       for (let i = 0; i < 17; i++) {
         points.push({ x: i * 5, y: i * 5, t: i * 50 });
       }
-      points.push({ x: 85, y: 85, t: 1000 });
-      points.push({ x: 90, y: 90, t: 1500 });
-      points.push({ x: 95, y: 95, t: 1505 });
+      points.push({ x: 105, y: 105, t: 1000 });
+      points.push({ x: 130, y: 130, t: 1500 });
+      points.push({ x: 155, y: 155, t: 1505 });
       const expected: StrokeEnding = { types: ["harai"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
