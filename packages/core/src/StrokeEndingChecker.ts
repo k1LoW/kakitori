@@ -94,45 +94,74 @@ function analyzeTailFromTimedPoints(
 const BASE_SIZE = 300;
 
 /**
- * Axis-aligned tolerance for the stationary trailing cluster, in the
- * same units as the `points` supplied to `findStationaryTailStart` /
- * `checkStrokeEnding` (typically hanzi-writer internal coords, so
+ * Euclidean radius around the release point that counts as "held still",
+ * in the same units as the `points` supplied to `findStationaryTailStart`
+ * / `checkStrokeEnding` (typically hanzi-writer internal coords, so
  * HANZI_PRESCALED_SIZE=1024, but display coords are also permitted per
- * `CheckOptions.drawableSize`). Unlike the speed and segment-distance
- * thresholds the checker does NOT scale this by `drawableSize`, so the
+ * `CheckOptions.drawableSize`). Not scaled by `drawableSize` — the
  * numeric value applies literally to whatever coord space the caller
- * uses. Chosen at 2 rather than the naive sub-pixel 1 because on
- * tablet input a fingertip "held still" routinely drifts by ~1..2
- * units between samples, and a tighter bound shattered the cluster
- * and collapsed pauseMs to 0, dropping deliberate tome to harai. In
- * the internal-coord case 2 units ≈ 0.2% of the canvas (≈ 0.6 CSS px
- * on a 300 px display), still well under any real stroke motion.
+ * uses.
+ *
+ * Why anchor-based, not per-step. The prior implementation walked back
+ * with a per-step axis-aligned `|Δ| ≤ 2` test. That form fails on
+ * tension-driven tremor: when a small child presses hard trying to hold
+ * a tome, the finger oscillates by 3..6 units per sample around the
+ * intended endpoint. A single sample whose Δ exceeds the tolerance
+ * shatters the cluster even when the finger is net-stationary, so
+ * deliberate tome drops to harai. Anchoring on the last sample and
+ * accepting any point within `NEIGHBORHOOD_RADIUS` of it absorbs
+ * arbitrary oscillation patterns (jitter, zig-zag, symmetric bounce)
+ * as long as the finger stays inside that neighborhood.
+ *
+ * Why 8. Empirically calibrated against the hane data in
+ * `@k1low/hanzi-writer-data-jp`: the shortest designed hane "tip"
+ * (85%..end of the median) across the 163 hane strokes shipped in
+ * `packages/data` is ~65 units, so R=8 leaves an 88% safety margin
+ * before neighborhood eats into a real hane flick. On the tremor
+ * side, 8 units ≈ 2.4 CSS px on a 300 px display (0.78 % of a
+ * 1024-coord canvas) — comfortably above the amplitude of a
+ * pressed-down fingertip's involuntary shake, comfortably below a
+ * deliberate hane flick. Slow, deliberate slides into the endpoint
+ * shift slightly toward being read as tome; that's an accepted
+ * trade-off because "stopped in the neighborhood" IS the design intent
+ * of tome here.
  */
-const STATIONARY_TOLERANCE = 2;
+const NEIGHBORHOOD_RADIUS = 8;
+const NEIGHBORHOOD_RADIUS_SQ = NEIGHBORHOOD_RADIUS * NEIGHBORHOOD_RADIUS;
 
 /**
  * Walk backwards from the last sample and return the index of the first
- * "stationary" sample — the boundary between motion and the trailing
- * pause cluster. Consecutive steps whose `|Δx| ≤ STATIONARY_TOLERANCE`
- * and `|Δy| ≤ STATIONARY_TOLERANCE` are treated as the user holding
- * still.
+ * sample that still sits inside the release-point neighborhood — the
+ * boundary between motion and the trailing pause cluster. A sample
+ * counts as "held still" when its Euclidean distance from the last
+ * sample is `≤ NEIGHBORHOOD_RADIUS`, regardless of the per-step
+ * direction, so oscillation around the endpoint (a hand trembling
+ * while holding a tome) accumulates as one cluster instead of being
+ * shattered by any single outlying step.
  *
  * The returned index is `points.length - 1` when there is no stationary
- * tail (the very last sample is a real motion sample), so callers can
- * detect that case with `motionEndIdx < points.length - 1`.
+ * tail (the very last sample is a real motion sample, i.e. the sample
+ * before it lies outside the neighborhood), so callers can detect that
+ * case with `motionEndIdx < points.length - 1`.
  *
  * Exported so debug/logging paths can report the SAME pause the checker
- * uses, instead of recomputing with a stale exact-match definition.
+ * uses, instead of recomputing with a stale definition.
  */
 export function findStationaryTailStart(
   points: ReadonlyArray<TimedPoint>,
 ): number {
-  let i = points.length - 1;
-  while (
-    i > 0 &&
-    Math.abs(points[i].x - points[i - 1].x) <= STATIONARY_TOLERANCE &&
-    Math.abs(points[i].y - points[i - 1].y) <= STATIONARY_TOLERANCE
-  ) {
+  const n = points.length;
+  if (n === 0) {
+    return 0;
+  }
+  const last = points[n - 1];
+  let i = n - 1;
+  while (i > 0) {
+    const dx = points[i - 1].x - last.x;
+    const dy = points[i - 1].y - last.y;
+    if (dx * dx + dy * dy > NEIGHBORHOOD_RADIUS_SQ) {
+      break;
+    }
     i--;
   }
   return i;
@@ -195,9 +224,9 @@ export function checkStrokeEnding(
   }
   const scale = drawableSize / BASE_SIZE;
 
-  // Trailing samples whose xy stays within STATIONARY_TOLERANCE of the
-  // previous sample are treated as the user holding still before release;
-  // see findStationaryTailStart() for the rationale and tolerance choice.
+  // Trailing samples that sit within NEIGHBORHOOD_RADIUS of the release
+  // point are treated as the user holding still before release; see
+  // findStationaryTailStart() for the rationale and radius choice.
   // motionPoints drops that cluster before tail analysis: keeping
   // stationary samples in the tip window collapses tip distance and
   // dilutes tip speed with the pause duration, and pollutes

@@ -19,13 +19,14 @@ export type StrokeEndingType = "tome" | "hane" | "harai";
  *
  * The final element of a stroke array is treated as the moment the user
  * released the pointer: its `t` is the release time. tome/hane/harai
- * detection finds the trailing run of samples whose step satisfies the
- * axis-aligned tolerance `|Δx| ≤ 2 AND |Δy| ≤ 2` (NOT a Euclidean
- * distance), a "stationary cluster" left by holding the finger still
- * while pointer devices keep emitting jitter, and uses the time from
- * the cluster's first sample to the release as "pause before release".
- * When the last step exceeds that tolerance on either axis (real
- * motion), the pause is treated as 0.
+ * detection finds the trailing run of samples whose Euclidean distance
+ * from the release point stays within a fixed neighborhood radius, a
+ * "stationary cluster" left by holding the finger still while pointer
+ * devices keep emitting jitter (and while a determined child's hand
+ * trembles around the intended endpoint), and uses the time from the
+ * cluster's first sample to the release as "pause before release". When
+ * the sample before the release already sits outside the neighborhood
+ * (real motion right up to release), the pause is treated as 0.
  */
 export interface TimedPoint {
   x: number;

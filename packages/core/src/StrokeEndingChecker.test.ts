@@ -52,12 +52,12 @@ describe("check", () => {
       expect(result.correct).toBe(false);
     });
 
-    it("accumulates pause time across consecutive stationary samples (xy delta <= 2)", () => {
+    it("accumulates pause time across trailing samples inside the neighborhood radius", () => {
       // The user holds still at the end. Each individual gap is 40ms,
-      // safely under the 80ms tome threshold, and consecutive samples
-      // drift by up to 2 units (touch-panel tremor within the stationary
-      // tolerance), but together they accumulate to 120ms — well over
-      // the 80ms tome threshold.
+      // safely under the 80ms tome threshold, and every trailing sample
+      // sits within the neighborhood radius of the release point (all
+      // within 3 units of (40,40)), so they accumulate to 120ms of
+      // pause — over the 80ms tome threshold.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -74,17 +74,50 @@ describe("check", () => {
       expect(result.velocityProfile).toBe("decelerating");
     });
 
-    it("does not detect tome when trailing samples drift beyond 2 units", () => {
-      // Gap between (40,40) and (43,40) is 3 units — not stationary, so
-      // the trailing pause cluster is just the last sample relative to
-      // itself (0ms). Without a real pause the stroke is harai, not tome.
+    it("absorbs alternating oscillation around the endpoint as one tome cluster", () => {
+      // Tension-driven tremor while a child tries to hold a tome: the
+      // finger oscillates by up to 6 units per sample around the
+      // intended endpoint (48, 48). Per-step |Δ| between consecutive
+      // samples reaches 12 units, which the old axis-aligned tolerance
+      // (≤ 2) would have shattered on the first outlier, collapsing
+      // pauseMs to 0 and dropping tome to harai. Under the anchor-based
+      // neighborhood radius (Euclidean ≤ NEIGHBORHOOD_RADIUS) every
+      // tremor sample stays within ~7 units of (48, 48), so the whole
+      // trailing burst accumulates as one 200ms pause and tome fires.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
         { x: 20, y: 20, t: 100 },
         { x: 30, y: 30, t: 150 },
         { x: 40, y: 40, t: 200 },
-        { x: 43, y: 40, t: 400 },
+        // Every tremor sample below is within 7 units of the release
+        // point (48, 48), even though pairs like (54, 46)→(42, 50)
+        // differ by ~12 units — exactly the pattern per-step tolerance
+        // rejects but a neighborhood radius accepts.
+        { x: 54, y: 46, t: 250 },
+        { x: 42, y: 50, t: 300 },
+        { x: 52, y: 42, t: 350 },
+        { x: 44, y: 54, t: 400 },
+        { x: 48, y: 48, t: 450 },
+      ];
+      const expected: StrokeEnding = { types: ["tome"] };
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("decelerating");
+    });
+
+    it("does not detect tome when a trailing sample sits outside the neighborhood radius", () => {
+      // (50, 40) is 10 units from the release point (40, 40), outside
+      // the neighborhood radius. The walk-back stops at the release
+      // sample itself, cluster time span is 0 and pauseMs = 0, so the
+      // stroke is judged harai instead of tome.
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 40, y: 40, t: 200 },
+        { x: 50, y: 40, t: 400 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
