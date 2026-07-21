@@ -39,25 +39,27 @@ describe("check", () => {
     it("does not detect tome from a slow final motion segment without a release marker", () => {
       // Low-frequency sampling: the last segment naturally takes longer
       // than the tome threshold (>=80ms), but the user never paused — the
-      // last point is just another motion sample (different xy). pauseMs
+      // final sample is a real motion sample that lands well outside the
+      // neighborhood radius (>15 units from the previous sample). pauseMs
       // should be 0, not the segment duration, otherwise tome would fire.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
         { x: 20, y: 20, t: 100 },
-        { x: 30, y: 30, t: 250 },
+        { x: 50, y: 50, t: 250 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(false);
     });
 
-    it("accumulates pause time across consecutive stationary samples (xy delta <= 2)", () => {
+    it("accumulates pause time across trailing samples inside the neighborhood radius", () => {
       // The user holds still at the end. Each individual gap is 40ms,
-      // safely under the 80ms tome threshold, and consecutive samples
-      // drift by up to 2 units (touch-panel tremor within the stationary
-      // tolerance), but together they accumulate to 120ms — well over
-      // the 80ms tome threshold.
+      // safely under the 80ms tome threshold, and every trailing sample
+      // sits within the neighborhood radius of the release point — the
+      // last sample, (40,42) — with the farthest one only ~2.8 units
+      // away. Together they accumulate to 120ms of pause, over the
+      // 80ms tome threshold.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -74,17 +76,54 @@ describe("check", () => {
       expect(result.velocityProfile).toBe("decelerating");
     });
 
-    it("does not detect tome when trailing samples drift beyond 2 units", () => {
-      // Gap between (40,40) and (43,40) is 3 units — not stationary, so
-      // the trailing pause cluster is just the last sample relative to
-      // itself (0ms). Without a real pause the stroke is harai, not tome.
+    it("absorbs alternating oscillation around the endpoint as one tome cluster", () => {
+      // Tension-driven tremor while a child tries to hold a tome: the
+      // finger oscillates by up to 6 units per sample around the
+      // intended endpoint (48, 48). Per-step |Δ| between consecutive
+      // samples reaches 12 units, which the old axis-aligned tolerance
+      // (≤ 2) would have shattered on the first outlier, collapsing
+      // pauseMs to 0 and dropping tome to harai. Under the anchor-based
+      // neighborhood radius (Euclidean ≤ NEIGHBORHOOD_RADIUS = 15) every
+      // tremor sample stays within ~7 units of the release point
+      // (48, 48), and the (40, 40) motion sample just before the tremor
+      // starts is also within R (dist ≈ 11.3), so the whole trailing
+      // burst accumulates as one 250ms pause (t=200 → 450) and tome
+      // fires.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
         { x: 20, y: 20, t: 100 },
         { x: 30, y: 30, t: 150 },
         { x: 40, y: 40, t: 200 },
-        { x: 43, y: 40, t: 400 },
+        // Every tremor sample below is within 7 units of the release
+        // point (48, 48), even though pairs like (54, 46)→(42, 50)
+        // differ by ~12 units — exactly the pattern per-step tolerance
+        // rejects but a neighborhood radius accepts.
+        { x: 54, y: 46, t: 250 },
+        { x: 42, y: 50, t: 300 },
+        { x: 52, y: 42, t: 350 },
+        { x: 44, y: 54, t: 400 },
+        { x: 48, y: 48, t: 450 },
+      ];
+      const expected: StrokeEnding = { types: ["tome"] };
+      const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
+      expect(result.correct).toBe(true);
+      expect(result.velocityProfile).toBe("decelerating");
+    });
+
+    it("does not detect tome when a trailing sample sits outside the neighborhood radius", () => {
+      // The release point is the last sample, (60, 40), and the sample
+      // before it (40, 40) is 20 units away — well outside the
+      // neighborhood radius. The walk-back stops at the release sample
+      // itself, cluster time span is 0 and pauseMs = 0, so the stroke
+      // is judged harai instead of tome.
+      const points: TimedPoint[] = [
+        { x: 0, y: 0, t: 0 },
+        { x: 10, y: 10, t: 50 },
+        { x: 20, y: 20, t: 100 },
+        { x: 30, y: 30, t: 150 },
+        { x: 40, y: 40, t: 200 },
+        { x: 60, y: 40, t: 400 },
       ];
       const expected: StrokeEnding = { types: ["tome"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
@@ -121,14 +160,16 @@ describe("check", () => {
     });
 
     it("detects harai even when stroke decelerates (no speed condition)", () => {
-      // Slow tip relative to body, no pause, no direction change.
+      // Slow tip relative to body, no pause, no direction change. Tip
+      // samples are spaced > 15 units apart so the neighborhood-radius
+      // walk-back doesn't absorb them into a pause cluster.
       const points: TimedPoint[] = [];
       for (let i = 0; i < 17; i++) {
         points.push({ x: i * 5, y: i * 5, t: i * 50 });
       }
-      points.push({ x: 85, y: 85, t: 1000 });
-      points.push({ x: 90, y: 90, t: 1500 });
-      points.push({ x: 95, y: 95, t: 1505 });
+      points.push({ x: 105, y: 105, t: 1000 });
+      points.push({ x: 130, y: 130, t: 1500 });
+      points.push({ x: 155, y: 155, t: 1505 });
       const expected: StrokeEnding = { types: ["harai"] };
       const result = checkStrokeEnding(points, expected, { drawableSize: DEFAULT_SIZE, strictness: 0.7 });
       expect(result.correct).toBe(true);
