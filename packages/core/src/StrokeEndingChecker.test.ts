@@ -56,9 +56,10 @@ describe("check", () => {
     it("accumulates pause time across trailing samples inside the neighborhood radius", () => {
       // The user holds still at the end. Each individual gap is 40ms,
       // safely under the 80ms tome threshold, and every trailing sample
-      // sits within the neighborhood radius of the release point (all
-      // within 3 units of (40,40)), so they accumulate to 120ms of
-      // pause — over the 80ms tome threshold.
+      // sits within the neighborhood radius of the release point — the
+      // last sample, (40,42) — with the farthest one only ~2.8 units
+      // away. Together they accumulate to 120ms of pause, over the
+      // 80ms tome threshold.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -82,9 +83,12 @@ describe("check", () => {
       // samples reaches 12 units, which the old axis-aligned tolerance
       // (≤ 2) would have shattered on the first outlier, collapsing
       // pauseMs to 0 and dropping tome to harai. Under the anchor-based
-      // neighborhood radius (Euclidean ≤ NEIGHBORHOOD_RADIUS) every
-      // tremor sample stays within ~7 units of (48, 48), so the whole
-      // trailing burst accumulates as one 200ms pause and tome fires.
+      // neighborhood radius (Euclidean ≤ NEIGHBORHOOD_RADIUS = 15) every
+      // tremor sample stays within ~7 units of the release point
+      // (48, 48), and the (40, 40) motion sample just before the tremor
+      // starts is also within R (dist ≈ 11.3), so the whole trailing
+      // burst accumulates as one 250ms pause (t=200 → 450) and tome
+      // fires.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },
@@ -108,10 +112,11 @@ describe("check", () => {
     });
 
     it("does not detect tome when a trailing sample sits outside the neighborhood radius", () => {
-      // (60, 40) is 20 units from the release point (40, 40), well
-      // outside the neighborhood radius. The walk-back stops at the
-      // release sample itself, cluster time span is 0 and pauseMs = 0,
-      // so the stroke is judged harai instead of tome.
+      // The release point is the last sample, (60, 40), and the sample
+      // before it (40, 40) is 20 units away — well outside the
+      // neighborhood radius. The walk-back stops at the release sample
+      // itself, cluster time span is 0 and pauseMs = 0, so the stroke
+      // is judged harai instead of tome.
       const points: TimedPoint[] = [
         { x: 0, y: 0, t: 0 },
         { x: 10, y: 10, t: 50 },

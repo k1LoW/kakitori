@@ -154,8 +154,10 @@ const NEIGHBORHOOD_RADIUS_SQ = NEIGHBORHOOD_RADIUS * NEIGHBORHOOD_RADIUS;
  *
  * The returned index is `points.length - 1` when there is no stationary
  * tail (the very last sample is a real motion sample, i.e. the sample
- * before it lies outside the neighborhood), so callers can detect that
- * case with `motionEndIdx < points.length - 1`.
+ * before it lies outside the neighborhood). The **presence** of a
+ * stationary tail is detected with `motionEndIdx < points.length - 1`
+ * (the walk-back was able to step back at least once); the absence is
+ * `motionEndIdx === points.length - 1`.
  *
  * Exported so debug/logging paths can report the SAME pause the checker
  * uses, instead of recomputing with a stale definition.
@@ -167,7 +169,8 @@ export function findStationaryTailStart(
   // loop guard rejects it before either is used, so the natural path
   // returns -1 — matching the docstring contract and the historical
   // behavior callers depend on (motionEndIdx < points.length - 1 as the
-  // "no cluster" sentinel).
+  // "has stationary tail" predicate; -1 for empty keeps that predicate
+  // false so the empty case reads as "no tail").
   const n = points.length;
   const last = points[n - 1];
   let i = n - 1;
