@@ -1,6 +1,6 @@
 ---
 name: register-kakitori-questions
-description: kakitori.page の question 素材を import key を使ってノートへ登録・削除・入れ替えする。問題ファイル1つ、問題ファイルの入ったディレクトリ、あるいは「小2の漢字10語」のような未作成の語リストなど、入力の形がどれであっても受け取り、検証を通してから import API (POST / DELETE /api/v1/notes/:key/questions) へ送る。ユーザーが「kakitori.page に登録して」「問題をノートに入れて」「作った question を反映して」「import key で登録」「ノートを入れ替えて (replace)」「間違えて登録した問題を直したい」「特定の問題だけ削除して」「登録済みの問題一覧が見たい」「pausedになった問題を確認したい」などに言及したら必ずこのスキルを使うこと。登録・削除は外部サービスへの書き込みで replace と force 削除は不可逆なので、素手で fetch を書かず必ずこのスキルの手順とスクリプトを使う。
+description: kakitori.page の question 素材を import key を使ってノートへ登録・削除・入れ替えする。問題ファイル1つ、問題ファイルの入ったディレクトリ、あるいは「小2の漢字10語」のような未作成の語リストなど、入力の形がどれであっても受け取り、検証を通してから import API (登録 `POST /api/v1/notes/:key/questions`、削除 `DELETE …/questions/:qid`、一覧 `GET …/questions?status=…`) を叩く。ユーザーが「kakitori.page に登録して」「問題をノートに入れて」「作った question を反映して」「import key で登録」「ノートを入れ替えて (replace)」「間違えて登録した問題を直したい」「特定の問題だけ削除して」「登録済みの問題一覧が見たい」「pausedになった問題を確認したい」などに言及したら必ずこのスキルを使うこと。登録・削除は外部サービスへの書き込みで replace と force 削除は不可逆なので、素手で fetch を書かず必ずこのスキルの手順とスクリプトを使う。
 ---
 
 # kakitori.page のノート操作 (import key)
@@ -17,7 +17,7 @@ question ファイルそのものの作り方 (表層形ふりがな・segments�
 | 一覧 | `GET /api/v1/notes/:key/questions?status=…` | id・状態・件数の確認 | `list.mjs` |
 | 削除 | `DELETE /api/v1/notes/:key/questions/:qid` | 誤登録の物理削除 | `delete.mjs` |
 
-すべて import key を要求する (一覧は play key でも `?status=active` のみ可、`paused` / `all` は import key 限定)。
+書き込み系 (登録・削除) は import key のみ受け付ける。一覧は例外で、`?status=active` (既定) だけは play key でも叩けるが、`paused` / `all` は import key を要求する。
 
 ## 入力の受け取り
 
@@ -93,7 +93,7 @@ $ node <このスキルのディレクトリ>/scripts/list.mjs [--status active|
 - `--status active` (既定): ゲームから見える問題だけ
 - `--status paused`: replace で出題対象から外れた問題だけ。**import key 限定**
 - `--status all`: active + paused。**import key 限定**。誤って paused に落ちた問題を拾い直すときはこれ
-- 出力は `id / status / attempts / word (reading)` の表。`--format json` で生レスポンスも取れる
+- 出力は `id / status / attempts / word (reading)` の表。`--format json` は全ページを走査したあと、全 question を1つの配列 (`[{ id, word, reading, status, stats, ... }, ...]`) にまとめて出す。サーバー応答そのままの `{ questions, nextCursor }` 形ではないので、cursor 情報が要るときは注意
 
 `?status=paused` / `?status=all` を play key で叩くとサーバーは 403 `invalid_key` を返す (存在推測を防ぐ設計)。この403は「キーが違う」ではなく「その key ではその status を見られない」意味なので、import key を使い直す。
 

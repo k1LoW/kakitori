@@ -73,7 +73,9 @@ function maskKey(k) {
 const endpoint = (k) =>
   `${base}/api/v1/notes/${encodeURIComponent(k)}/questions/${encodeURIComponent(qid)}${opts.force ? "?force=true" : ""}`;
 
-console.log(`target : DELETE ${endpoint(maskKey(key ?? ""))}`);
+// maskKey handles undefined itself ("(none)"); passing `key ?? ""` masked an
+// empty string to "****" and made the dry-run output look like a key was set.
+console.log(`target : DELETE ${endpoint(maskKey(key))}`);
 console.log(`force  : ${opts.force ? "true (results will be wiped along with the question)" : "false (fails 409 if results exist)"}`);
 
 if (opts.dryRun) {

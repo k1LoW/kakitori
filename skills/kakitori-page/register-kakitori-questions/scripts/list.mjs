@@ -16,7 +16,9 @@
 //   --sort S      created (default) / weakest / least_attempted / random.
 //   --limit N     rows per page (1..200, default 100).
 //   --base URL    API origin (default https://kakitori.page, or KAKITORI_BASE_URL).
-//   --format F    table (default, one row per question) or json (raw response).
+//   --format F    table (default, one row per question) or json (every page's
+//                 questions merged into a single flat array; not the raw
+//                 { questions, nextCursor } response shape).
 //
 // Exit code 0 = at least one page fetched successfully.
 
@@ -55,6 +57,13 @@ for (let i = 0; i < argv.length; i++) {
 
 if (!["active", "paused", "all"].includes(opts.status)) {
   fail(`--status must be one of active | paused | all (got "${opts.status}")`);
+}
+// Keep the accepted set in sync with SORT_EXPR in kakitori.page's
+// src/api/v1.ts. Client-side validation catches typos before they turn into
+// opaque 400s from the server, and keeps the CLI honest about what it
+// documents in its own --help.
+if (!["created", "weakest", "least_attempted", "random"].includes(opts.sort)) {
+  fail(`--sort must be one of created | weakest | least_attempted | random (got "${opts.sort}")`);
 }
 if (!["table", "json"].includes(opts.format)) {
   fail(`--format must be table or json (got "${opts.format}")`);
@@ -120,7 +129,16 @@ while (true) {
     console.error(`✗ ${res.status}  ${detail}`);
     process.exit(1);
   }
-  const body = JSON.parse(text);
+  // A 200 from a proxy / CDN can still carry an HTML error page; guard
+  // JSON.parse so that case surfaces as a clear error line rather than an
+  // unhandled SyntaxError with a stack trace.
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch (e) {
+    console.error(`✗ ${res.status}: response was not JSON (${e.message}). First 200 chars: ${text.slice(0, 200)}`);
+    process.exit(1);
+  }
   page++;
   const rows = body.questions ?? [];
   total += rows.length;
