@@ -738,9 +738,9 @@ describe("block.restore", () => {
   });
 
   it("replays a show annotation as one continuous strip when asked", () => {
-    // Same 学校 / がっこう block as above, but the reading was displayed
-    // (mode: "show"), so the replay may drop the divider between the two
-    // cells and space the reading over the whole run.
+    // A displayed reading (mode: "show") over two cells. おとな is 3 kana
+    // across 2 cells, so the per-cell split is the uneven one and the merged
+    // run has a visible difference to assert.
     const result = showAnnotationResult(["お", "と", "な"]);
     block.restore(host, result, { cellSize: 100, continuousAnnotationStrip: true });
 
