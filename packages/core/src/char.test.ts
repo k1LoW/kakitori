@@ -400,9 +400,26 @@ describe("char", () => {
       expect(hwSvg?.style.touchAction).toBe("none");
     });
 
-    it("captures the pointer on pointerdown during a quiz", async () => {
+    function getHwSvg(root: HTMLElement): SVGSVGElement {
+      const svg = Array.from(
+        getLayer(root).querySelectorAll<SVGSVGElement>("svg"),
+      ).find((s) => !s.classList.contains("kakitori-grid"));
+      if (!svg) {
+        throw new Error("test setup: hanzi-writer SVG not found");
+      }
+      return svg;
+    }
+
+    it("captures the pointer on the hanzi-writer SVG, not the ancestor layer", async () => {
       // Capturing keeps pointermove / pointerup landing on the writer even
-      // when the finger or stylus strays outside the layer mid-stroke.
+      // when the finger or stylus strays outside it mid-stroke. The capture
+      // has to be taken on hanzi-writer's own SVG: capture retargets the
+      // pointer events *and* their compatibility mouse events to the capture
+      // element, and hanzi-writer listens for mousemove / touchmove on the
+      // SVG it created. Capturing on the ancestor layer routes every move
+      // past that listener, so hanzi-writer sees the press and nothing after
+      // it — the user's stroke stays one point, no ink is painted, and no
+      // stroke can ever be accepted.
       const k = createMounted(container, "あ", {
         charDataLoader: mockCharDataLoader,
         configLoader: null,
@@ -412,9 +429,12 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getLayer(container);
-      const capture = vi.spyOn(layer, "setPointerCapture");
+      const hwSvg = getHwSvg(container);
+      const captureOnSvg = vi.spyOn(hwSvg, "setPointerCapture");
+      const captureOnLayer = vi.spyOn(layer, "setPointerCapture");
       dispatchPointer(layer, "pointerdown", 10, 10);
-      expect(capture).toHaveBeenCalledWith(1);
+      expect(captureOnSvg).toHaveBeenCalledWith(1);
+      expect(captureOnLayer).not.toHaveBeenCalled();
     });
 
     it("recovers from pointercancel and accepts the next stroke", async () => {
@@ -431,16 +451,41 @@ describe("char", () => {
       await new Promise((r) => setTimeout(r, 0));
 
       const layer = getLayer(container);
-      const release = vi.spyOn(layer, "releasePointerCapture");
+      const hwSvg = getHwSvg(container);
+      const release = vi.spyOn(hwSvg, "releasePointerCapture");
       dispatchPointer(layer, "pointerdown", 10, 10);
       dispatchPointer(layer, "pointermove", 40, 40);
       dispatchPointer(layer, "pointercancel", 40, 40);
       expect(release).toHaveBeenCalledWith(1);
 
       // The next pointerdown must still be picked up and re-capture.
-      const capture = vi.spyOn(layer, "setPointerCapture");
+      const capture = vi.spyOn(hwSvg, "setPointerCapture");
       dispatchPointer(layer, "pointerdown", 20, 20);
       expect(capture).toHaveBeenCalledWith(1);
+    });
+
+    it("releases the capture on the element it was taken on", async () => {
+      // The release has to target the same node as the capture; calling it
+      // on a different element is a no-op, which would leave the pointer
+      // captured on the SVG and swallow input meant for anything else on
+      // the page until the pointer is lifted.
+      const k = createMounted(container, "あ", {
+        charDataLoader: mockCharDataLoader,
+        configLoader: null,
+      });
+      await k.ready();
+      k.start();
+      await new Promise((r) => setTimeout(r, 0));
+
+      const layer = getLayer(container);
+      const hwSvg = getHwSvg(container);
+      const releaseOnSvg = vi.spyOn(hwSvg, "releasePointerCapture");
+      const releaseOnLayer = vi.spyOn(layer, "releasePointerCapture");
+      dispatchPointer(layer, "pointerdown", 10, 10);
+      dispatchPointer(layer, "pointermove", 40, 40);
+      dispatchPointer(layer, "pointerup", 40, 40);
+      expect(releaseOnSvg).toHaveBeenCalledWith(1);
+      expect(releaseOnLayer).not.toHaveBeenCalled();
     });
   });
 
