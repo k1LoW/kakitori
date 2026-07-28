@@ -116,6 +116,42 @@ describe("continuousAnnotationStrip", () => {
     ]);
   });
 
+  it("frames a run once when the same range arrives twice", () => {
+    // page.create hands the runs over explicitly because its sub-specs carry
+    // no annotations; a caller passing both must not stack two frames.
+    const { wrapper } = mount(twoBlankCells, {
+      continuousAnnotationStrip: true,
+      continuousStripRuns: [[0, 1]],
+    });
+    expect(stripFrames(wrapper, "vertical-rl")).toEqual([
+      { left: "80px", top: "0px", width: "32px", height: "160px" },
+    ]);
+  });
+
+  it("ignores continuousStripRuns entries that cannot address a run", () => {
+    // Non-integer indices would pass a plain range check and then miss
+    // cellRects, so they are dropped alongside single-cell / out-of-range
+    // entries rather than failing later as a TypeError.
+    const { wrapper } = mount(
+      { cells: [{ kind: "blank" }, { kind: "blank" }] },
+      {
+        // Mirrors the page path: the sub-spec carries no annotations, so the
+        // strip only exists because the thickness is pinned.
+        annotationThickness: STRIP_THICKNESS,
+        continuousStripRuns: [
+          [0.5, 1],
+          [0, 0],
+          [0, 9],
+          [-1, 1],
+        ],
+      },
+    );
+    expect(stripFrames(wrapper, "vertical-rl")).toEqual([
+      { left: "80px", top: "0px", width: "32px", height: "80px" },
+      { left: "80px", top: "80px", width: "32px", height: "80px" },
+    ]);
+  });
+
   it("leaves a single-cell annotation unchanged", () => {
     const { wrapper } = mount(
       {

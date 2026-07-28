@@ -547,15 +547,35 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     ? annotations.filter((a) => a.cellRange[1] > a.cellRange[0])
     : [];
   const continuousRunSet = new Set<FuriganaAnnotation>(continuousRuns);
-  const continuousRunRanges: Array<readonly [number, number]> = [
+  // Deduped so a run that arrives from both `spec.annotations` and
+  // `continuousStripRuns` is framed once. Two identical opaque borders land
+  // on the same pixels, but a translucent `cellBorderColor` darkens where
+  // they stack, and the extra element is dead weight either way.
+  const continuousRunRanges: Array<readonly [number, number]> = [];
+  const seenRunRanges = new Set<string>();
+  for (const range of [
     ...continuousRuns.map((a) => a.cellRange as readonly [number, number]),
-    // Page-supplied runs (see `continuousStripRuns`). Single-cell and
-    // out-of-range entries have no dividers to drop, so they are ignored
-    // rather than rejected.
+    // Page-supplied runs (see `continuousStripRuns`). Single-cell,
+    // non-integer and out-of-range entries have no dividers to drop, so they
+    // are ignored rather than rejected. Non-integer indices would otherwise
+    // pass the range check and then miss `cellRects`, failing later as a
+    // TypeError that says nothing about where the bad range came from.
     ...(opts.continuousStripRuns ?? []).filter(
-      ([from, to]) => to > from && from >= 0 && to < cells.length,
+      ([from, to]) =>
+        Number.isInteger(from) &&
+        Number.isInteger(to) &&
+        to > from &&
+        from >= 0 &&
+        to < cells.length,
     ),
-  ];
+  ]) {
+    const key = `${range[0]}:${range[1]}`;
+    if (seenRunRanges.has(key)) {
+      continue;
+    }
+    seenRunRanges.add(key);
+    continuousRunRanges.push(range);
+  }
   const continuousRunCells = new Set<number>();
   for (const [from, to] of continuousRunRanges) {
     for (let i = from; i <= to; i++) {
