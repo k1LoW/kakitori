@@ -213,6 +213,16 @@ export interface BlockRestoreOptions {
    */
   showAnnotationStrip?: boolean;
   /**
+   * Replay-side counterpart of `BlockCreateOptions.continuousAnnotationStrip`:
+   * when `true`, an annotation whose captured characters all came from a
+   * `mode: "show"` strip and which covers two or more cells is rendered
+   * as one continuous run (single outer frame, characters spaced evenly
+   * across the whole run). Annotations carrying written ink keep their
+   * per-cell sub-strips so the replay matches the surfaces the writer
+   * actually drew on. Defaults to `false`.
+   */
+  continuousAnnotationStrip?: boolean;
+  /**
    * Override the annotation strip thickness instead of deriving it
    * from the result's annotations. Used by `page.restore` to keep
    * the strip width consistent across segments (otherwise a block

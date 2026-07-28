@@ -641,28 +641,70 @@ export function blockRestore(
   // cells outside any annotation's cellRange. The per-char overlay
   // inside `renderAnnotation` is borderless and paints content on top
   // of these frames.
+  // Annotations replayed as one continuous strip (see
+  // `continuousAnnotationStrip`): their cells share a single run frame
+  // instead of one frame per cell-slot, so no divider is ruled through
+  // the reading.
+  const continuousRuns =
+    options.continuousAnnotationStrip === true
+      ? renderableAnnotations.filter(({ annotation }) =>
+          isContinuousRun(annotation, spans),
+        )
+      : [];
+  const continuousRunCells = new Set<number>();
+  for (const { annotation } of continuousRuns) {
+    const [from, to] = annotation.cellRange as [number, number];
+    for (let i = from; i <= to; i++) {
+      continuousRunCells.add(i);
+    }
+  }
+
+  function addStripFrame(x: number, y: number, w: number, h: number): void {
+    const frame = document.createElement("div");
+    frame.style.position = "absolute";
+    frame.style.boxSizing = "border-box";
+    frame.style.pointerEvents = "none";
+    frame.style.left = `${x}px`;
+    frame.style.top = `${y}px`;
+    frame.style.width = `${w}px`;
+    frame.style.height = `${h}px`;
+    frame.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
+    wrapper.appendChild(frame);
+  }
+
   if (annotationThickness > 0 && cellBorderWidth > 0) {
     for (let i = 0; i < cellRects.length; i++) {
+      if (continuousRunCells.has(i)) {
+        continue;
+      }
       const rect = cellRects[i];
       const span = spans[i];
       for (let k = 0; k < span; k++) {
-        const frame = document.createElement("div");
-        frame.style.position = "absolute";
-        frame.style.boxSizing = "border-box";
-        frame.style.pointerEvents = "none";
         if (writingMode === "vertical-rl") {
-          frame.style.left = `${rect.x + cellSize}px`;
-          frame.style.top = `${rect.y + k * cellSize}px`;
-          frame.style.width = `${annotationThickness}px`;
-          frame.style.height = `${cellSize}px`;
+          addStripFrame(
+            rect.x + cellSize,
+            rect.y + k * cellSize,
+            annotationThickness,
+            cellSize,
+          );
         } else {
-          frame.style.left = `${rect.x + k * cellSize}px`;
-          frame.style.top = `${rect.y - annotationThickness}px`;
-          frame.style.width = `${cellSize}px`;
-          frame.style.height = `${annotationThickness}px`;
+          addStripFrame(
+            rect.x + k * cellSize,
+            rect.y - annotationThickness,
+            cellSize,
+            annotationThickness,
+          );
         }
-        frame.style.border = `${cellBorderWidth}px solid ${cellBorderColor}`;
-        wrapper.appendChild(frame);
+      }
+    }
+    for (const { annotation } of continuousRuns) {
+      const [from, to] = annotation.cellRange as [number, number];
+      const start = cellRects[from];
+      const runLength = (to - from + 1) * cellSize;
+      if (writingMode === "vertical-rl") {
+        addStripFrame(start.x + cellSize, start.y, annotationThickness, runLength);
+      } else {
+        addStripFrame(start.x, start.y - annotationThickness, runLength, annotationThickness);
       }
     }
   }
@@ -671,6 +713,7 @@ export function blockRestore(
   // spans `cellRange[from..to]` on the cell axis and sits perpendicular
   // (right for vertical-rl, top for horizontal-tb).
   if (annotationThickness > 0) {
+    const continuousSet = new Set(continuousRuns.map(({ annotation }) => annotation));
     for (const { annotation, originalIndex } of renderableAnnotations) {
       renderAnnotation(
         wrapper,
@@ -683,6 +726,7 @@ export function blockRestore(
         writingMode,
         options,
         padding,
+        continuousSet.has(annotation),
       );
     }
   }
@@ -692,6 +736,40 @@ export function blockRestore(
     .querySelectorAll(`:scope > .${BLOCK_RESTORE_CLASS}`)
     .forEach((node) => node.remove());
   el.appendChild(wrapper);
+}
+
+/**
+ * Whether this annotation replays as one continuous strip. It has to span
+ * two or more cells and carry nothing but `show` characters: written ink
+ * was normalized inside the per-cell surface it was captured on, so
+ * re-laying it out across a merged run would move it away from where the
+ * writer drew it. Malformed ranges return `false` and fall through to
+ * {@link renderAnnotation}, which reports the specific error.
+ */
+function isContinuousRun(
+  annotation: BlockAnnotationResult,
+  spans: ReadonlyArray<number>,
+): boolean {
+  const range = annotation.cellRange;
+  if (!range) {
+    return false;
+  }
+  const [from, to] = range;
+  if (
+    !Number.isInteger(from) ||
+    !Number.isInteger(to) ||
+    from < 0 ||
+    to >= spans.length ||
+    to <= from
+  ) {
+    return false;
+  }
+  for (let k = from; k <= to; k++) {
+    if (spans[k] > 1) {
+      return false;
+    }
+  }
+  return annotation.chars.length > 0 && annotation.chars.every((c) => c.mode === "show");
 }
 
 /**
@@ -717,6 +795,7 @@ function renderAnnotation(
   writingMode: WritingMode,
   options: BlockRestoreOptions,
   padding: number,
+  continuous: boolean,
 ): void {
   const range = annotation.cellRange;
   if (!range) {
@@ -759,21 +838,26 @@ function renderAnnotation(
   const cellCount = to - from + 1;
   // Sub-strip layout matches block.ts mountAnnotation: one sub-strip
   // per covered cell, sized cellSize along the cell axis and
-  // annotationThickness on the perpendicular axis.
+  // annotationThickness on the perpendicular axis. A continuous run is
+  // one sub-strip spanning every covered cell instead, so the chars are
+  // spaced evenly over the run the same way the live block lays them
+  // out under `continuousAnnotationStrip`.
   const subStripRects: Array<{ x: number; y: number; w: number; h: number }> = [];
-  for (let k = 0; k < cellCount; k++) {
+  const stripCount = continuous ? 1 : cellCount;
+  const stripCellSpan = continuous ? cellCount : 1;
+  for (let k = 0; k < stripCount; k++) {
     if (writingMode === "vertical-rl") {
       subStripRects.push({
         x: cellSize,
         y: cellRects[from].y + k * cellSize,
         w: annotationThickness,
-        h: cellSize,
+        h: stripCellSpan * cellSize,
       });
     } else {
       subStripRects.push({
         x: cellRects[from].x + k * cellSize,
         y: 0,
-        w: cellSize,
+        w: stripCellSpan * cellSize,
         h: annotationThickness,
       });
     }
@@ -792,11 +876,11 @@ function renderAnnotation(
   // pass deliberately removed.
   const charSize = annotationThickness;
   let prevEnd = 0;
-  for (let k = 0; k < cellCount; k++) {
-    const isLast = k === cellCount - 1;
+  for (let k = 0; k < stripCount; k++) {
+    const isLast = k === stripCount - 1;
     const targetEnd = isLast
       ? chars.length
-      : Math.round(((k + 1) * chars.length) / cellCount);
+      : Math.round(((k + 1) * chars.length) / stripCount);
     const end = Math.min(chars.length, Math.max(prevEnd, targetEnd));
     const charsInStrip = chars.slice(prevEnd, end);
     prevEnd = end;
@@ -1213,6 +1297,9 @@ export function pageRestore(
       // thickness as 0 and the cell would shift toward the strip
       // edge of the column.
       annotationStripThickness,
+      // Each segment's sliced annotation merges within its own column:
+      // a run wrapped across columns is physically split anyway.
+      continuousAnnotationStrip: options.continuousAnnotationStrip,
       drawingWidth: options.drawingWidth,
       drawingColor: options.drawingColor,
       showGrid: options.showGrid,
