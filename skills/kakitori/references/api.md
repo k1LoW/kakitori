@@ -259,6 +259,9 @@ block.create(target, {
   drawingWidth?, drawingColor?,
   annotationDrawingWidth?,
   annotationThickness?,
+  continuousAnnotationStrip?,     // default false; a multi-cell `mode: "show"`
+                                  // annotation renders as one un-divided
+                                  // furigana run with evenly spaced glyphs
   leniency?,                      // block-wide, forwarded to every guided cell
   freeCellLeniency?,              // separate threshold for free cells / annotations
   retainStrokes?, retainedStrokeColor?, retainedStrokeWidth?,
@@ -357,6 +360,8 @@ interface BlockRestoreOptions {
   writingMode?: WritingMode;
   padding?, cellBorderWidth?, cellBorderColor?,
   showAnnotationStrip?: boolean,
+  continuousAnnotationStrip?: boolean, // default false; merges a replayed
+                                       // show annotation into one run
   annotationStripThickness?: number,
   drawingWidth?, drawingColor?,
   showGrid?, showCharacter?, showOutline?,
@@ -380,6 +385,8 @@ page.create(target, {
   cellSize,                        // required
   writingMode?,                    // default "vertical-rl"
   showAnnotationStrip?,            // default true
+  continuousAnnotationStrip?,      // default false; merged per column when a
+                                   // run wraps to the next column
   annotationStripThickness?,
   showGrid?,
   loaders?: { charDataLoader?, configLoader? | null },
