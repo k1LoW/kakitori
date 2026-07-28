@@ -68,6 +68,31 @@ export interface BlockCreateOptions {
    */
   annotationThickness?: number;
   /**
+   * When `true`, a `mode: "show"` annotation covering two or more cells
+   * is rendered as one continuous furigana strip: the cell-slot dividers
+   * interior to its `cellRange` are dropped (the run keeps its outer
+   * frame) and the reading is laid out evenly across the whole run
+   * instead of per sub-strip. Slots outside any such annotation are
+   * unaffected. Defaults to `false` (every cell-slot draws its own
+   * complete frame and holds its own share of the reading).
+   *
+   * `mode: "write"` annotations keep their per-cell sub-strips either
+   * way: {@link createFreeCell} normalizes each character's strokes
+   * inside the surface it was drawn on, so the sub-strip boundaries are
+   * what tell the writer where one character ends and the next begins.
+   */
+  continuousAnnotationStrip?: boolean;
+  /**
+   * Extra cell-index ranges (closed, in this block's own `spec.cells`
+   * indexing) whose annotation strip slots share one continuous frame.
+   * Used by the page primitive: its per-segment sub-specs carry no
+   * annotations of their own (page.ts owns the annotation overlays), so
+   * the runs cannot be derived from `spec.annotations` there. Honoured
+   * independently of {@link continuousAnnotationStrip}, which is what
+   * derives the same ranges from `spec.annotations`.
+   */
+  continuousStripRuns?: ReadonlyArray<readonly [number, number]>;
+  /**
    * Cross-grid background for guided cells. Defaults to `true` (a練習帳-style
    * cross). Pass `false` to disable, or a `GridOptions` object to customize
    * color / dash / width. Per-cell overrides via `GuidedCell.overrides` win.
@@ -360,6 +385,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   const cellBorderWidth = opts.cellBorderWidth ?? DEFAULT_CELL_BORDER_WIDTH;
   const cellBorderColor = opts.cellBorderColor ?? DEFAULT_CELL_BORDER_COLOR;
   const resolvedCellBorder = `${cellBorderWidth}px solid ${cellBorderColor}`;
+  const continuousAnnotationStrip = opts.continuousAnnotationStrip === true;
 
   // Compute the annotation strip thickness. Caller (e.g. page) can pin
   // it via `opts.annotationThickness`; otherwise it's derived from the
@@ -505,6 +531,30 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     opts.onActivity?.();
   }
 
+  // Annotations rendered as one continuous strip (see
+  // `continuousAnnotationStrip`). Their covered cells get a single run
+  // frame instead of one frame per cell-slot, so no divider is ruled
+  // through the reading.
+  const continuousRuns = continuousAnnotationStrip
+    ? annotations.filter((a) => a.mode === "show" && a.cellRange[1] > a.cellRange[0])
+    : [];
+  const continuousRunSet = new Set<FuriganaAnnotation>(continuousRuns);
+  const continuousRunRanges: Array<readonly [number, number]> = [
+    ...continuousRuns.map((a) => a.cellRange as readonly [number, number]),
+    // Page-supplied runs (see `continuousStripRuns`). Single-cell and
+    // out-of-range entries have no dividers to drop, so they are ignored
+    // rather than rejected.
+    ...(opts.continuousStripRuns ?? []).filter(
+      ([from, to]) => to > from && from >= 0 && to < cells.length,
+    ),
+  ];
+  const continuousRunCells = new Set<number>();
+  for (const [from, to] of continuousRunRanges) {
+    for (let i = from; i <= to; i++) {
+      continuousRunCells.add(i);
+    }
+  }
+
   // Reserve an empty annotation strip frame next to every cell-slot
   // (one per slot in the span) so block-stacking on a page stays
   // visually uniform whether or not an annotation lands on that slot.
@@ -512,12 +562,18 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // applicable.
   if (annotationThickness > 0) {
     for (let i = 0; i < cells.length; i++) {
+      if (continuousRunCells.has(i)) {
+        continue;
+      }
       const cell = cells[i];
       const rect = cellRects[i];
       const span = cellSlotSpan(cell);
       for (let k = 0; k < span; k++) {
         drawEmptyAnnotationStripFrame(rect, k);
       }
+    }
+    for (const [from, to] of continuousRunRanges) {
+      drawContinuousAnnotationStripFrame(from, to);
     }
   }
 
@@ -545,25 +601,50 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     cellRect: { x: number; y: number; w: number; h: number; spanCells: number },
     slotIndex: number,
   ): void {
+    if (writingMode === "vertical-rl") {
+      drawAnnotationStripFrame(
+        cellRect.x + cellSize,
+        cellRect.y + slotIndex * cellSize,
+        annotationThickness,
+        cellSize,
+      );
+    } else {
+      drawAnnotationStripFrame(
+        cellRect.x + slotIndex * cellSize,
+        cellRect.y - annotationThickness,
+        cellSize,
+        annotationThickness,
+      );
+    }
+  }
+
+  /** One frame spanning a whole run of annotated cells, replacing the
+   * per-cell-slot frames those cells would otherwise get. */
+  function drawContinuousAnnotationStripFrame(from: number, to: number): void {
+    const start = cellRects[from];
+    const end = cellRects[to];
+    if (writingMode === "vertical-rl") {
+      drawAnnotationStripFrame(
+        start.x + cellSize,
+        start.y,
+        annotationThickness,
+        end.y + end.h - start.y,
+      );
+    } else {
+      drawAnnotationStripFrame(
+        start.x,
+        start.y - annotationThickness,
+        end.x + end.w - start.x,
+        annotationThickness,
+      );
+    }
+  }
+
+  function drawAnnotationStripFrame(x: number, y: number, w: number, h: number): void {
     const frame = document.createElement("div");
     frame.style.position = "absolute";
     frame.style.boxSizing = "border-box";
     frame.style.pointerEvents = "none";
-    let x: number;
-    let y: number;
-    let w: number;
-    let h: number;
-    if (writingMode === "vertical-rl") {
-      x = cellRect.x + cellSize;
-      y = cellRect.y + slotIndex * cellSize;
-      w = annotationThickness;
-      h = cellSize;
-    } else {
-      x = cellRect.x + slotIndex * cellSize;
-      y = cellRect.y - annotationThickness;
-      w = cellSize;
-      h = annotationThickness;
-    }
     frame.style.left = `${x}px`;
     frame.style.top = `${y}px`;
     frame.style.width = `${w}px`;
@@ -1177,6 +1258,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     // freely across them at character boundaries.
     const [annFrom, annTo] = annotation.cellRange;
     const cellCount = annTo - annFrom + 1;
+    // With `continuousAnnotationStrip` a multi-cell show annotation gets a
+    // single sub-strip covering its whole run, so `renderShowText` spaces
+    // the reading evenly over the run instead of packing each sub-strip's
+    // share into its own cell (which is what makes a non-uniform reading
+    // like 大人 → おとな land 2 + 1 with visibly uneven gaps).
+    const continuous = continuousRunSet.has(annotation);
+    const stripCount = continuous ? 1 : cellCount;
     interface SubStrip {
       el: HTMLDivElement;
       width: number;
@@ -1184,14 +1272,19 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
       cellIndex: number;
     }
     const subStrips: SubStrip[] = [];
-    for (let k = 0; k < cellCount; k++) {
+    for (let k = 0; k < stripCount; k++) {
       const sub = document.createElement("div");
       sub.style.position = "absolute";
       let sx: number;
       let sy: number;
       let sw: number;
       let sh: number;
-      if (writingMode === "vertical-rl") {
+      if (continuous) {
+        sx = rect.x;
+        sy = rect.y;
+        sw = rect.w;
+        sh = rect.h;
+      } else if (writingMode === "vertical-rl") {
         sx = rect.x;
         sy = rect.y + k * cellSize;
         sw = rect.w;
@@ -1677,8 +1770,9 @@ interface SubStripView {
  * reading has fewer characters than there are strips (e.g. 2-char reading
  * across 4 cells). For uniform readings (学校 → がっこう, 2 chars per
  * cell) the split lands cleanly on char boundaries; non-uniform readings
- * (大人 → おとな) hit a small visual quirk that explicit per-cell
- * expected strings would resolve in a future revision. */
+ * (大人 → おとな) land 2 + 1 and read with uneven gaps.
+ * `continuousAnnotationStrip` sidesteps that by handing this function a
+ * single run-wide strip, so the reading is spaced over the whole run. */
 function renderShowAcrossSubStrips(
   text: string,
   subStrips: ReadonlyArray<SubStripView>,
