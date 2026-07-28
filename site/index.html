@@ -1066,6 +1066,38 @@ const result = b.result();</pre>
         </div>
       </div>
 
+      <div class="block-example">
+        <h4>6. Continuous furigana strip</h4>
+        <p>
+          <code>continuousAnnotationStrip: true</code> renders a multi-cell <code>mode: "show"</code> annotation as one un-divided run: no cell divider is ruled
+          through the reading, and the kana are spaced evenly across the whole word. Compare with example 4, where each cell keeps its own strip. 五月雨 is 3 cells
+          against a 4-kana reading, so without this option the reading would split unevenly as さ / みだ / れ.
+        </p>
+        <div class="block-example-body">
+          <div class="block-example-demo">
+            <div id="block-example-continuous-annotation" class="block-example-host"></div>
+            <div data-block-status-for="continuous-annotation" class="block-example-status"></div>
+            <div class="block-example-controls">
+              <button data-block-example="continuous-annotation" data-action="reset" type="button">Restart</button>
+            </div>
+          </div>
+          <pre data-lang="ts">const b = block.create(target, {
+  spec: {
+    cells: [
+      { kind: "guided", char: "五", mode: "write" },
+      { kind: "guided", char: "月", mode: "write" },
+      { kind: "guided", char: "雨", mode: "write" },
+    ],
+    annotations: [
+      { cellRange: [0, 2], expected: "さみだれ", mode: "show" },
+    ],
+  },
+  cellSize: 140,
+  continuousAnnotationStrip: true,
+});</pre>
+        </div>
+      </div>
+
       <h3>BlockResult</h3>
       <p>
         <code>b.result()</code> returns a <code>BlockResult</code>. Each cell exposes its

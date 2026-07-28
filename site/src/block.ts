@@ -138,6 +138,7 @@ type BlockExampleKey =
   | "show-write"
   | "free"
   | "annotated"
+  | "continuous-annotation"
   | "per-block";
 
 interface BlockExampleConfig {
@@ -206,6 +207,28 @@ const BLOCK_EXAMPLES: BlockExampleConfig[] = [
         ],
       },
       cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      loaders: { charDataLoader: cachedCharDataLoader },
+    }),
+  },
+  {
+    key: "continuous-annotation",
+    cellCount: 3,
+    build: () => ({
+      spec: {
+        cells: [
+          { kind: "guided", char: "五", mode: "write" },
+          { kind: "guided", char: "月", mode: "write" },
+          { kind: "guided", char: "雨", mode: "write" },
+        ],
+        annotations: [
+          // 3 cells against a 4-kana reading: the per-cell split lands
+          // さ / みだ / れ, so this is the case where the continuous run
+          // visibly differs from the default.
+          { cellRange: [0, 2], expected: "さみだれ", mode: "show" },
+        ],
+      },
+      cellSize: BLOCK_EXAMPLE_CELL_SIZE,
+      continuousAnnotationStrip: true,
       loaders: { charDataLoader: cachedCharDataLoader },
     }),
   },
