@@ -478,7 +478,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         writingMode,
         state.blockIndex,
         annotationIndex,
-        continuousAnnotationStrip && annotation.mode === "show",
+        continuousAnnotationStrip,
       );
       if (annotation.mode === "show") {
         // Split show-mode renders the expected text vertically (or
@@ -1105,8 +1105,7 @@ function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: nu
 /**
  * Cell ranges inside one segment whose annotation strip slots share a
  * single continuous frame, in the segment's own sub-spec cell indices
- * (which is what `block.create`'s `continuousStripRuns` expects). Only
- * `mode: "show"` annotations qualify, matching `block.create`.
+ * (which is what `block.create`'s `continuousStripRuns` expects).
  */
 function continuousRunsForSegment(
   entry: PageBlockEntry,
@@ -1114,9 +1113,6 @@ function continuousRunsForSegment(
 ): Array<readonly [number, number]> {
   const runs: Array<readonly [number, number]> = [];
   for (const a of entry.spec.annotations ?? []) {
-    if (a.mode !== "show") {
-      continue;
-    }
     const from = Math.max(a.cellRange[0], seg.cellFrom);
     const to = Math.min(a.cellRange[1], seg.cellTo);
     if (to > from) {

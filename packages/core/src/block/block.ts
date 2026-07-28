@@ -68,18 +68,26 @@ export interface BlockCreateOptions {
    */
   annotationThickness?: number;
   /**
-   * When `true`, a `mode: "show"` annotation covering two or more cells
-   * is rendered as one continuous furigana strip: the cell-slot dividers
-   * interior to its `cellRange` are dropped (the run keeps its outer
-   * frame) and the reading is laid out evenly across the whole run
-   * instead of per sub-strip. Slots outside any such annotation are
-   * unaffected. Defaults to `false` (every cell-slot draws its own
-   * complete frame and holds its own share of the reading).
+   * When `true`, an annotation covering two or more cells is rendered as
+   * one continuous furigana strip: the cell-slot dividers interior to its
+   * `cellRange` are dropped (the run keeps its outer frame) and the strip
+   * becomes a single sub-strip spanning the run. Slots outside any such
+   * annotation are unaffected. Defaults to `false` (every cell-slot draws
+   * its own complete frame and owns its share of the strip).
    *
-   * `mode: "write"` annotations keep their per-cell sub-strips either
-   * way: {@link createFreeCell} normalizes each character's strokes
-   * inside the surface it was drawn on, so the sub-strip boundaries are
-   * what tell the writer where one character ends and the next begins.
+   * For `mode: "show"` the reading is then spaced evenly across the whole
+   * run instead of per cell, which matters for a reading that doesn't
+   * divide evenly (大人 → おとな over 2 cells lands 2 + 1 otherwise).
+   *
+   * For `mode: "write"` the run becomes a single {@link createFreeCell}
+   * surface instead of one per cell. The writer gets the whole strip to
+   * lay the reading out in, which a reading with more characters than
+   * cells (五月雨 → さみだれ) needs. Recognition is unaffected: character
+   * segmentation goes by stroke counts in drawing order, not by surface,
+   * and one surface means one coordinate space to normalize in — the same
+   * shape a multi-character free cell already uses for its own row. It
+   * also makes `showSegmentBoxes` usable on the strip, which is gated on
+   * a single surface.
    */
   continuousAnnotationStrip?: boolean;
   /**
@@ -536,7 +544,7 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
   // frame instead of one frame per cell-slot, so no divider is ruled
   // through the reading.
   const continuousRuns = continuousAnnotationStrip
-    ? annotations.filter((a) => a.mode === "show" && a.cellRange[1] > a.cellRange[0])
+    ? annotations.filter((a) => a.cellRange[1] > a.cellRange[0])
     : [];
   const continuousRunSet = new Set<FuriganaAnnotation>(continuousRuns);
   const continuousRunRanges: Array<readonly [number, number]> = [
@@ -1258,11 +1266,13 @@ function createBlock(parent: HTMLElement, opts: BlockCreateOptions): Block {
     // freely across them at character boundaries.
     const [annFrom, annTo] = annotation.cellRange;
     const cellCount = annTo - annFrom + 1;
-    // With `continuousAnnotationStrip` a multi-cell show annotation gets a
-    // single sub-strip covering its whole run, so `renderShowText` spaces
-    // the reading evenly over the run instead of packing each sub-strip's
-    // share into its own cell (which is what makes a non-uniform reading
-    // like 大人 → おとな land 2 + 1 with visibly uneven gaps).
+    // With `continuousAnnotationStrip` a multi-cell annotation gets a single
+    // sub-strip covering its whole run. In show mode that lets
+    // `renderShowText` space the reading evenly over the run instead of
+    // packing each sub-strip's share into its own cell (which is what makes
+    // 大人 → おとな land 2 + 1 with visibly uneven gaps); in write mode it
+    // hands freeCell one run-wide surface, so a reading with more characters
+    // than cells (五月雨 → さみだれ) is not squeezed cell by cell.
     const continuous = continuousRunSet.has(annotation);
     const stripCount = continuous ? 1 : cellCount;
     interface SubStrip {

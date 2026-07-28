@@ -740,10 +740,13 @@ export function blockRestore(
 
 /**
  * Whether this annotation replays as one continuous strip. It has to span
- * two or more cells and carry nothing but `show` characters: written ink
- * was normalized inside the per-cell surface it was captured on, so
- * re-laying it out across a merged run would move it away from where the
- * writer drew it. Malformed ranges return `false` and fall through to
+ * two or more cells with span-1 cells and carry at least one character.
+ * Written ink qualifies as well as a displayed reading: `normalize.ts`
+ * stores each character's points aspect-preserved and centred in the
+ * standard region, independent of the surface size they were captured on,
+ * so the run layout is a pure display choice on this side too. It does
+ * have to match what the live block used, the same way `cellSize` does.
+ * Malformed ranges return `false` and fall through to
  * {@link renderAnnotation}, which reports the specific error.
  */
 function isContinuousRun(
@@ -769,7 +772,7 @@ function isContinuousRun(
       return false;
     }
   }
-  return annotation.chars.length > 0 && annotation.chars.every((c) => c.mode === "show");
+  return annotation.chars.length > 0;
 }
 
 /**

@@ -135,6 +135,44 @@ describe("page.create — mount layout", () => {
     parent.remove();
   });
 
+  it("gives a write-mode annotation one run-wide surface on a page", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      columns: 2,
+      cellsPerColumn: 3,
+      cellSize: 80,
+      continuousAnnotationStrip: true,
+      // The write annotation preloads its candidate characters, so keep the
+      // freeCell on the stub loader instead of reaching for the CDN.
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      blocks: [
+        {
+          spec: {
+            cells: Array.from("学校").map((c) => ({
+              kind: "free" as const,
+              expected: c,
+              mode: "show" as const,
+              span: 1,
+            })),
+            annotations: [
+              { cellRange: [0, 1], expected: "がっこう", mode: "write" as const },
+            ],
+          },
+        },
+      ],
+    });
+    const overlays = Array.from(handle.el.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.width !== "");
+    expect(overlays.map((el) => el.style.height)).toEqual(["160px"]);
+    // The freeCell got a single surface, so the writer has the whole strip.
+    expect(overlays[0].querySelectorAll("svg")).toHaveLength(1);
+    expect(stripFrameHeights(handle.el)).toEqual(["160px"]);
+    handle.destroy();
+    parent.remove();
+  });
+
   it("merges a wrapped show annotation per column", async () => {
     const parent = document.createElement("div");
     document.body.appendChild(parent);

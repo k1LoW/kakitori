@@ -768,10 +768,10 @@ describe("block.restore", () => {
     expect(charSlotTops(wrapper)).toEqual([0, 50, 100]);
   });
 
-  it("keeps written ink partitioned per cell even with continuousAnnotationStrip", () => {
-    // The writer drew each character inside its own sub-strip surface, so
-    // merging the run would move the captured ink away from where it was
-    // drawn. Only `mode: "show"` annotations merge.
+  it("replays written ink as one continuous run too", () => {
+    // Written ink merges the same way a displayed reading does: each
+    // character's stored points are normalized independently of the surface
+    // they were captured on, so the run layout is a display choice here.
     const result: BlockResult = {
       complete: true,
       matched: true,
@@ -790,10 +790,10 @@ describe("block.restore", () => {
     };
     block.restore(host, result, { cellSize: 100, continuousAnnotationStrip: true });
 
-    expect(stripFrameBoxes(getBlockWrapper())).toEqual([
-      { top: "0px", height: "100px" },
-      { top: "100px", height: "100px" },
-    ]);
+    const wrapper = getBlockWrapper();
+    expect(stripFrameBoxes(wrapper)).toEqual([{ top: "0px", height: "200px" }]);
+    // 4 chars over 2 cells (200px): one 50px slot each, no divider between.
+    expect(charSlotTops(wrapper)).toEqual([0, 50, 100, 150]);
   });
 
   it("throws on annotation placement that doesn't match the writing mode", () => {

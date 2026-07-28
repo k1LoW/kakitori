@@ -129,22 +129,26 @@ describe("continuousAnnotationStrip", () => {
     ]);
   });
 
-  it("keeps write-mode annotations partitioned per cell", () => {
-    const { wrapper } = mount(
-      {
-        cells: [{ kind: "blank" }, { kind: "blank" }],
-        annotations: [{ cellRange: [0, 1], expected: "がっこう", mode: "write" }],
-      },
-      { continuousAnnotationStrip: true },
-    );
-    // One frame per cell-slot: freeCell normalizes each character inside
-    // the surface it was drawn on, so the writer needs the boundaries.
+  it("gives a write-mode annotation one run-wide surface", () => {
+    const writeSpec: BlockSpec = {
+      cells: [{ kind: "blank" }, { kind: "blank" }],
+      annotations: [{ cellRange: [0, 1], expected: "がっこう", mode: "write" }],
+    };
+    const { wrapper } = mount(writeSpec, { continuousAnnotationStrip: true });
     expect(stripFrames(wrapper, "vertical-rl")).toEqual([
+      { left: "80px", top: "0px", width: "32px", height: "160px" },
+    ]);
+    // One writable surface spanning the run, so a reading with more
+    // characters than cells is not squeezed cell by cell.
+    expect(svgCount(wrapper)).toBe(1);
+
+    // Default stays one surface per cell.
+    const off = mount(writeSpec);
+    expect(stripFrames(off.wrapper, "vertical-rl")).toEqual([
       { left: "80px", top: "0px", width: "32px", height: "80px" },
       { left: "80px", top: "80px", width: "32px", height: "80px" },
     ]);
-    // Two writable surfaces, one per cell.
-    expect(svgCount(wrapper)).toBe(2);
+    expect(svgCount(off.wrapper)).toBe(2);
   });
 
   it("merges along the cell axis for horizontal-tb too", () => {
