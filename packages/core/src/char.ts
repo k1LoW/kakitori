@@ -569,6 +569,12 @@ interface MountState {
   boundOnPointerUp: ((e: PointerEvent) => void) | null;
   boundOnPointerCancel: ((e: PointerEvent) => void) | null;
   boundOnClick: ((e: MouseEvent) => void) | null;
+  /**
+   * Element the current stroke's pointer capture was taken on, so
+   * pointerup / pointercancel release it on the same node. `null` between
+   * strokes or when the capture could not be taken.
+   */
+  capturedEl: Element | null;
   options: MountOptions;
   hw: HanziWriter;
   size: number;
@@ -709,6 +715,35 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
     };
   }
 
+  /**
+   * Element the stroke's pointer capture is taken on. It has to be
+   * hanzi-writer's own SVG (or a descendant of it), never the ancestor
+   * `layerEl`: capture retargets the pointer events *and* their
+   * compatibility mouse events to the capture element, and hanzi-writer
+   * registers `mousemove` / `touchmove` on the SVG node it created. Capturing
+   * on an ancestor therefore routes every move past that listener, so
+   * hanzi-writer sees the initial press and nothing after it — the user's
+   * stroke stays a single point, no ink appears, and no stroke can ever be
+   * accepted. Falls back to `layerEl` only if the SVG is gone (mid-teardown),
+   * where losing moves no longer matters.
+   */
+  function captureTargetEl(m: MountState): Element {
+    return m.hwSvg?.isConnected ? m.hwSvg : m.layerEl;
+  }
+
+  function releaseCapture(m: MountState, pointerId: number): void {
+    const el = m.capturedEl;
+    m.capturedEl = null;
+    if (!el) {
+      return;
+    }
+    try {
+      el.releasePointerCapture(pointerId);
+    } catch {
+      // pointer may already be released
+    }
+  }
+
   function startTimingTracking(m: MountState): void {
     stopTimingTracking(m);
     m.boundOnPointerDown = (e: PointerEvent) => {
@@ -717,11 +752,14 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       const now = performance.now();
       m.lastMoveTime = now;
       m.releaseTime = 0;
-      // Capture the pointer so moves that stray outside layerEl still land
-      // here. Combined with touch-action none this stops the browser from
-      // reinterpreting the drag as a scroll and firing pointercancel.
+      // Capture the pointer so moves that stray outside the writer still
+      // land here. Combined with touch-action none this stops the browser
+      // from reinterpreting the drag as a scroll and firing pointercancel.
+      m.capturedEl = null;
+      const captureEl = captureTargetEl(m);
       try {
-        m.layerEl.setPointerCapture(e.pointerId);
+        captureEl.setPointerCapture(e.pointerId);
+        m.capturedEl = captureEl;
       } catch {
         // synthetic events / inactive pointers cannot be captured
       }
@@ -761,11 +799,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       m.timedPoints.push(releasePoint);
       const pause = (m.releaseTime - m.lastMoveTime).toFixed(0);
       log?.(`pointerup    x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}  pause=${pause}ms`);
-      try {
-        m.layerEl.releasePointerCapture(e.pointerId);
-      } catch {
-        // pointer may already be released
-      }
+      releaseCapture(m, e.pointerId);
     };
     m.boundOnPointerCancel = (e: PointerEvent) => {
       if (!m.isPointerDown) {
@@ -776,11 +810,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       // inheriting a stuck isPointerDown, and drop the capture so the next
       // pointerdown can re-capture.
       m.isPointerDown = false;
-      try {
-        m.layerEl.releasePointerCapture(e.pointerId);
-      } catch {
-        // pointer may already be released
-      }
+      releaseCapture(m, e.pointerId);
       log?.(`pointercancel x=${e.clientX.toFixed(0)} y=${e.clientY.toFixed(0)}`);
     };
     // Listen on the Char-owned layerEl (not targetEl) so pointer events on
@@ -2564,6 +2594,7 @@ function createImpl(character: string, options: CharCreateOptions = {}): Char {
       boundOnPointerMove: null,
       boundOnPointerUp: null,
       boundOnPointerCancel: null,
+      capturedEl: null,
       boundOnClick: null,
       options: mountOpts,
       hw,
