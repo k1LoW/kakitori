@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.21.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.20.0...packages/core/v0.21.0) - 2026-07-29
+
+### New Features 🚀
+- feat(core): opt-in continuous annotation strip for multi-cell furigana by @k1LoW in https://github.com/k1LoW/kakitori/pull/141
+### Fix bug 🐛
+- fix(core): capture the stroke pointer on hanzi-writer's SVG, not the layer by @k1LoW in https://github.com/k1LoW/kakitori/pull/142
+
 ## [v0.20.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.19.0...packages/core/v0.20.0) - 2026-07-21
 
 ### Breaking Changes 🛠
