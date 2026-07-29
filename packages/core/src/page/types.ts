@@ -45,6 +45,15 @@ export interface PageCreateOptions {
    */
   showAnnotationStrip?: boolean;
   /**
+   * Forwarded to every per-segment `block.create()` call: see
+   * `BlockCreateOptions.continuousAnnotationStrip`. A `mode: "show"`
+   * annotation covering two or more cells renders as one continuous
+   * furigana strip. An annotation wrapped across a column boundary
+   * merges within each column, since the columns are physically apart.
+   * Defaults to `false`.
+   */
+  continuousAnnotationStrip?: boolean;
+  /**
    * Width (vertical-rl) / height (horizontal-tb) reserved per column for
    * annotations (ふりがな等). When omitted (and `showAnnotationStrip`
    * is left at the default), the page falls back to
@@ -271,6 +280,11 @@ export interface PageRestoreOptions {
    * `page.restore` at the same geometry.
    */
   showAnnotationStrip?: boolean;
+  /**
+   * Forwarded to every per-segment `block.restore()` call: see
+   * `BlockRestoreOptions.continuousAnnotationStrip`. Defaults to `false`.
+   */
+  continuousAnnotationStrip?: boolean;
   /**
    * Override the page-wide annotation strip thickness. When unset,
    * the thickness is `Math.max(largest block annotation thickness,

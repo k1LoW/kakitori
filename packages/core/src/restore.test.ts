@@ -447,6 +447,42 @@ describe("block.restore", () => {
     return wrapper;
   }
 
+  /** A 2-cell vertical-rl block whose annotation was displayed, not written. */
+  function showAnnotationResult(reading: ReadonlyArray<string>): BlockResult {
+    return {
+      complete: true,
+      matched: true,
+      cells: [
+        { kind: "blank", chars: [] },
+        { kind: "blank", chars: [] },
+      ],
+      annotations: [
+        {
+          cellRange: [0, 1],
+          chars: reading.map((c) => charResult(c, [], { mode: "show" })),
+        },
+      ],
+    };
+  }
+
+  /** Annotation strip frames (bordered, on the strip side of the block). */
+  function stripFrameBoxes(
+    wrapper: HTMLElement,
+  ): Array<{ top: string; height: string }> {
+    return Array.from(wrapper.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.border !== "" && el.style.left === "100px")
+      .map((el) => ({ top: el.style.top, height: el.style.height }));
+  }
+
+  /** Per-character slot offsets inside the annotation strip, in order. */
+  function charSlotTops(wrapper: HTMLElement): number[] {
+    return Array.from(wrapper.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.overflow === "hidden")
+      .map((el) => Number.parseFloat(el.style.top));
+  }
+
   it("places one cell per BlockResult.cells entry in declaration order (vertical-rl)", () => {
     const result: BlockResult = {
       complete: true,
@@ -699,6 +735,65 @@ describe("block.restore", () => {
     expect(wrapper.style.height).toBe("200px");
     // 2 cell SVGs + 4 annotation char SVGs = 6 restore SVGs total.
     expect(wrapper.querySelectorAll("svg.kakitori-restore-svg")).toHaveLength(6);
+  });
+
+  it("replays a show annotation as one continuous strip when asked", () => {
+    // A displayed reading (mode: "show") over two cells. おとな is 3 kana
+    // across 2 cells, so the per-cell split is the uneven one and the merged
+    // run has a visible difference to assert.
+    const result = showAnnotationResult(["お", "と", "な"]);
+    block.restore(host, result, { cellSize: 100, continuousAnnotationStrip: true });
+
+    const wrapper = getBlockWrapper();
+    expect(stripFrameBoxes(wrapper)).toEqual([
+      { top: "0px", height: "200px" },
+    ]);
+    // 3 chars over 2 cells (200px): slot = 200/3, so the gaps are even.
+    const tops = charSlotTops(wrapper);
+    expect(tops).toHaveLength(3);
+    tops.forEach((top, i) => expect(top).toBeCloseTo((i * 200) / 3, 4));
+  });
+
+  it("keeps a show annotation divided per cell by default", () => {
+    const result = showAnnotationResult(["お", "と", "な"]);
+    block.restore(host, result, { cellSize: 100 });
+
+    const wrapper = getBlockWrapper();
+    expect(stripFrameBoxes(wrapper)).toEqual([
+      { top: "0px", height: "100px" },
+      { top: "100px", height: "100px" },
+    ]);
+    // 2 chars in the first cell, 1 in the second: the third glyph sits
+    // centred in its own cell, so the gaps are uneven.
+    expect(charSlotTops(wrapper)).toEqual([0, 50, 100]);
+  });
+
+  it("replays written ink as one continuous run too", () => {
+    // Written ink merges the same way a displayed reading does: each
+    // character's stored points are normalized independently of the surface
+    // they were captured on, so the run layout is a display choice here.
+    const result: BlockResult = {
+      complete: true,
+      matched: true,
+      cells: [
+        { kind: "blank", chars: [] },
+        { kind: "blank", chars: [] },
+      ],
+      annotations: [
+        {
+          cellRange: [0, 1],
+          chars: ["が", "っ", "こ", "う"].map((c) =>
+            charResult(c, [strokeWithPoints(true, [[0, 0, 0], [10, 10, 50]])]),
+          ),
+        },
+      ],
+    };
+    block.restore(host, result, { cellSize: 100, continuousAnnotationStrip: true });
+
+    const wrapper = getBlockWrapper();
+    expect(stripFrameBoxes(wrapper)).toEqual([{ top: "0px", height: "200px" }]);
+    // 4 chars over 2 cells (200px): one 50px slot each, no divider between.
+    expect(charSlotTops(wrapper)).toEqual([0, 50, 100, 150]);
   });
 
   it("throws on annotation placement that doesn't match the writing mode", () => {

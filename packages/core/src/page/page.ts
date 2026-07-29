@@ -216,6 +216,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
   // `annotationStripThickness: 0`) to turn the strip off page-wide.
   const requiredStrip = blocksRequireStrip(opts.blocks, cellSize);
   const showAnnotationStrip = opts.showAnnotationStrip ?? true;
+  const continuousAnnotationStrip = opts.continuousAnnotationStrip === true;
   let annotationStripThickness: number;
   if (showAnnotationStrip === false) {
     annotationStripThickness = 0;
@@ -418,6 +419,12 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         // empty strip frame is reserved alongside each cell, even when
         // the segment's sub-spec carries no annotations.
         annotationThickness: annotationStripThickness,
+        // The sub-spec carries no annotations, so the block can't derive
+        // the continuous runs itself; hand it the ranges this segment
+        // covers, in sub-spec cell indices.
+        ...(continuousAnnotationStrip
+          ? { continuousStripRuns: continuousRunsForSegment(entry, seg) }
+          : {}),
         onCellComplete: (subIndex, kind, chars) => {
           // Translate sub-spec cell index back to original block cell index.
           const origIndex = seg.cellFrom + subIndex;
@@ -471,6 +478,7 @@ function createPage(parent: HTMLElement, opts: PageCreateOptions): Page {
         writingMode,
         state.blockIndex,
         annotationIndex,
+        continuousAnnotationStrip,
       );
       if (annotation.mode === "show") {
         // Split show-mode renders the expected text vertically (or
@@ -1094,6 +1102,26 @@ function segmentOrigin(seg: BlockSegment, geo: PageGeometry): { x: number; y: nu
   return { x, y };
 }
 
+/**
+ * Cell ranges inside one segment whose annotation strip slots share a
+ * single continuous frame, in the segment's own sub-spec cell indices
+ * (which is what `block.create`'s `continuousStripRuns` expects).
+ */
+function continuousRunsForSegment(
+  entry: PageBlockEntry,
+  seg: BlockSegment,
+): Array<readonly [number, number]> {
+  const runs: Array<readonly [number, number]> = [];
+  for (const a of entry.spec.annotations ?? []) {
+    const from = Math.max(a.cellRange[0], seg.cellFrom);
+    const to = Math.min(a.cellRange[1], seg.cellTo);
+    if (to > from) {
+      runs.push([from - seg.cellFrom, to - seg.cellFrom]);
+    }
+  }
+  return runs;
+}
+
 interface AnnotationSurface {
   el: HTMLDivElement;
   width: number;
@@ -1116,6 +1144,7 @@ function annotationSurfaces(
   writingMode: WritingMode,
   blockIndex: number,
   annotationIndex: number,
+  continuous: boolean,
 ): AnnotationSurface[] {
   if (annotationStripThickness <= 0) {
     const [from, to] = annotation.cellRange;
@@ -1150,9 +1179,24 @@ function annotationSurfaces(
     for (let i = seg.cellFrom; i < overlapFrom; i++) {
       slotOffsetWithinSegment += annotatedCellSpan(cells[i]);
     }
-    for (let cell = overlapFrom; cell <= overlapTo; cell++) {
+    // One surface per covered cell, or a single surface spanning the whole
+    // overlap for a continuous run. A run wrapped across a column boundary
+    // still yields one surface per column: the columns sit physically apart.
+    const chunks: Array<{ from: number; to: number }> =
+      continuous && overlapTo > overlapFrom
+        ? [{ from: overlapFrom, to: overlapTo }]
+        : Array.from({ length: overlapTo - overlapFrom + 1 }, (_, i) => ({
+            from: overlapFrom + i,
+            to: overlapFrom + i,
+          }));
+    for (const chunk of chunks) {
       const localOffset = slotOffsetWithinSegment;
-      slotOffsetWithinSegment += annotatedCellSpan(cells[cell]);
+      let chunkSlots = 0;
+      for (let cell = chunk.from; cell <= chunk.to; cell++) {
+        chunkSlots += annotatedCellSpan(cells[cell]);
+      }
+      slotOffsetWithinSegment += chunkSlots;
+      const chunkLength = chunkSlots * cellSize;
       const stripDiv = document.createElement("div");
       stripDiv.style.position = "absolute";
       let width: number;
@@ -1162,13 +1206,13 @@ function annotationSurfaces(
         stripDiv.style.left = `${segOrigin.x + cellSize}px`;
         stripDiv.style.top = `${segOrigin.y + localOffset * cellSize}px`;
         width = annotationStripThickness;
-        height = cellSize;
+        height = chunkLength;
       } else {
         // wrapper origin = strip-top; strip occupies the top of the
         // wrapper and cells sit underneath at +annotationStripThickness
         stripDiv.style.left = `${segOrigin.x + localOffset * cellSize}px`;
         stripDiv.style.top = `${segOrigin.y}px`;
-        width = cellSize;
+        width = chunkLength;
         height = annotationStripThickness;
       }
       stripDiv.style.width = `${width}px`;
@@ -1183,8 +1227,8 @@ function annotationSurfaces(
         el: stripDiv,
         width,
         height,
-        cellFrom: cell,
-        cellTo: cell,
+        cellFrom: chunk.from,
+        cellTo: chunk.to,
       });
     }
   }

@@ -68,6 +68,17 @@ function showSpec(chars: string, furigana?: string): PageBlockEntry["spec"] {
   };
 }
 
+/**
+ * Heights of the annotation strip frames each per-segment block paints, in
+ * DOM order. In vertical-rl a strip frame is the bordered box at the cell
+ * axis's far edge (`left === cellSize`).
+ */
+function stripFrameHeights(pageEl: HTMLElement): string[] {
+  return Array.from(pageEl.querySelectorAll("div"))
+    .filter((el) => el.style.borderTop !== "" && el.style.left === "80px")
+    .map((el) => el.style.height);
+}
+
 describe("page.create — mount layout", () => {
   it("places one slot per segment and one strip per annotation cell", async () => {
     // Two blocks: 学校 + がっこう (col 0 cells 0-1, fits) and 春夏秋冬 +
@@ -92,6 +103,94 @@ describe("page.create — mount layout", () => {
     const placedDivs = handle.el.querySelectorAll(":scope > div").length;
     expect(svgGrids).toBe(0);
     expect(placedDivs).toBe(3 + 6);
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("renders a multi-cell show annotation as one continuous strip", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      columns: 2,
+      cellsPerColumn: 3,
+      cellSize: 80,
+      continuousAnnotationStrip: true,
+      blocks: [{ spec: showSpec("学校", "がっこう") }],
+    });
+    // One overlay spanning both cells instead of one per cell.
+    const overlays = Array.from(handle.el.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.width !== "");
+    expect(overlays.map((el) => ({ top: el.style.top, height: el.style.height }))).toEqual([
+      { top: "0px", height: "160px" },
+    ]);
+    // The reading is spaced over the whole run (slot = 160/4).
+    expect(
+      Array.from(overlays[0].querySelectorAll("text")).map((t) => t.getAttribute("y")),
+    ).toEqual(["20", "60", "100", "140"]);
+    // The per-segment block draws one run-wide frame, so no divider is
+    // ruled between がっ and こう.
+    expect(stripFrameHeights(handle.el)).toEqual(["160px"]);
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("gives a write-mode annotation one run-wide surface on a page", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      columns: 2,
+      cellsPerColumn: 3,
+      cellSize: 80,
+      continuousAnnotationStrip: true,
+      // The write annotation preloads its candidate characters, so keep the
+      // freeCell on the stub loader instead of reaching for the CDN.
+      loaders: { charDataLoader: stubLoader, configLoader: null },
+      blocks: [
+        {
+          spec: {
+            cells: Array.from("学校").map((c) => ({
+              kind: "free" as const,
+              expected: c,
+              mode: "show" as const,
+              span: 1,
+            })),
+            annotations: [
+              { cellRange: [0, 1], expected: "がっこう", mode: "write" as const },
+            ],
+          },
+        },
+      ],
+    });
+    const overlays = Array.from(handle.el.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.width !== "");
+    expect(overlays.map((el) => el.style.height)).toEqual(["160px"]);
+    // The freeCell got a single surface, so the writer has the whole strip.
+    expect(overlays[0].querySelectorAll("svg")).toHaveLength(1);
+    expect(stripFrameHeights(handle.el)).toEqual(["160px"]);
+    handle.destroy();
+    parent.remove();
+  });
+
+  it("merges a wrapped show annotation per column", async () => {
+    const parent = document.createElement("div");
+    document.body.appendChild(parent);
+    const handle = page.create(parent, {
+      columns: 2,
+      cellsPerColumn: 3,
+      cellSize: 80,
+      continuousAnnotationStrip: true,
+      // 春夏秋冬 splits as col 0 cells 0-2 + col 1 cell 3.
+      blocks: [{ spec: showSpec("春夏秋冬", "はるなつあきふゆ") }],
+    });
+    const overlays = Array.from(handle.el.children)
+      .filter((el): el is HTMLElement => el instanceof HTMLElement)
+      .filter((el) => el.style.width !== "");
+    // The three cells in column 0 become one run; the single cell left in
+    // column 1 has nothing to merge with.
+    expect(overlays.map((el) => el.style.height)).toEqual(["240px", "80px"]);
+    expect(stripFrameHeights(handle.el)).toEqual(["240px", "80px"]);
     handle.destroy();
     parent.remove();
   });
