@@ -1,5 +1,21 @@
 # Changelog
 
+## [v0.10.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.10.0...packages/data/v0.10.1) - 2026-07-29
+
+### Breaking Changes 🛠
+- fix(core): loosen stationary tail tolerance to 2 units for tome detection by @k1LoW in https://github.com/k1LoW/kakitori/pull/133
+- fix(core): base tome pause on a release-point neighborhood radius by @k1LoW in https://github.com/k1LoW/kakitori/pull/139
+### New Features 🚀
+- feat(core): add endingNgColor to distinguish tome/hane/harai mistakes by @k1LoW in https://github.com/k1LoW/kakitori/pull/136
+- feat(core): opt-in continuous annotation strip for multi-cell furigana by @k1LoW in https://github.com/k1LoW/kakitori/pull/141
+### Fix bug 🐛
+- fix(core): route block undo to the cell being written, not the captured one by @k1LoW in https://github.com/k1LoW/kakitori/pull/127
+- fix(core): clamp direction dot product so confidence stays in [0, 1] by @k1LoW in https://github.com/k1LoW/kakitori/pull/131
+- fix(core): own the writer's touch gesture so scroll can't steal strokes by @k1LoW in https://github.com/k1LoW/kakitori/pull/129
+- fix(core): capture the stroke pointer on hanzi-writer's SVG, not the layer by @k1LoW in https://github.com/k1LoW/kakitori/pull/142
+### Other Changes
+- docs(skills): add delete + list ops to register-kakitori-questions by @k1LoW in https://github.com/k1LoW/kakitori/pull/137
+
 ## [v0.10.0](https://github.com/k1LoW/kakitori/compare/packages/data/v0.9.2...packages/data/v0.10.0) - 2026-07-19
 
 ### Other Changes
