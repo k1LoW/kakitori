@@ -1,0 +1,8 @@
+# A PR that touches no file of a package is excluded from that package's release notes.
+# Labeling by absence rather than presence keeps PRs spanning several packages in each of them.
+"skip:core":
+  - changed-files:
+      - all-globs-to-all-files: "!packages/core/**"
+"skip:data":
+  - changed-files:
+      - all-globs-to-all-files: "!packages/data/**"

@@ -4,3 +4,4 @@
 	versionFile = packages/core/package.json
 	tagPrefix = packages/core
 	changelogFile = packages/core/CHANGELOG.md
+	releaseYAMLPath = packages/core/.github/release.yml
