@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.21.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.21.0...packages/core/v0.21.1) - 2026-10-02
+
+### Dependency Updates ⬆️
+- chore(deps-dev): bump vitest from 4.1.0 to 4.1.11 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/144
+
 ## [v0.21.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.20.0...packages/core/v0.21.0) - 2026-07-29
 
 ### New Features 🚀
