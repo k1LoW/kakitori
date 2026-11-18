@@ -28,8 +28,8 @@ importers:
         specifier: 3.7.3
         version: 3.7.3
       happy-dom:
-        specifier: 20.9.0
-        version: 20.9.0
+        specifier: 21.0.4
+        version: 21.0.4
       tsdown:
         specifier: 0.12.5
         version: 0.12.5(typescript@5.8.3)
@@ -38,7 +38,7 @@ importers:
         version: 5.8.3
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@types/node@25.6.0)(happy-dom@20.9.0)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4))
+        version: 4.1.11(@types/node@25.6.0)(happy-dom@21.0.4)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4))
 
   packages/data:
     devDependencies:
@@ -56,7 +56,7 @@ importers:
         version: 5.8.3
       vitest:
         specifier: 4.1.11
-        version: 4.1.11(@types/node@25.6.0)(happy-dom@20.9.0)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4))
+        version: 4.1.11(@types/node@25.6.0)(happy-dom@21.0.4)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4))
       zod:
         specifier: 4.6.6
         version: 4.6.6
@@ -768,6 +768,10 @@ packages:
   birpc@2.9.0:
     resolution: {integrity: sha512-KrayHS5pBi69Xi9JmvoqrIgYGDkD6mcSe/i6YKi3w5kekCLzrX4+nawcXqrj2tIp50Kw/mT/s3p+GVK0A0sKxw==}
 
+  buffer-image-size@0.6.4:
+    resolution: {integrity: sha512-nEh+kZOPY1w+gcCMobZ6ETUp9WfibndnosbpwB1iJk/8Gt5ZF2bhS6+B6bPYz424KtwsR6Rflc3tCz1/ghX2dQ==}
+    engines: {node: '>=4.0'}
+
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
     engines: {node: '>=8'}
@@ -875,8 +879,8 @@ packages:
   hanzi-writer@3.7.3:
     resolution: {integrity: sha512-fdOFrb1cXWL/pV/oplJkcdziCvjJzhhf+qoIBm5IpVGxPBZEu4eLB6ZG5RJDbKXyNbNlyx8oIpa3XrcUBcSXpg==}
 
-  happy-dom@20.9.0:
-    resolution: {integrity: sha512-GZZ9mKe8r646NUAf/zemnGbjYh4Bt8/MqASJY+pSm5ZDtc3YQox+4gsLI7yi1hba6o+eCsGxpHn5+iEVn31/FQ==}
+  happy-dom@21.0.4:
+    resolution: {integrity: sha512-tFm+GaLBgo6o0awHnvHaNoraVo27qJ+2tZEtZ+cIa08hXbeitrxAJajLI05hsUy/2/YTKcUjQYzHe5mCcraLBw==}
     engines: {node: '>=20.0.0'}
 
   hast-util-to-html@9.0.5:
@@ -1227,8 +1231,8 @@ packages:
     engines: {node: '>=8'}
     hasBin: true
 
-  ws@8.20.1:
-    resolution: {integrity: sha512-It4dO0K5v//JtTXuPkfEOaI3uUN87iYPnqo/ZzqCoG3g8uhA66QUMs/SrM0YK7/NAu+r4LMh/9dq2A7k+rHs+w==}
+  ws@8.23.0:
+    resolution: {integrity: sha512-wCkmX8QMOrKjgO8HW2WyDbTSGeqkocxgDzS9iR79rEAexty6/2qzilx3Ag8Tqf9ykop3irLKle0MtVn5qjVnoQ==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -1689,6 +1693,10 @@ snapshots:
 
   birpc@2.9.0: {}
 
+  buffer-image-size@0.6.4:
+    dependencies:
+      '@types/node': 25.6.0
+
   cac@6.7.14: {}
 
   ccount@2.0.1: {}
@@ -1780,14 +1788,15 @@ snapshots:
 
   hanzi-writer@3.7.3: {}
 
-  happy-dom@20.9.0:
+  happy-dom@21.0.4:
     dependencies:
       '@types/node': 25.6.0
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
+      buffer-image-size: 0.6.4
       entities: 7.0.1
       whatwg-mimetype: 3.0.0
-      ws: 8.20.1
+      ws: 8.23.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -2146,7 +2155,7 @@ snapshots:
       jiti: 2.6.1
       tsx: 4.19.4
 
-  vitest@4.1.11(@types/node@25.6.0)(happy-dom@20.9.0)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4)):
+  vitest@4.1.11(@types/node@25.6.0)(happy-dom@21.0.4)(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4)):
     dependencies:
       '@vitest/expect': 4.1.11
       '@vitest/mocker': 4.1.11(vite@6.4.5(@types/node@25.6.0)(jiti@2.6.1)(tsx@4.19.4))
@@ -2170,7 +2179,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 25.6.0
-      happy-dom: 20.9.0
+      happy-dom: 21.0.4
     transitivePeerDependencies:
       - msw
 
@@ -2181,7 +2190,7 @@ snapshots:
       siginfo: 2.0.0
       stackback: 0.0.2
 
-  ws@8.20.1: {}
+  ws@8.23.0: {}
 
   zod@4.6.6: {}
 
