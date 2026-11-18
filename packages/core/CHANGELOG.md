@@ -1,5 +1,12 @@
 # Changelog
 
+## [v0.21.1](https://github.com/k1LoW/kakitori/compare/packages/core/v0.21.0...packages/core/v0.21.1) - 2026-11-18
+
+### Dependency Updates ⬆️
+- chore(deps-dev): bump vitest from 4.1.0 to 4.1.11 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/144
+- chore(deps-dev): bump zod from 3.24.4 to 4.6.6 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/148
+- chore(deps-dev): bump vite from 6.4.3 to 6.4.5 by @dependabot[bot] in https://github.com/k1LoW/kakitori/pull/149
+
 ## [v0.21.0](https://github.com/k1LoW/kakitori/compare/packages/core/v0.20.0...packages/core/v0.21.0) - 2026-07-29
 
 ### New Features 🚀
