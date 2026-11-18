@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.10.2](https://github.com/k1LoW/kakitori/compare/packages/data/v0.10.1...packages/data/v0.10.2) - 2026-11-18
+
+### Other Changes
+- chore(deps-dev): bump happy-dom from 20.9.0 to 21.0.4 in /packages/core by @k1LoW in https://github.com/k1LoW/kakitori/pull/151
+
 ## [v0.10.1](https://github.com/k1LoW/kakitori/compare/packages/data/v0.10.0...packages/data/v0.10.1) - 2026-11-18
 
 ### Breaking Changes 🛠
